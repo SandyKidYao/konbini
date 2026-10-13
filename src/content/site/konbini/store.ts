@@ -219,16 +219,32 @@ export default defineMod({
       im.receiveShadow = true;
       interior.add(im);
     }
-    // posters on the inside of the glass
-    ([
+    // posters on the inside of the glass; the last one is the seasonal campaign
+    const posterMats = ([
       [posterTex(['からあげ', '¥230'], '#e8642c', '揚げたて！'), -5.7],
       [posterTex(['おにぎり', '100円'], '#d7383b', 'セール中'), -3.5],
       [posterTex(['ATM', '24H'], '#2756b0', 'いつでも'), 5.3],
       [posterTex(['くじ', '開催中'], '#16936a', '1回700円'), 7.6],
-    ] as [THREE.Texture, number][]).forEach(([tex, x]) => {
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.82), ctx.glow.add(new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: '#fff', roughness: 0.6 }), 'interior', 0.25));
+    ] as [THREE.Texture, number][]).map(([tex, x]) => {
+      const pm = ctx.glow.add(new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: '#fff', roughness: 0.6 }), 'interior', 0.25);
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.82), pm);
       m.position.set(x, 1.95, -2.13);
       store.add(m);
+      return pm;
+    });
+    const CAMPAIGNS = {
+      kuji: posterMats[3].map!,
+      hanami: posterTex(['お花見', '弁当'], '#e0708e', '予約受付中'),
+      ice: posterTex(['アイス', '新発売'], '#2f9fd8', '冷たい！'),
+      tsukimi: posterTex(['月見', 'だんご'], '#5a4a8a', '9月限定'),
+      oden: posterTex(['おでん', '70円'], '#a8562a', '全品セール'),
+      cake: posterTex(['ケーキ', '予約'], '#c4282e', 'クリスマス'),
+      fukubukuro: posterTex(['福袋', '発売中'], '#d7383b', '新春'),
+    };
+    ctx.states.track<keyof typeof CAMPAIGNS>({
+      pick: ({ season, has }) => has('shogatsu') ? 'fukubukuro' : has('christmas') ? 'cake' : has('tsukimi') ? 'tsukimi'
+        : season === 'spring' ? 'hanami' : season === 'summer' ? 'ice' : season === 'winter' || season === 'autumn' ? 'oden' : 'kuji',
+      enter: (k) => { posterMats[3].map = posterMats[3].emissiveMap = CAMPAIGNS[k]; },
     });
 
     // rooftop

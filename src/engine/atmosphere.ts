@@ -7,6 +7,7 @@
 // "misty drizzle" come out naturally.
 import * as THREE from 'three';
 import { clamp01, lerp, smoothstep } from './kit/build';
+import { describeDay, sunTimes, type Day, type Season } from './calendar';
 
 export type WeatherKind = 'clear' | 'partly' | 'cloudy' | 'fog' | 'drizzle' | 'rain' | 'storm' | 'snow';
 export const WEATHER_KINDS: readonly WeatherKind[] = ['clear', 'partly', 'cloudy', 'fog', 'drizzle', 'rain', 'storm', 'snow'];
@@ -41,6 +42,16 @@ export const WEATHER_PRESETS: Record<WeatherKind, WeatherParams> = {
   storm: { cloud: 1, rain: 1, snow: 0, fog: 0, wind: 1, thunder: 1, temperature: 19 },
   snow: { cloud: 0.9, rain: 0, snow: 0.85, fog: 0.1, wind: 0.25, thunder: 0, temperature: -1 },
 };
+
+// The presets' temperatures are for a mild day; the season shifts them (a clear January day is cold).
+const SEASON_TEMPERATURE: Record<Season, number> = { spring: -5, summer: 8, autumn: -3, winter: -15 };
+function presetFor(kind: WeatherKind, season: Season): WeatherParams {
+  const p = { ...WEATHER_PRESETS[kind] };
+  p.temperature += SEASON_TEMPERATURE[season];
+  if (kind === 'snow') p.temperature = Math.min(p.temperature, 0);
+  if (p.rain > 0) p.temperature = Math.max(p.temperature, 3);   // rain, not sleet
+  return p;
+}
 
 export interface Drivers extends WeatherParams {
   /** clock hour 0–24 as displayed (local time of the place) */
@@ -211,6 +222,12 @@ export class Atmosphere {
   followRealTime = false;
   /** minutes east of UTC for the clock, or null for the device's own time zone */
   clockOffset: number | null = null;
+  /** today: the place's real date in live mode, otherwise this device's date — unless setDate() picked one */
+  day: Day;
+  /** a date chosen by hand (previews, ?date=); live mode clears it */
+  dateOverride: [number, number, number] | null = null;
+  /** the place is south of the equator (seasons flip) */
+  southern = false;
 
   private sunrise = 6;
   private sunset = 18;
@@ -221,6 +238,11 @@ export class Atmosphere {
   private channelFns = new Map<string, ChannelFn>();
   private strikeFns = new Set<(distance: number) => void>();
   private listeners = new Set<(a: Atmosphere) => void>();
+  private dayListeners = new Set<(d: Day) => void>();
+  /** the weather is a named preset (its temperature follows the season), not measurements */
+  private presetWeather = true;
+  /** sunrise / sunset came from a live place (otherwise they follow the date) */
+  private placeSolar = false;
   private tmp = emptyLook();
   private clockCheck = 0;
   private nextStrike = 4;
@@ -228,6 +250,9 @@ export class Atmosphere {
   private time = 0;
 
   constructor() {
+    this.day = this.computeDay();
+    [this.sunrise, this.sunset] = sunTimes(this.day.dayOfYear);
+    this.drivers.temperature = this.target.temperature = presetFor('clear', this.day.season).temperature;
     const d = lerp;
     this.defineChannel('sign', (x) => d(0.8, 0.75 + 0.5 * x.cloud, x.daylight));
     this.defineChannel('interior', (x) => d(1.5, 0.75 + 0.35 * x.cloud, x.daylight));
@@ -250,6 +275,8 @@ export class Atmosphere {
   /** Lightning: fn(distance 0–1) is called as each bolt strikes (for thunder, with a delay). */
   onStrike(fn: (distance: number) => void) { this.strikeFns.add(fn); return () => this.strikeFns.delete(fn); }
   onChange(fn: (a: Atmosphere) => void) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
+  /** Called whenever the date changes (midnight, a new place, or a date picked by hand). */
+  onDayChange(fn: (d: Day) => void) { this.dayListeners.add(fn); return () => this.dayListeners.delete(fn); }
 
   // ---------------------------------------------------------------- inputs
   setTime(hour: number, { instant = false, manual = true } = {}) {
@@ -267,31 +294,57 @@ export class Atmosphere {
 
   setFollowRealTime(on: boolean) {
     this.followRealTime = on;
-    if (on) this.syncClock(true);
+    if (on) { this.dateOverride = null; this.syncClock(true); }
+    this.refreshDay();
   }
+
+  /** Pick a date by hand (month 1–12). The year defaults to the current one. */
+  setDate(month: number, date: number, year = this.day.year) {
+    const t = new Date(Date.UTC(year, month - 1, date));   // normalises 2-30 → 3-2, 13-1 → next January
+    this.dateOverride = [t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate()];
+    this.refreshDay();
+  }
+  /** Move the date by whole days (previews). */
+  shiftDate(days: number) {
+    const d = this.day;
+    this.setDate(d.month, d.date + days, d.year);
+  }
+  /** Back to today. */
+  clearDate() { this.dateOverride = null; this.refreshDay(); }
+
+  /** Seasons flip south of the equator. */
+  setHemisphere(southern: boolean) { this.southern = southern; this.refreshDay(); }
 
   /** Use a place's time zone (minutes east of UTC) for the real-time clock; null = this device's zone. */
   setClockOffset(minutes: number | null) {
     this.clockOffset = minutes;
     if (this.followRealTime) this.syncClock(true);
+    this.refreshDay();
   }
 
   /** The place's real sunrise and sunset (local hours); the sky maps them onto its 6:00 / 18:00 look. */
   setSolarDay(sunrise: number, sunset: number) {
-    if (sunset - sunrise > 4 && sunset - sunrise < 20) { this.sunrise = sunrise; this.sunset = sunset; }
+    if (sunset - sunrise > 4 && sunset - sunrise < 20) { this.sunrise = sunrise; this.sunset = sunset; this.placeSolar = true; }
   }
-  resetSolarDay() { this.sunrise = 6; this.sunset = 18; }
+  /** Back to the shop's own sky: sunrise and sunset in Tokyo on the current date. */
+  resetSolarDay() {
+    this.placeSolar = false;
+    [this.sunrise, this.sunset] = sunTimes(this.day.dayOfYear);
+  }
+  get solarDay(): readonly [number, number] { return [this.sunrise, this.sunset]; }
 
   /** Pick a named weather. */
   setWeather(kind: WeatherKind) {
     this.weather = kind;
-    Object.assign(this.target, WEATHER_PRESETS[kind]);
+    this.presetWeather = true;
+    Object.assign(this.target, presetFor(kind, this.day.season));
   }
 
   /** Set exact weather parameters (live weather); `kind` is what the label shows. */
   setWeatherParams(p: Partial<WeatherParams>, kind: WeatherKind) {
     this.weather = kind;
-    Object.assign(this.target, WEATHER_PRESETS[kind], p);
+    this.presetWeather = false;
+    Object.assign(this.target, presetFor(kind, this.day.season), p);
   }
 
   /** Jump straight to the target weather and time (no easing) — for the first frame. */
@@ -307,6 +360,27 @@ export class Atmosphere {
   get isAnimating() {
     const D = this.drivers;
     return this.hourT < 1 || PARAM_KEYS.some((k) => k !== 'temperature' && Math.abs(D[k] - this.target[k]) > 0.01);
+  }
+
+  /** The real date here (device zone) or at the place (clock offset). */
+  private nowDate(): [number, number, number] {
+    const now = new Date();
+    if (this.clockOffset === null) return [now.getFullYear(), now.getMonth() + 1, now.getDate()];
+    const t = new Date(now.getTime() + this.clockOffset * 60000);
+    return [t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate()];
+  }
+  private computeDay() {
+    const [y, m, d] = (!this.followRealTime && this.dateOverride) || this.nowDate();
+    return describeDay(y, m, d, this.southern);
+  }
+  private refreshDay() {
+    const next = this.computeDay();
+    const cur = this.day;
+    if (cur && next.year === cur.year && next.dayOfYear === cur.dayOfYear && next.month === cur.month && next.season === cur.season) return;
+    this.day = next;
+    if (!this.placeSolar) [this.sunrise, this.sunset] = sunTimes(next.dayOfYear);
+    if (this.presetWeather) this.target.temperature = presetFor(this.weather, next.season).temperature;
+    for (const fn of this.dayListeners) fn(next);
   }
 
   private nowHour() {
@@ -334,9 +408,11 @@ export class Atmosphere {
   update(dt: number, reducedMotion = false) {
     const D = this.drivers;
     this.time += dt;
-    if (this.followRealTime && this.hourT >= 1) {
-      this.clockCheck -= dt;
-      if (this.clockCheck <= 0) { this.clockCheck = 1; this.syncClock(false); }
+    this.clockCheck -= dt;
+    if (this.clockCheck <= 0) {
+      this.clockCheck = 1;
+      if (this.followRealTime && this.hourT >= 1) this.syncClock(false);
+      this.refreshDay();   // midnight
     }
     if (this.hourT < 1) {
       this.hourT = Math.min(1, this.hourT + dt / (reducedMotion ? 0.5 : this.hourDuration));

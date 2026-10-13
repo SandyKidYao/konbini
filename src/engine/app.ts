@@ -13,6 +13,7 @@ import { Director } from './agents/director';
 import { Audio } from './audio';
 import { Interact } from './interact';
 import { GlowRegistry } from './glow';
+import { States } from './states';
 import { orderMods, loadExternalMod, type ModContext, type ModDefinition } from './mod';
 import { Fx } from '../fx';
 
@@ -41,6 +42,7 @@ export class App {
   readonly bus = new Bus();
   readonly audio = new Audio();
   readonly glow = new GlowRegistry();
+  readonly states: States;
   readonly interact: Interact;
   readonly fx: Fx;
   readonly prefabs: Prefabs;
@@ -62,10 +64,11 @@ export class App {
     this.interact = new Interact(this.stage.camera, this.stage.renderer.domElement, this.stage.world);
     this.fx = new Fx(this.stage, config.bounds);
     this.prefabs = new Prefabs(() => this.baseCtx);
+    this.states = new States(this.atmosphere, () => this.fx.skyChanged());
     this.director = new Director({
       nav: this.nav, surfaces: this.surfaces, interact: this.interact, parent: this.stage.world,
       time: () => this.elapsed, onWave: () => this.audio.play('tick'),
-    }, this.nav, this.services);
+    }, this.nav, this.services, () => this.atmosphere.day);
     this.baseCtx = this.contextFor('engine', this.stage.world);
     // lightning: a bolt on screen now, thunder later (further away = longer delay, quieter)
     this.atmosphere.onStrike((distance) => {
@@ -93,6 +96,12 @@ export class App {
         addPuddle: (x, z, r, sx, sz) => fx.wet.addPuddle(x, z, surfaces.walkAt(x, z), r, sx, sz, hashSeed(`${id}:${x}:${z}`) % 1000),
         addSheen: (rect, y) => fx.wet.addSheen(rect, y),
         addPass: (pass, order) => fx.post.addPass(pass, order),
+        skyChanged: () => fx.skyChanged(),
+      },
+      states: {
+        conditions: this.states.conditions,
+        track: (spec) => this.states.track(spec),
+        show: (o, when, opts) => this.states.show(o, when, opts),
       },
       interact: { clickable: (o, fn, label) => this.interact.clickable(o, fn, label) },
       onFrame: (fn) => {
@@ -145,6 +154,7 @@ export class App {
     this.atmosphere.update(dt, this.reducedMotion);
     const d = this.atmosphere.drivers;
     this.glow.update(this.atmosphere, dt);
+    this.states.update(dt, this.reducedMotion);
     this.fx.update(this.atmosphere, this.elapsed, dt);
     for (const f of this.frameFns) f(dt, this.elapsed, d);
     this.director.update(dt, this.elapsed, d);

@@ -5,10 +5,10 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import type { ModContext } from '../../engine/mod';
 import type { Walker } from '../../engine/agents/actor';
 import type { Drivers } from '../../engine/atmosphere';
-import { mat } from '../../engine/kit/build';
+import { mat, canvasTex } from '../../engine/kit/build';
 import { pickR } from '../../engine/kit/rng';
 import { BRAND } from '../common/palette';
-import type { Nobori } from './props';
+import type { Nobori, NoboriDesign } from './props';
 
 const SKIN = ['#f3d2b8', '#ebc4a3', '#d9a883', '#f7dfca', '#c98f6a'];
 const HAIR = ['#2b2522', '#3d2f27', '#5a4030', '#1f1f22', '#8a6a4a', '#c9c2b8', '#6b3f2a'];
@@ -29,8 +29,16 @@ export interface FigureOptions {
   umbrella?: boolean;
   /** a scarf for cold days */
   scarf?: boolean;
+  /** a winter coat in this colour (over the shirt, down to the thighs) */
+  coat?: string;
+  /** a yukata in this colour, for summer festival evenings (short steps, geta) */
+  yukata?: string;
+  hat?: FigureHat;
 }
-export type HeldProp = 'bag' | 'can' | 'camera' | `flag:${number}` | null;
+export type FigureHat = 'straw' | 'knit' | 'santa' | 'cap';
+export const COATS = ['#3a4558', '#6b5a4a', '#2b2b2e', '#8a3a36', '#c9b48a', '#4a6a5a', '#e8e2d6'];
+export const YUKATA = ['#2c3d66', '#f3eee2', '#e9a0b8', '#3a7a5a', '#a684cf', '#1f2a3a'];
+export type HeldProp = 'bag' | 'can' | 'camera' | `flag:${NoboriDesign}` | null;
 
 const geo = {
   thigh: new THREE.CylinderGeometry(0.08, 0.07, 0.42, 10).translate(0, -0.21, 0),
@@ -43,6 +51,8 @@ const geo = {
   hair: new THREE.SphereGeometry(0.135, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.56),
   longHair: new RoundedBoxGeometry(0.25, 0.32, 0.1, 2, 0.04),
   skirt: new THREE.CylinderGeometry(0.2, 0.3, 0.46, 16),
+  robe: new THREE.CylinderGeometry(0.2, 0.24, 0.8, 16),
+  coat: new RoundedBoxGeometry(0.48, 0.9, 0.31, 3, 0.1),
 };
 const cache = new Map<string, THREE.MeshStandardMaterial>();
 const M = (c: string, o: THREE.MeshStandardMaterialParameters = {}) => {
@@ -57,6 +67,53 @@ const mesh = (g: THREE.BufferGeometry, m: THREE.Material, parent: THREE.Object3D
   parent.add(o);
   return o;
 };
+
+// yukata cloth: a plain ground with small flowers scattered over it
+const yukataCache = new Map<string, THREE.MeshStandardMaterial>();
+function yukataMat(color: string) {
+  if (!yukataCache.has(color)) {
+    const light = new THREE.Color(color).getHSL({ h: 0, s: 0, l: 0 }).l > 0.6;
+    const tex = canvasTex(64, 64, (g, w, h) => {
+      g.fillStyle = color; g.fillRect(0, 0, w, h);
+      const ink = light ? ['#2c3d66', '#c4474e'] : ['#f3eee2', '#f2b8c8'];
+      for (const [x, y, r, i] of [[12, 14, 6, 0], [44, 30, 7, 1], [22, 50, 5, 0], [54, 58, 4, 1], [36, 6, 4, 1]]) {
+        g.fillStyle = ink[i];
+        for (let k = 0; k < 5; k++) { const a = (k / 5) * Math.PI * 2; g.beginPath(); g.arc(x + Math.cos(a) * r * 0.55, y + Math.sin(a) * r * 0.55, r * 0.45, 0, 7); g.fill(); }
+      }
+    }, true);
+    tex.repeat.set(2, 2);
+    yukataCache.set(color, mat('#ffffff', { map: tex, roughness: 0.8 }));
+  }
+  return yukataCache.get(color)!;
+}
+
+function makeHat(kind: FigureHat) {
+  const g = new THREE.Group();
+  if (kind === 'straw') {
+    const straw = M('#e6cf8e');
+    mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.015, 20), straw, g, 0, 0, 0);
+    mesh(new THREE.CylinderGeometry(0.12, 0.135, 0.1, 18), straw, g, 0, 0.05, 0);
+    mesh(new THREE.CylinderGeometry(0.137, 0.137, 0.025, 18), M('#3a4558'), g, 0, 0.02, 0);
+  } else if (kind === 'cap') {
+    const c = M(pickR(['#2c3d66', '#c4474e', '#f3f1ea', '#3a7a5a']));
+    mesh(new THREE.SphereGeometry(0.14, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.5), c, g, 0, -0.02, 0);
+    const bill = mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.015, 16, 1, false, -Math.PI / 2, Math.PI), c, g, 0, -0.01, 0.1);
+    bill.scale.z = 0.9;
+  } else if (kind === 'knit') {
+    const c = M(pickR(['#c4474e', '#e9b949', '#3a7a5a', '#e8e2d6', '#5a6e8a']));
+    mesh(new THREE.SphereGeometry(0.145, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.5), c, g, 0, -0.03, 0);
+    mesh(new THREE.TorusGeometry(0.135, 0.025, 6, 18), c, g, 0, -0.02, 0).rotation.x = Math.PI / 2;
+    mesh(new THREE.SphereGeometry(0.045, 10, 8), M('#f6f3ec'), g, 0, 0.13, 0);
+  } else {
+    // santa
+    const red = M('#c4282e'), white = M('#f6f3ec');
+    mesh(new THREE.TorusGeometry(0.13, 0.035, 8, 18), white, g, 0, -0.01, 0).rotation.x = Math.PI / 2;
+    const cone = mesh(new THREE.ConeGeometry(0.13, 0.3, 14), red, g, 0.03, 0.13, -0.02);
+    cone.rotation.z = -0.35;
+    mesh(new THREE.SphereGeometry(0.04, 10, 8), white, g, 0.12, 0.26, -0.02);
+  }
+  return g;
+}
 
 function makeBag() {
   const g = new THREE.Group();
@@ -104,6 +161,9 @@ export class Figure implements Walker {
   private propName: HeldProp = null;
   private umbrella: THREE.Group | null = null;
   private umbrellaOn = 0;
+  private hat: THREE.Group | null = null;
+  /** step length; short steps in a yukata and geta */
+  private stride = 1;
 
   constructor(private ctx: ModContext, o: FigureOptions = {}) {
     this.kind = o.kind ?? 'normal';
@@ -113,13 +173,17 @@ export class Figure implements Walker {
     const skin = M(o.skin ?? pickR(SKIN));
     let shirtC = o.shirt ?? pickR(SHIRTS), pantsC = o.pants ?? pickR(PANTS);
     if (this.kind === 'staff') { shirtC = '#f4f6f8'; pantsC = '#2f3540'; }
-    const shirt = M(shirtC), pants = M(pantsC), hair = M(o.hair ?? pickR(HAIR)), shoe = M(o.shoes ?? pickR(SHOES));
+    const yukata = o.yukata ? yukataMat(o.yukata) : null;
+    const shirt = yukata ?? M(shirtC), pants = yukata ?? M(pantsC), hair = M(o.hair ?? pickR(HAIR));
+    const shoe = yukata ? M('#9a7350') : M(o.shoes ?? pickR(SHOES));
+    const sleeve = yukata ?? (o.coat ? M(o.coat) : o.shortSleeve ? skin : shirt);
+    if (yukata) this.stride = 0.55;
 
     this.legs = [-1, 1].map((s) => {
       const hip = new THREE.Group(); hip.position.set(s * 0.1, 0.86, 0); root.add(hip);
       mesh(geo.thigh, pants, hip);
       const knee = new THREE.Group(); knee.position.y = -0.42; hip.add(knee);
-      mesh(geo.shin, skirt ? skin : pants, knee);
+      mesh(geo.shin, skirt && !yukata ? skin : pants, knee);
       mesh(geo.shoe, shoe, knee, 0, -0.43, 0.04);
       return { hip, knee };
     });
@@ -127,10 +191,14 @@ export class Figure implements Walker {
     upper.position.y = 0.86;
     root.add(upper);
     mesh(geo.torso, shirt, upper, 0, 0.31, 0);
-    if (skirt) mesh(geo.skirt, M(skirt), upper, 0, -0.1, 0);
+    if (yukata) {
+      mesh(geo.robe, yukata, upper, 0, -0.38, 0);
+      mesh(new THREE.BoxGeometry(0.46, 0.13, 0.29), M(pickR(['#e9b949', '#c4474e', '#f08a4b', '#f3eee2'])), upper, 0, 0.1, 0);
+    } else if (skirt) mesh(geo.skirt, M(skirt), upper, 0, -0.1, 0);
+    if (o.coat && !yukata) mesh(geo.coat, M(o.coat, { roughness: 0.85 }), upper, 0, 0.17, 0);
     this.arms = [-1, 1].map((s) => {
       const sh = new THREE.Group(); sh.position.set(s * 0.275, 0.56, 0); upper.add(sh);
-      mesh(geo.arm, o.shortSleeve ? skin : shirt, sh);
+      mesh(geo.arm, sleeve, sh);
       mesh(geo.hand, skin, sh, 0, -0.62, 0);
       const hold = new THREE.Group(); hold.position.y = -0.64; sh.add(hold);
       return { sh, hold };
@@ -156,7 +224,15 @@ export class Figure implements Walker {
       mesh(new RoundedBoxGeometry(0.08, 0.22, 0.04, 2, 0.015), sc, upper, -0.08, 0.5, 0.14);
     }
     if (o.umbrella) this.giveUmbrella();
+    if (o.hat) this.setHat(o.hat);
     root.scale.setScalar(0.001);
+  }
+
+  /** Put a hat on (or take it off with null). */
+  setHat(kind: FigureHat | null) {
+    this.hat?.parent?.remove(this.hat);
+    this.hat = kind ? makeHat(kind) : null;
+    if (this.hat) { this.hat.position.set(0, 0.86, -0.01); this.upper.add(this.hat); }
   }
 
   /** What's in the right hand. Flags are carried upright beside the body. */
@@ -167,7 +243,7 @@ export class Figure implements Walker {
     this.propName = name;
     if (!name) return;
     if (name.startsWith('flag:')) {
-      const f = this.ctx.prefabs.create('nobori', { design: Number(name.slice(5)) });
+      const f = this.ctx.prefabs.create('nobori', { design: name.slice(5) as NoboriDesign });
       f.root.position.set(-0.36, 0.22, 0.12);
       f.root.scale.setScalar(0.92);
       this.root.add(f.root);
@@ -202,8 +278,8 @@ export class Figure implements Walker {
     const T = { hipL: 0, hipR: 0, kneeL: 0, kneeR: 0, armR: 0.04, armL: 0.04, armRz: -0.06, armLz: 0.06, waist: 0, head: 0 };
     let bob = 0;
     if (this.moving) {
-      this.phase += dt * this.speed * 5.6;
-      const sw = Math.sin(this.phase);
+      this.phase += (dt * this.speed * 5.6) / Math.sqrt(this.stride);
+      const sw = Math.sin(this.phase) * this.stride;
       T.hipL = -sw * 0.5; T.hipR = sw * 0.5;
       T.kneeL = Math.max(0, sw) * 0.55; T.kneeR = Math.max(0, -sw) * 0.55;
       T.armL = sw * 0.42; T.armR = -sw * 0.42;

@@ -31,6 +31,27 @@ const SCENES = [
   { name: 'live-file', q: 'live=1', file: true, wait: 15000 },
   // every outside request fails: the status line should say so, the scene should still run
   { name: 'live-offline', q: 'live=1&place=35.68,139.69,東京', offline: true, wait: 4000 },
+  // seasons and festivals (the close-ups look at the shop door, where the decorations go)
+  { name: 'spring-bloom', q: 'weather=clear&time=1100&date=2026-04-03' },
+  { name: 'summer-festival', q: 'weather=clear&time=1930&date=2026-08-08&warp=40' },
+  { name: 'autumn-leaves', q: 'weather=partly&time=1500&date=2026-11-12' },
+  { name: 'winter-bare', q: 'weather=clear&time=1200&date=2026-01-21&warp=30' },
+  { name: 'newyear-door', q: 'weather=clear&time=1000&date=2027-01-02&cam=10,5,12,1,0.8,-1.5' },
+  { name: 'tanabata-door', q: 'weather=clear&time=1800&date=2026-07-05&cam=10,5,12,1,0.8,-1.5' },
+  { name: 'halloween-door', q: 'weather=clear&time=2000&date=2026-10-25&cam=10,5,12,1,0.8,-1.5' },
+  { name: 'xmas-door', q: 'weather=snow&time=1900&date=2026-12-22&cam=10,5,12,1,0.8,-1.5&warp=20' },
+  { name: 'festival-street', q: 'weather=clear&time=1940&date=2026-08-08&warp=90&cam=-2,4,19,-2,0.9,9' },
+  { name: 'winter-street', q: 'weather=cloudy&time=0800&date=2027-01-20&warp=90&cam=-2,4,19,-2,0.9,9' },
+  // a line-up of figures in every outfit, on the sidewalk in front of the shop
+  { name: 'outfits', q: 'weather=clear&time=1100&cam=-1,2.6,13.5,-1,1,8.8', setup: `
+    const outfits = [{ yukata: '#2c3d66' }, { yukata: '#e9a0b8' }, { coat: '#c9b48a', scarf: true, hat: 'knit' }, { coat: '#3a4558' },
+      { hat: 'straw', shortSleeve: true }, { hat: 'cap', shortSleeve: true }, { kind: 'staff', hat: 'santa' }, { kind: 'tourist' }];
+    outfits.forEach((o, i) => {
+      const f = konbini.prefabs.create('figure', o);
+      f.root.position.set(-5.2 + i * 1.2, 0.15, 8.6);
+      f.root.scale.setScalar(1);
+      konbini.stage.world.add(f.root);
+    });` },
   { name: 'narrow', q: 'weather=partly&time=0900', viewport: { width: 390, height: 844 } },
 ];
 
@@ -75,6 +96,7 @@ for (const s of scenes) {
     const url = s.file ? `file://${root}dist/index.html` : base;
     await page.goto(`${url}?${s.q}`, { waitUntil: 'commit' });
     await page.waitForSelector('#veil.done', { timeout: 180000 });
+    if (s.setup) await page.evaluate(s.setup);
     await page.waitForTimeout(s.wait ?? 2500);
     await page.screenshot({ path: `${out}/${s.name}.png` });
     const label = await page.evaluate(() => document.querySelector('.label dl').innerText.replace(/\s*\n\s*/g, ' ')

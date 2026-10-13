@@ -3,7 +3,7 @@
 import { defineMod } from '../../engine/mod';
 import { R, pickR } from '../../engine/kit/rng';
 import type { ShopService, BackyardService, BannerService } from '../site/konbini/api';
-import { citizen, clerk, streetEnds, type ClerkService } from './people';
+import { citizen, clerk, streetEnds, rushHour, staffDress, type ClerkService } from './people';
 
 const PI = Math.PI;
 
@@ -16,6 +16,8 @@ export const clerkMod = defineMod({
     const shop = ctx.services.get<ShopService>('shop');
     if (!shop) return;
     const fig = ctx.prefabs.create('figure', { kind: 'staff', longHair: true });
+    // the clerk stays all day, so the Santa hat comes and goes with the date
+    ctx.states.track({ pick: (c) => staffDress(c).hat ?? null, enter: (hat) => fig.setHat(hat) });
     const a = ctx.director.spawn(fig, { at: shop.nodes.clerk, label: '店员', tags: ['resident'] });
     a.then(ctx.steps.until(() => false));
     ctx.services.provide<ClerkService>('shop.clerk', { bow: () => fig.play('bow', 1.4) });
@@ -34,7 +36,7 @@ export const customerMod = defineMod({
       needs: { services: ['shop'] },
       weight: ({ drivers: d, actors }) => {
         const inside = actors.filter((a) => a.tags.has('customer')).length;
-        return inside > 4 ? 0 : (0.75 + 0.25 * d.daylight) * (1 - 0.35 * d.thunder);
+        return inside > 4 ? 0 : (0.75 + 0.25 * d.daylight) * (1 - 0.35 * d.thunder) * (rushHour(ctx.states.conditions) ? 1.3 : 1);
       },
       run({ drivers: d, board }) {
         const shop = ctx.services.require<ShopService>('shop');
@@ -82,7 +84,7 @@ export const staffBreakMod = defineMod({
         const yard = ctx.services.require<BackyardService>('shop.backyard');
         board.staffBusy = true;
         yard.openStaffDoor(3);
-        const fig = ctx.prefabs.create('figure', { kind: 'staff', scarf: d.temperature < 5 });
+        const fig = ctx.prefabs.create('figure', { kind: 'staff', scarf: d.temperature < 5, ...staffDress(ctx.states.conditions) });
         const a = ctx.director.spawn(fig, { at: yard.nodes.door, label: '店员' });
         if (d.rain > 0.5 || d.snow > 0.4 || d.thunder > 0.3) {
           // bad weather: a quick drink under the door canopy
@@ -128,16 +130,16 @@ export const bannersMod = defineMod({
 
     function carry(out: boolean) {
       board.staffBusy = true;
-      const fig = ctx.prefabs.create('figure', { kind: 'staff' });
+      const fig = ctx.prefabs.create('figure', { kind: 'staff', ...staffDress(ctx.states.conditions) });
       const a = ctx.director.spawn(fig, { at: shop!.nodes.backroom, label: '店员' });
       for (let i = 0; i < banners!.count; i++) {
         if (banners!.isOut(i) === out) continue;
         const slot = banners!.slot(i);
-        if (out) a.then(S.run(() => fig.hold(`flag:${i}`)));
+        if (out) a.then(S.run(() => fig.hold(`flag:${banners!.design(i)}`)));
         a.then(
           S.go(banners!.standNode(i)), S.face([slot.x, slot.z]),
           S.pose('place', 1.3),
-          S.run(() => { banners!.set(i, out); fig.hold(out ? null : `flag:${i}`); }),
+          S.run(() => { banners!.set(i, out); fig.hold(out ? null : `flag:${banners!.design(i)}`); }),
           S.wait(0.3),
           S.go(shop!.nodes.doorIn),
           S.run(() => { if (!out) fig.hold(null); }),

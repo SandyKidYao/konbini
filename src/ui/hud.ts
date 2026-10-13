@@ -1,6 +1,7 @@
 // DOM controls: weather keys, time-of-day slider, live mode, turntable, sound, mods list, shortcuts.
 import type { App } from '../engine/app';
 import { formatHour, WEATHER_KINDS, WEATHER_LABEL, type WeatherKind } from '../engine/atmosphere';
+import { FESTIVAL_LABEL, SEASON_LABEL, formatDay, type Day } from '../engine/calendar';
 import type { LiveSync, LiveStatus } from '../engine/live';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -73,6 +74,33 @@ export function initHud(app: App, live: LiveSync) {
     lastWeather = '';
   });
 
+  // --- the track and the 清晨 / 傍晚 marks follow sunrise and sunset (they move with the date) ---
+  const track = document.querySelector<HTMLElement>('.track')!;
+  const [dawnMark, , duskMark] = document.querySelectorAll<HTMLButtonElement>('.marks button');
+  let lastSolar = '';
+  const syncSolar = () => {
+    const [rise, set] = atm.solarDay;
+    const key = `${rise.toFixed(2)} ${set.toFixed(2)}`;
+    if (key === lastSolar) return;
+    lastSolar = key;
+    const pct = (h: number) => `${(h / 24) * 100}%`;
+    track.style.setProperty('--rise', pct(rise));
+    track.style.setProperty('--set', pct(set));
+    dawnMark.dataset.hour = String(rise + 0.4); dawnMark.style.left = pct(rise + 0.4);
+    duskMark.dataset.hour = String(set - 0.3); duskMark.style.left = pct(set - 0.3);
+  };
+  syncSolar();
+
+  // --- date: follows the clock (or the live place); [ and ] step through days for previews ---
+  const labelDate = $('labelDate');
+  const showDay = (d: Day) => {
+    const tag = d.festivals.length ? FESTIVAL_LABEL[d.festivals[0]] : d.holiday ?? SEASON_LABEL[d.season];
+    labelDate.innerHTML = `${formatDay(d)}<span class="tag${d.festivals.length || d.holiday ? ' special' : ''}">${tag}</span>`;
+  };
+  showDay(atm.day);
+  atm.onDayChange(showDay);
+  const shiftDate = (days: number) => { takeControl(); atm.shiftDate(days); syncUrl(); };
+
   // --- turntable: pauses while you handle the model, resumes when you let go ---
   const spinBtn = $('spinBtn');
   let spinOn = !app.reducedMotion, resume = 0;
@@ -108,11 +136,14 @@ export function initHud(app: App, live: LiveSync) {
     else if (k === 'l') toggleLive();
     else if (k === 'r') spinBtn.click();
     else if (k === 'm') toggleSound();
+    else if (e.key === '[' || e.key === ']') shiftDate(e.key === '[' ? -1 : 1);
+    else if (e.key === '{' || e.key === '}') shiftDate(e.key === '{' ? -7 : 7);
   });
 
   // --- reflect state every frame (time animates, real time ticks, theme follows daylight) ---
   const labelTime = $('labelTime'), labelWeather = $('labelWeather');
   app.onFrameUI(() => {
+    syncSolar();
     const d = atm.drivers;
     const minute = Math.floor(d.hour * 60);
     if (minute !== lastMinute) {
@@ -136,11 +167,15 @@ export function initHud(app: App, live: LiveSync) {
 
   function syncUrl() {
     const q = new URLSearchParams(location.search);
-    if (live.active) { q.set('live', '1'); q.delete('weather'); q.delete('time'); }
+    q.delete('season');
+    if (live.active) { q.set('live', '1'); q.delete('weather'); q.delete('time'); q.delete('date'); }
     else {
       q.delete('live');
       q.set('weather', atm.weather);
       q.set('time', formatHour(atm.drivers.hour).replace(':', ''));
+      const o = atm.dateOverride;
+      if (o) q.set('date', `${o[0]}-${String(o[1]).padStart(2, '0')}-${String(o[2]).padStart(2, '0')}`);
+      else q.delete('date');
     }
     history.replaceState(null, '', `?${q}`);
   }

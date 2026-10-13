@@ -1,7 +1,23 @@
-// Where the のぼり旗 stand in front of the shop, and whether each is out. Staff events move them;
-// this mod only owns the slots and the banners standing in them.
+// Where the のぼり旗 stand in front of the shop, whether each is out, and what they advertise this season.
+// Staff events move them; this mod only owns the slots and the banners standing in them.
 import { defineMod } from '../../../engine/mod';
+import type { Conditions } from '../../../engine/states';
+import type { NoboriDesign } from '../../library/props';
 import { STORE, type BannerService } from './api';
+
+/** The line-up for today: seasonal food, with the occasional campaign taking the third slot. */
+function lineup({ season, has }: Conditions): NoboriDesign[] {
+  const base: Record<typeof season, NoboriDesign[]> = {
+    spring: ['karaage', 'sakura', 'ichigo'],
+    summer: ['karaage', 'hiyashi', 'kakigori'],
+    autumn: ['karaage', 'oden', 'yakiimo'],
+    winter: ['nikuman', 'oden', 'hotcoffee'],
+  };
+  const l = [...base[season]];
+  if (has('christmas')) l[2] = 'xmas';
+  if (has('setsubun')) l[2] = 'ehomaki';
+  return l;
+}
 
 const SLOTS = [
   { x: -2.4, z: 0.05, ry: 0.25 },
@@ -16,13 +32,18 @@ export default defineMod({
   site: 'konbini',
   requires: ['konbini.library', 'konbini.site.store'],
   setup(ctx) {
+    let designs = lineup(ctx.states.conditions);
     const flags = SLOTS.map((s, i) => {
-      const f = ctx.prefabs.create('nobori', { design: i });
+      const f = ctx.prefabs.create('nobori', { design: designs[i] });
       f.root.position.set(s.x, STORE.floor, s.z);
       f.root.rotation.y = s.ry;
       f.root.visible = false;
       ctx.root.add(f.root);
       return f;
+    });
+    ctx.states.track({
+      pick: (c) => lineup(c).join(' '),
+      enter: (key) => { designs = key.split(' ') as NoboriDesign[]; flags.forEach((f, i) => f.setDesign(designs[i])); },
     });
     ctx.onFrame((_dt, t, d) => { for (const f of flags) if (f.root.visible) f.update(t, d.wind + d.rain * 0.4 + d.thunder * 0.4); });
 
@@ -33,6 +54,7 @@ export default defineMod({
 
     ctx.services.provide<BannerService>('shop.banners', {
       count: SLOTS.length,
+      design: (i) => designs[i],
       isOut: (i) => flags[i].root.visible,
       set: (i, out) => { flags[i].root.visible = out; },
       standNode: (i) => ids[i],

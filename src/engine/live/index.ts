@@ -64,11 +64,13 @@ export class LiveSync {
     this.atm.setFollowRealTime(false);
     this.atm.setClockOffset(null);
     this.atm.resetSolarDay();
+    this.atm.setHemisphere(false);
     this.set({ state: 'off' });
   }
 
   private async refresh(place: Place, run: number) {
     if (run !== this.run) return;
+    this.atm.setHemisphere(place.lat < 0);
     this.set({ ...this.status, state: this.status.report ? 'live' : 'fetching', place, message: this.status.report ? undefined : '正在获取天气…' });
     try {
       const report = await this.provider.fetch(place);

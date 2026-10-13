@@ -1,12 +1,15 @@
 // Keeps the scene alive: owns every actor, and every few seconds picks an event to start,
 // weighted by the current time and weather. Events are plain definitions any mod can register.
 import type { Drivers } from '../atmosphere';
+import type { Day } from '../calendar';
 import type { NavGraph } from '../nav';
 import type { Services } from '../services';
 import { Actor, type ActorOptions, type AgentEnv, type Walker } from './actor';
 
 export interface EventEnv {
   drivers: Drivers;
+  /** today: season, weekday, holidays, festivals */
+  day: Day;
   /** scene time in seconds */
   t: number;
   /** shared scratchpad for events/directors (e.g. "staffBusy") */
@@ -40,7 +43,7 @@ export class Director {
   private running: Running[] = [];
   private nextSpawn = 1.2;
 
-  constructor(private env: AgentEnv, private nav: NavGraph, private services: Services) {}
+  constructor(private env: AgentEnv, private nav: NavGraph, private services: Services, private today: () => Day) {}
 
   define(def: EventDef) { this.events.set(def.id, def); }
   list() { return [...this.events.values()]; }
@@ -70,7 +73,7 @@ export class Director {
     if (actors.length) this.running.push({ def, actors });
   }
 
-  private envFor(d: Drivers, t: number): EventEnv { return { drivers: d, t, board: this.board, actors: this.actors }; }
+  private envFor(d: Drivers, t: number): EventEnv { return { drivers: d, day: this.today(), t, board: this.board, actors: this.actors }; }
 
   update(dt: number, t: number, d: Drivers) {
     this.nextSpawn -= dt;

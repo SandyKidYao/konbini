@@ -18,6 +18,8 @@ export interface BackyardService {
 
 export interface BannerService {
   readonly count: number;
+  /** what banner i advertises right now (it changes with the season) */
+  design(i: number): import('../../library/props').NoboriDesign;
   isOut(i: number): boolean;
   set(i: number, out: boolean): void;
   /** where staff stand to plant / pick up banner i */

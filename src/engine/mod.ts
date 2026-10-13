@@ -14,6 +14,7 @@ import type { Director } from './agents/director';
 import type { Audio } from './audio';
 import type { GlowRegistry } from './glow';
 import type * as Steps from './agents/actor';
+import type { Conditions, StateSpec, Tracked } from './states';
 
 /**
  * Load order. Library mods only register prefabs (nothing is built yet); world builds the block;
@@ -52,6 +53,17 @@ export interface FxApi {
   addPuddle(x: number, z: number, r: number, sx?: number, sz?: number): THREE.Mesh;
   addSheen(rect: Rect, y: number): THREE.Mesh;
   addPass(pass: Pass, order?: number): void;
+  /** Something that blocks the sky moved or appeared: re-check where snow can settle (cheap, batched). */
+  skyChanged(): void;
+}
+
+export interface StatesApi {
+  /** the current date, time and weather, as states see them */
+  readonly conditions: Conditions;
+  /** Follow a discrete state (see engine/states.ts): pick() decides, enter() / blend() switch. */
+  track<S>(spec: StateSpec<S>): Tracked<S>;
+  /** Pop an object in when `when` is true, out when it is false. */
+  show(object: THREE.Object3D, when: (c: Conditions) => boolean, o?: { duration?: number }): Tracked<boolean>;
 }
 
 export interface ModContext {
@@ -74,6 +86,8 @@ export interface ModContext {
   readonly audio: Audio;
   readonly glow: GlowRegistry;
   readonly fx: FxApi;
+  /** states that follow the date, time and weather (seasons, festivals, hot drinks in winter…) */
+  readonly states: StatesApi;
   readonly interact: { clickable(object: THREE.Object3D, onClick: () => void, label: string): () => void };
   /** per-frame callback; returns an unsubscribe function */
   onFrame(fn: (dt: number, t: number, d: Drivers) => void): () => void;

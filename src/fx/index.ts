@@ -76,8 +76,14 @@ export class Fx {
     ]);
   }
 
+  private skyDirty = false;
+  private finalized = false;
+  /** Re-bake the snow's sky map before the next frame (seasonal things came or went). */
+  skyChanged() { if (this.finalized) this.skyDirty = true; }
+
   /** Called once every mod has registered its surfaces. */
   finalize(surfaces: Surfaces) {
+    this.finalized = true;
     const pr = this.stage.renderer.getPixelRatio();
     this.rain = new Rain(this.stage.scene, surfaces, this.bounds, pr);
     this.snowfall = new Snowfall(this.stage.scene, surfaces, this.bounds, pr);
@@ -148,6 +154,7 @@ export class Fx {
   }
 
   render() {
+    if (this.skyDirty) { this.skyDirty = false; this.snowCover.bake(this.stage.scene, this.stage.world); }
     if (this.envDirty > 0 ? this.frame % 6 === 0 : this.frame % 45 === 0) this.captureEnv();
     if (this.envDirty > 0) this.envDirty--;
     this.post.render();

@@ -119,16 +119,17 @@ export function posterTex(lines: [string, string], bg: string, sub: string) {
   });
 }
 
-// `emissive` paints only the parts that glow (display window, buttons) on black
-export function vendTex(body: string, accent: string, emissive: boolean, seed: number) {
+// `emissive` paints only the parts that glow (display window, buttons) on black.
+// `hot`: the winter line-up — the lower rows switch to hot drinks with red price tags.
+export function vendTex(body: string, accent: string, emissive: boolean, seed: number, hot = false) {
   return canvasTex(256, 512, (g, w, h) => {
     const r = mulberry32(seed);
     const pk = <T>(a: readonly T[]) => a[Math.floor(r() * a.length)];
     g.fillStyle = emissive ? '#000' : body; g.fillRect(0, 0, w, h);
-    g.fillStyle = emissive ? '#222' : accent; g.fillRect(0, 0, w, 40);
+    g.fillStyle = emissive ? '#222' : hot ? '#d7383b' : accent; g.fillRect(0, 0, w, 40);
     if (!emissive) {
       g.fillStyle = '#fff'; g.font = `700 22px ${JP}`; g.textAlign = 'center'; g.textBaseline = 'middle';
-      g.fillText('つめた〜い', w / 2, 21);
+      g.fillText(hot ? 'あったか〜い' : 'つめた〜い', w / 2, 21);
     }
     g.fillStyle = emissive ? '#9fb2c6' : '#e6eef5'; g.fillRect(14, 48, w - 28, 276);
     for (let row = 0; row < 4; row++) {
@@ -138,7 +139,8 @@ export function vendTex(body: string, accent: string, emissive: boolean, seed: n
         g.fillStyle = pk(PROD_COLORS); g.fillRect(x, y, 22, 44);
         g.fillStyle = 'rgba(255,255,255,0.55)'; g.fillRect(x + 3, y + 4, 4, 36);
         g.fillStyle = '#c9c9c9'; g.fillRect(x + 6, y - 4, 10, 4);
-        g.fillStyle = emissive ? '#ff6a3c' : (r() < 0.25 ? '#2b62d9' : '#e04030');
+        const warm = hot && row >= 2;
+        g.fillStyle = emissive ? (warm ? '#ff6a3c' : '#5c9bff') : warm ? '#e04030' : '#2b62d9';
         g.fillRect(x + 3, y + 51, 16, 7);
       }
     }

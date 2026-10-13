@@ -68,6 +68,8 @@ button { font: inherit; color: inherit; }
 .label dt { color: var(--muted); }
 .label dd { margin: 0; font-variant-numeric: tabular-nums; display: flex; gap: 6px; align-items: baseline; }
 .label .live { font-size: 11px; padding: 0 6px; border-radius: 6px; background: rgba(20, 160, 90, 0.16); color: var(--green); }
+.label .tag { font-size: 11px; padding: 0 6px; border-radius: 6px; background: var(--well); color: var(--muted); white-space: nowrap; }
+.label .tag.special { background: rgba(255, 138, 30, 0.16); color: var(--orange); }
 .label .temp { color: var(--muted); }
 .label-status { margin: 10px 0 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
 
@@ -98,7 +100,9 @@ button { font: inherit; color: inherit; }
 .track { position: relative; height: 22px; }
 .track::before {
   content: ""; position: absolute; left: 0; right: 0; top: 8px; height: 6px; border-radius: 3px;
-  background: linear-gradient(90deg, #1a2340 0%, #26345c 20%, #f6cdb4 25%, #b9dcee 33%, #b9dcee 68%, #ffc38e 74%, #4c5280 80%, #1a2340 86%, #1a2340 100%);
+  /* --rise / --set: sunrise and sunset along the track (they move with the date and the place) */
+  background: linear-gradient(90deg, #1a2340 0%, #26345c calc(var(--rise, 25%) - 5%), #f6cdb4 var(--rise, 25%), #b9dcee calc(var(--rise, 25%) + 8%),
+    #b9dcee calc(var(--set, 75%) - 7%), #ffc38e calc(var(--set, 75%) - 1%), #4c5280 calc(var(--set, 75%) + 5%), #1a2340 calc(var(--set, 75%) + 11%), #1a2340 100%);
   box-shadow: inset 0 0 0 1px var(--line);
 }
 .track input { position: absolute; inset: 0; width: 100%; margin: 0; opacity: 0; cursor: grab; }

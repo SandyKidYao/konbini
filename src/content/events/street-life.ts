@@ -2,10 +2,11 @@
 // and a taxi that circles road A and stops for red lights.
 import * as THREE from 'three';
 import { defineMod, type SitePlot } from '../../engine/mod';
-import { R } from '../../engine/kit/rng';
+import { R, pickR } from '../../engine/kit/rng';
+import { YUKATA } from '../library/figure';
 import type { Actor } from '../../engine/agents/actor';
 import type { Signals } from '../world/furniture';
-import { citizen, twoEnds } from './people';
+import { citizen, twoEnds, rushHour, festivalEvening } from './people';
 
 const PI = Math.PI;
 
@@ -41,10 +42,12 @@ export const passersbyMod = defineMod({
       a.onDispose = () => { ctx.root.remove(dog.root, leash); leash.geometry.dispose(); };
     }
 
+    const C = ctx.states.conditions;
     ctx.director.define({
       id: 'passerby',
-      weight: ({ drivers: d }) => (0.5 + 0.8 * d.daylight) * (1 - 0.6 * d.thunder) * (1 - 0.3 * d.snow),
-      run({ drivers: d }) {
+      weight: ({ drivers: d, day }) => (0.5 + 0.8 * d.daylight) * (1 - 0.6 * d.thunder) * (1 - 0.3 * d.snow)
+        * (rushHour(C) ? 1.8 : day.dayOff ? 1.15 : 1) * (festivalEvening(C) ? 1.5 : 1),
+      run({ drivers: d, day }) {
         if (Math.random() < 0.3) {
           const far = ctx.nav.tagged('far');
           if (far.length >= 2) {
@@ -55,8 +58,23 @@ export const passersbyMod = defineMod({
         const [from, to] = twoEnds(ctx);
         const a = ctx.director.spawn(citizen(ctx, d), { at: from });
         a.then(S.go(to));
-        if (d.rain < 0.3 && d.snow < 0.5 && d.fog < 0.6 && d.daylight > 0.5 && Math.random() < 0.35) walkDog(a);
+        if (d.rain < 0.3 && d.snow < 0.5 && d.fog < 0.6 && d.daylight > 0.5 && !rushHour(C) && Math.random() < (day.dayOff ? 0.45 : 0.3)) walkDog(a);
         return a;
+      },
+    });
+
+    // summer festival evenings: pairs in yukata, strolling slowly side by side
+    ctx.director.define({
+      id: 'festival-stroll',
+      max: 2,
+      weight: () => (festivalEvening(C) ? 0.5 : 0),
+      run({ drivers: d }) {
+        const [from, to] = twoEnds(ctx);
+        const pair = [0, 1].map(() => ctx.director.spawn(citizen(ctx, d, { yukata: pickR(YUKATA), umbrella: false, hat: undefined }), { at: from, label: '夏祭りの人' }));
+        pair[1].speed = pair[0].speed = Math.min(pair[0].speed, 0.9);
+        pair[1].lane = -pair[0].lane;
+        for (const a of pair) a.then(S.go(to));
+        return pair;
       },
     });
   },
@@ -78,7 +96,9 @@ export const touristsMod = defineMod({
       id: 'tourists',
       max: 1,
       needs: { services: ['world.plot', 'shop'] },
-      weight: ({ drivers: d }) => (d.rain > 0.3 || d.snow > 0.5 || d.fog > 0.5 || d.thunder > 0.2 ? 0 : 0.45 * d.daylight * (1 - d.cloud * 0.4)),
+      // more on days off, and in the sakura and autumn-leaf seasons
+      weight: ({ drivers: d, day }) => (d.rain > 0.3 || d.snow > 0.5 || d.fog > 0.5 || d.thunder > 0.2 ? 0
+        : 0.45 * d.daylight * (1 - d.cloud * 0.4) * (day.dayOff ? 1.5 : 0.8) * (day.season === 'spring' || day.season === 'autumn' ? 1.3 : 1)),
       run() {
         const plot = ctx.services.require<SitePlot>('world.plot');
         const front = ctx.nav.node(plot.entrance)!;

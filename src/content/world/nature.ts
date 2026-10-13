@@ -1,8 +1,18 @@
 // Soft, living things: the sakura tree and its petals, and cotton clouds hovering over the model.
+// The tree follows the date: blossom in early spring, green through summer, red in autumn, bare in winter.
 import * as THREE from 'three';
 import { defineMod } from '../../engine/mod';
-import { mat, cyl, rod, V } from '../../engine/kit/build';
+import { mat, cyl, rod, V, lerp } from '../../engine/kit/build';
+import { between } from '../../engine/calendar';
 import { materials } from '../common/materials';
+
+type TreeState = 'bloom' | 'leaf' | 'autumn' | 'bare';
+const CANOPY: Record<TreeState, { colors: string[]; size: number; fall: number; fallColor: string; fallSize: number }> = {
+  bloom: { colors: ['#f8c8d6', '#fbdbe4', '#f3b4c7'], size: 1, fall: 1, fallColor: '#f9cfdb', fallSize: 1 },
+  leaf: { colors: ['#86b45e', '#9cc46c', '#6f9f50'], size: 0.96, fall: 0, fallColor: '#86b45e', fallSize: 1 },
+  autumn: { colors: ['#e2793a', '#cf513a', '#eaa443'], size: 0.86, fall: 0.45, fallColor: '#d9663a', fallSize: 1.7 },
+  bare: { colors: ['#e2793a', '#cf513a', '#eaa443'], size: 0, fall: 0, fallColor: '#d9663a', fallSize: 1.7 },
+};
 
 export default defineMod({
   id: 'konbini.world.nature',
@@ -12,6 +22,8 @@ export default defineMod({
   setup(ctx) {
     const { next: rand, range: rr, pick } = ctx.mod.random;
     const root = ctx.root;
+    const petalMat = mat('#f9cfdb', { side: THREE.DoubleSide, roughness: 0.8 });
+    const fall = { amount: 1, size: 1 };
 
     // sakura in the neighbour's front yard
     const SAKURA = V(-16.6, 0.08, 4.2);
@@ -22,7 +34,13 @@ export default defineMod({
       rod(g, V(0, 2.2, 0), V(1.1, 3.4, 0.4), 0.12, bark, 8);
       rod(g, V(0, 2.2, 0), V(-1.0, 3.3, -0.3), 0.12, bark, 8);
       rod(g, V(0, 2.3, 0), V(0.2, 3.7, -0.9), 0.1, bark, 8);
-      const blossom = ['#f8c8d6', '#fbdbe4', '#f3b4c7'].map((c) => mat(c, { roughness: 0.85 }));
+      // twigs: hidden in the canopy most of the year, they are the tree's whole shape in winter
+      for (const [a, b] of [[V(1.1, 3.4, 0.4), V(1.6, 4.2, 0.9)], [V(1.1, 3.4, 0.4), V(1.8, 3.7, -0.2)], [V(-1.0, 3.3, -0.3), V(-1.5, 4.1, 0.2)],
+        [V(-1.0, 3.3, -0.3), V(-1.6, 3.6, -0.9)], [V(0.2, 3.7, -0.9), V(0.6, 4.5, -1.3)], [V(0.2, 3.7, -0.9), V(-0.4, 4.4, -1.2)], [V(0, 2.6, 0), V(0.1, 4.6, 0.2)]] as const) {
+        rod(g, a, b, 0.045, bark, 6);
+      }
+      const blossom = CANOPY.bloom.colors.map((c) => mat(c, { roughness: 0.85 }));
+      const blobs: THREE.Mesh[] = [];
       for (let i = 0; i < 16; i++) {
         const m = new THREE.Mesh(new THREE.IcosahedronGeometry(rr(0.7, 1.25), 2), pick(blossom));
         const a = rand() * Math.PI * 2, d = rr(0, 1.7);
@@ -30,16 +48,37 @@ export default defineMod({
         m.scale.y = 0.8;
         m.castShadow = m.receiveShadow = true;
         g.add(m);
+        blobs.push(m);
       }
+      // the canopy changes with the season; a switch takes a few seconds to colour over
+      const ca = new THREE.Color(), cb = new THREE.Color();
+      ctx.states.track<TreeState>({
+        pick: ({ day }) => between(day.seasonDay, '3-22', '4-12') ? 'bloom' : between(day.seasonDay, '4-13', '9-30') ? 'leaf'
+          : between(day.seasonDay, '10-1', '11-30') ? 'autumn' : 'bare',
+        duration: 3,
+        blend: (from, to, t) => {
+          const A = CANOPY[from], B = CANOPY[to];
+          blossom.forEach((m, i) => m.color.copy(ca.set(A.colors[i])).lerp(cb.set(B.colors[i]), t));
+          const size = lerp(A.size, B.size, t);
+          blobs.forEach((b, i) => {
+            const k = Math.max(0.001, size * (1 - 0.15 * ((i * 7) % 5) / 4 * (1 - size)));
+            b.scale.set(k, k * 0.8, k);
+            b.visible = size > 0.01;
+          });
+          fall.amount = lerp(A.fall, B.fall, t);
+          fall.size = lerp(A.fallSize, B.fallSize, t);
+          petalMat.color.copy(ca.set(A.fallColor)).lerp(cb.set(B.fallColor), t);
+        },
+      });
       cyl(g, 0.7, 0.7, 0.2, materials(ctx).block, 0, 0, 0, 20);
       g.position.copy(SAKURA);
       root.add(g);
       ctx.surfaces.addRoof({ x0: SAKURA.x - 1.6, x1: SAKURA.x + 1.6, z0: SAKURA.z - 1.6, z1: SAKURA.z + 1.6 }, 3.2);
     }
 
-    // drifting petals — only on dry days
+    // drifting petals in spring, falling leaves in autumn — only on dry days
     const PETALS = 160;
-    const petals = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.08, 0.055), mat('#f9cfdb', { side: THREE.DoubleSide, roughness: 0.8 }), PETALS);
+    const petals = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.08, 0.055), petalMat, PETALS);
     petals.frustumCulled = false;
     petals.userData.skyIgnore = true;
     petals.userData.noSnow = true;
@@ -54,7 +93,7 @@ export default defineMod({
     P.forEach((p) => respawn(p, true));
     const dummy = new THREE.Object3D();
     ctx.onFrame((dt, _t, d) => {
-      const amount = (1 - d.rain) * (1 - d.snow) * (1 - d.fog * 0.5) * (0.4 + 0.6 * d.daylight);
+      const amount = fall.amount * (1 - d.rain) * (1 - d.snow) * (1 - d.fog * 0.5) * (0.4 + 0.6 * d.daylight);
       petals.visible = amount > 0.05;
       if (!petals.visible) return;
       for (let i = 0; i < PETALS; i++) {
@@ -68,7 +107,7 @@ export default defineMod({
         } else if (pt.life > 9) respawn(pt, false);
         dummy.position.copy(pt.p);
         dummy.rotation.copy(pt.r);
-        dummy.scale.setScalar(amount);
+        dummy.scale.setScalar(Math.min(1, amount) * fall.size);
         dummy.updateMatrix();
         petals.setMatrixAt(i, dummy.matrix);
       }

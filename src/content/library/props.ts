@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import type { ModContext } from '../../engine/mod';
 import { mat, box, cyl, rod, V, canvasTex, FONT_JP, drawVerticalText } from '../../engine/kit/build';
+import { between } from '../../engine/calendar';
 import { pickR, R } from '../../engine/kit/rng';
 import { PROD_COLORS } from '../common/palette';
 import { vendTex } from '../common/signage';
@@ -10,16 +11,27 @@ import { fanTex } from '../common/surfaces';
 import { materials } from '../common/materials';
 
 // ------------------------------------------------------------------ のぼり旗 (promo banner)
-const NOBORI_DESIGNS = [
-  { text: 'からあげ', bg: '#e8463c', fg: '#fff6d8', band: '#ffd23f' },
-  { text: '肉まん', bg: '#fbf8f0', fg: '#d7383b', band: '#d7383b' },
-  { text: 'ホットコーヒー', bg: '#6e4a35', fg: '#fff3dc', band: '#f2c14e' },
-];
-const clothTexCache = new Map<number, THREE.Texture>();
-function clothTex(i: number) {
-  if (!clothTexCache.has(i)) {
-    const { text, bg, fg, band } = NOBORI_DESIGNS[i % NOBORI_DESIGNS.length];
-    clothTexCache.set(i, canvasTex(96, 320, (g, w, h) => {
+/** What a banner can advertise. Sites pick a line-up by season (see konbini.site.banners). */
+export const NOBORI_DESIGNS = {
+  karaage: { text: 'からあげ', bg: '#e8463c', fg: '#fff6d8', band: '#ffd23f' },
+  nikuman: { text: '肉まん', bg: '#fbf8f0', fg: '#d7383b', band: '#d7383b' },
+  hotcoffee: { text: 'ホットコーヒー', bg: '#6e4a35', fg: '#fff3dc', band: '#f2c14e' },
+  icecoffee: { text: 'アイスコーヒー', bg: '#3b2a20', fg: '#e6f4ff', band: '#5bbfd6' },
+  oden: { text: 'おでん', bg: '#f4e3c0', fg: '#7a3b1e', band: '#7a3b1e' },
+  yakiimo: { text: '焼きいも', bg: '#6b3a6e', fg: '#fff3dc', band: '#f2c14e' },
+  sakura: { text: 'さくらフェア', bg: '#f7c6d4', fg: '#b2385e', band: '#ffffff' },
+  ichigo: { text: 'いちごスイーツ', bg: '#fff4f4', fg: '#d7383b', band: '#7cc47f' },
+  hiyashi: { text: '冷やし中華', bg: '#2f8fd8', fg: '#ffffff', band: '#ffd23f' },
+  kakigori: { text: 'かき氷', bg: '#ffffff', fg: '#2a6fd6', band: '#e04030' },
+  xmas: { text: 'クリスマスケーキ', bg: '#c4282e', fg: '#ffffff', band: '#16936a' },
+  ehomaki: { text: '恵方巻', bg: '#1f2a24', fg: '#ffd23f', band: '#d7383b' },
+} as const;
+export type NoboriDesign = keyof typeof NOBORI_DESIGNS;
+const clothTexCache = new Map<NoboriDesign, THREE.Texture>();
+function clothTex(key: NoboriDesign) {
+  if (!clothTexCache.has(key)) {
+    const { text, bg, fg, band } = NOBORI_DESIGNS[key] ?? NOBORI_DESIGNS.karaage;
+    clothTexCache.set(key, canvasTex(96, 320, (g, w, h) => {
       g.fillStyle = bg; g.fillRect(0, 0, w, h);
       g.fillStyle = band; g.fillRect(0, 0, w, 16); g.fillRect(0, h - 16, w, 16);
       g.fillStyle = fg; g.textAlign = 'center'; g.textBaseline = 'middle';
@@ -28,16 +40,17 @@ function clothTex(i: number) {
       drawVerticalText(g, text, w / 2, 24 + size * 0.55, size * 0.98, size);
     }));
   }
-  return clothTexCache.get(i)!;
+  return clothTexCache.get(key)!;
 }
-export interface Nobori { root: THREE.Group; update(t: number, wind: number): void }
-export function nobori(_ctx: ModContext, { design = 0 }: { design?: number }): Nobori {
+export interface Nobori { root: THREE.Group; update(t: number, wind: number): void; setDesign(d: NoboriDesign): void }
+export function nobori(_ctx: ModContext, { design = 'karaage' }: { design?: NoboriDesign }): Nobori {
   const root = new THREE.Group();
   const poleM = mat('#f4f4f0', { roughness: 0.4 });
   cyl(root, 0.2, 0.24, 0.2, mat('#2f3236', { roughness: 0.6 }), 0, 0, 0, 16);
   cyl(root, 0.02, 0.02, 2.65, poleM, 0, 0.2, 0, 8);
   const cloth = new THREE.Group();
-  const banner = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 1.85, 1, 6), mat('#ffffff', { map: clothTex(design), side: THREE.DoubleSide, roughness: 0.85 }));
+  const clothMat = mat('#ffffff', { map: clothTex(design), side: THREE.DoubleSide, roughness: 0.85 });
+  const banner = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 1.85, 1, 6), clothMat);
   banner.position.set(0.3, 1.82, 0);
   banner.castShadow = true;
   cloth.add(banner);
@@ -45,9 +58,10 @@ export function nobori(_ctx: ModContext, { design = 0 }: { design?: number }): N
   bar.rotation.z = Math.PI / 2; bar.position.set(0.3, 2.76, 0);
   cloth.add(bar);
   root.add(cloth);
-  const phase = design * 1.7 + Math.random();
+  const phase = Math.random() * 6;
   return {
     root,
+    setDesign(d) { clothMat.map = clothTex(d); },
     update(t, wind) {
       const k = 0.06 + wind * 0.12;
       cloth.rotation.y = Math.sin(t * 1.4 + phase) * k + Math.sin(t * 3.1 + phase) * k * 0.3;
@@ -60,7 +74,17 @@ export interface VendingMachine { root: THREE.Group; dispense(): void }
 export function vendingMachine(ctx: ModContext, o: { body?: string; accent?: string; seed?: number; label?: string }): VendingMachine {
   const { body = '#e04a45', accent = '#a8262a', seed = 11, label = '自动贩卖机' } = o;
   const root = new THREE.Group();
-  const front = ctx.glow.add(new THREE.MeshStandardMaterial({ map: vendTex(body, accent, false, seed), emissiveMap: vendTex(body, accent, true, seed), emissive: '#ffffff', roughness: 0.35 }), 'vending');
+  const front = ctx.glow.add(new THREE.MeshStandardMaterial({ emissive: '#ffffff', roughness: 0.35 }), 'vending');
+  // hot drinks from mid-October to April, and on any cold day
+  const faces = { cold: [vendTex(body, accent, false, seed), vendTex(body, accent, true, seed)], hot: [vendTex(body, accent, false, seed, true), vendTex(body, accent, true, seed, true)] };
+  ctx.states.track<'hot' | 'cold'>({
+    pick: ({ day, drivers }) => (between(day.seasonDay, '10-15', '4-20') || drivers.temperature < 8 ? 'hot' : 'cold'),
+    enter: (to, from) => {
+      [front.map, front.emissiveMap] = faces[to];
+      front.needsUpdate = true;
+      if (from) ctx.glow.flash(front, 1.2);   // the restocker's been round
+    },
+  });
   const bm = mat(body, { roughness: 0.35, metalness: 0.1 });
   const m = new THREE.Mesh(new RoundedBoxGeometry(1.0, 1.83, 0.75, 2, 0.05), [bm, bm, bm, bm, front, bm]);
   m.position.y = 0.05 + 0.915; m.castShadow = m.receiveShadow = true;

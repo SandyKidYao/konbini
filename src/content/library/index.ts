@@ -2,7 +2,7 @@
 import { defineMod } from '../../engine/mod';
 import { Figure, Dog, type FigureOptions } from './figure';
 import { car, type Car, type CarOptions } from './car';
-import { nobori, vendingMachine, bicycle, acUnit, trafficCone, type Nobori, type VendingMachine } from './props';
+import { nobori, vendingMachine, bicycle, acUnit, trafficCone, type Nobori, type NoboriDesign, type VendingMachine } from './props';
 import type * as THREE from 'three';
 
 type Simple = { root: THREE.Group };
@@ -11,7 +11,7 @@ declare module '../../engine/prefabs' {
     figure: { options: FigureOptions; result: Figure };
     dog: { options: object; result: Dog };
     car: { options: CarOptions; result: Car };
-    nobori: { options: { design?: number }; result: Nobori };
+    nobori: { options: { design?: NoboriDesign }; result: Nobori };
     'vending-machine': { options: { body?: string; accent?: string; seed?: number; label?: string }; result: VendingMachine };
     bicycle: { options: { color?: string }; result: Simple };
     'ac-unit': { options: object; result: Simple };
