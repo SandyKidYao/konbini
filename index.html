@@ -32,6 +32,7 @@
   <!-- controls: weather keys (styled after vending-machine buttons), the time of day and the date -->
   <section class="dock panel" aria-label="时间、日期与天气">
     <div class="keys" id="weatherKeys" role="group" aria-label="天气"></div>
+    <span class="sep" aria-hidden="true"></span>
     <div class="time">
       <div class="track">
         <input id="timeRange" type="range" min="0" max="24" step="0.05" value="11.33" aria-label="一天中的时刻">
@@ -48,6 +49,7 @@
         <button type="button" data-hour="23.2" style="left: calc(23.2 / 24 * 100%)">深夜</button>
       </div>
     </div>
+    <span class="sep" aria-hidden="true"></span>
     <button type="button" class="date-btn" id="dateBtn" aria-expanded="false" aria-controls="calPanel" title="选择日期（[ ] 前后一天）">
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5.5" width="16" height="14.5" rx="2.5"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/></svg>
       <span id="dateBtnText">10月13日</span>

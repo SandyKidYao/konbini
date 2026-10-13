@@ -75,30 +75,32 @@ button { font: inherit; color: inherit; }
 .label-date:hover { background: var(--well); }
 .label-status { margin: 10px 0 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
 
-/* --- dock: weather keys | time of day | real time --- */
+/* --- dock: weather | time of day | date | real time --- */
 .dock {
-  position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
-  display: flex; align-items: center; gap: 14px; padding: 8px 14px 8px 8px; border-radius: 22px;
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 12px; padding: 6px 12px 6px 6px; border-radius: 20px;
 }
-.keys { display: grid; grid-template-columns: repeat(8, minmax(52px, 1fr)); gap: 4px; }
+.dock > .sep { flex: none; width: 1px; height: 26px; background: var(--line); }
+/* weather: a quiet row of icons; only the chosen one opens up to show its name */
+.keys { display: flex; align-items: center; gap: 1px; }
 .keys button {
-  position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px;
-  padding: 10px 6px 7px; border: 0; border-radius: var(--radius-key); background: var(--well); cursor: pointer;
-  transition: background 0.4s var(--ease), transform 0.12s var(--ease), box-shadow 0.4s var(--ease);
+  display: flex; align-items: center; height: 36px; padding: 0 8px; border: 0; border-radius: 12px; background: none; cursor: pointer;
+  color: var(--muted); transition: background 0.35s var(--ease), color 0.35s var(--ease), transform 0.12s var(--ease);
 }
-.keys button:hover { background: var(--key); }
-.keys button:active { transform: translateY(1.5px) scale(0.985); }
-.keys button[aria-pressed="true"] { background: var(--key); box-shadow: inset 0 -2px 0 var(--line), 0 1px 0 rgba(255, 255, 255, 0.4); }
+.keys button:hover { background: var(--well); color: var(--ink); }
+.keys button:active { transform: scale(0.95); }
+.keys button[aria-pressed="true"] { background: var(--key); color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); }
 .keys svg, .live-btn svg, .date-btn svg, .tools svg {
   width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round;
 }
-.keys svg { opacity: 0.75; }
-.keys .name { font-size: 12px; letter-spacing: 0.02em; white-space: nowrap; }
-/* the little "on sale" lamp above each key */
-.keys .lamp { position: absolute; top: 5px; right: 5px; width: 5px; height: 5px; border-radius: 50%; background: var(--line); transition: background 0.4s, box-shadow 0.4s; }
-.keys button[aria-pressed="true"] .lamp { background: var(--green); box-shadow: 0 0 0 3px rgba(20, 160, 90, 0.16), 0 0 10px rgba(20, 160, 90, 0.7); }
+.keys svg { flex: none; width: 19px; height: 19px; }
+.keys .name {
+  max-width: 0; overflow: hidden; opacity: 0; font-size: 13px; white-space: nowrap;
+  transition: max-width 0.4s var(--ease), opacity 0.3s, margin 0.4s var(--ease);
+}
+.keys button[aria-pressed="true"] .name { max-width: 4em; opacity: 1; margin-left: 5px; }
 
-.time { width: 260px; padding-top: 6px; }
+.time { width: 250px; padding-top: 5px; }
 .track { position: relative; height: 22px; }
 .track::before {
   content: ""; position: absolute; left: 0; right: 0; top: 8px; height: 6px; border-radius: 3px;
@@ -126,7 +128,7 @@ button { font: inherit; color: inherit; }
   white-space: nowrap; opacity: 0; transition: opacity 0.25s, transform 0.25s var(--ease);
 }
 .track:hover .knob-time, .track:focus-within .knob-time { opacity: 0.92; transform: translate(-50%, 0); }
-.marks { position: relative; height: 20px; margin-top: 2px; }
+.marks { position: relative; height: 18px; margin-top: 0; }
 .marks button {
   position: absolute; transform: translateX(-50%); border: 0; background: none; padding: 1px 4px; cursor: pointer;
   font-size: 12px; color: var(--muted); border-radius: 6px; white-space: nowrap; transition: color 0.3s, background 0.3s;
@@ -135,7 +137,7 @@ button { font: inherit; color: inherit; }
 
 /* --- date button + picker --- */
 .date-btn {
-  position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 10px; border: 0;
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 9px; border: 0;
   border-radius: var(--radius-key); background: none; cursor: pointer; font-size: 12px; color: var(--muted); white-space: nowrap;
   font-variant-numeric: tabular-nums; transition: background 0.3s, color 0.3s;
 }
@@ -177,7 +179,7 @@ body[data-theme="dark"] .cal-grid .sat { color: #8fb4ff; }
 .cal-today:hover { background: var(--key); }
 
 .live-btn {
-  display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 10px; border: 0; border-radius: var(--radius-key);
+  display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 9px; border: 0; border-radius: var(--radius-key);
   background: none; cursor: pointer; font-size: 12px; color: var(--muted); white-space: nowrap; transition: background 0.3s, color 0.3s;
 }
 .live-btn:hover { background: var(--well); }
@@ -209,7 +211,7 @@ body[data-theme="dark"] .cal-grid .sat { color: #8fb4ff; }
 
 /* --- hint + hover tip --- */
 .hint {
-  position: fixed; left: 50%; bottom: 122px; transform: translateX(-50%); margin: 0; font-size: 14px; color: var(--muted);
+  position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); margin: 0; font-size: 14px; color: var(--muted);
   letter-spacing: 0.05em; white-space: nowrap; pointer-events: none; transition: opacity 1.2s var(--ease);
 }
 .hint.gone { opacity: 0; }
@@ -220,16 +222,17 @@ body[data-theme="dark"] .cal-grid .sat { color: #8fb4ff; }
 }
 .tip.show { opacity: 1; }
 
-@media (max-width: 1460px) {
+@media (max-width: 1320px) {
   /* not enough room beside the dock: the label moves to the top-left corner */
   .label { top: 24px; bottom: auto; left: 24px; }
 }
 
 @media (max-width: 1000px) {
-  .dock { flex-wrap: wrap; justify-content: center; width: calc(100% - 48px); max-width: 640px; }
-  .keys { flex: 1 1 100%; }
+  .dock { flex-wrap: wrap; justify-content: center; width: calc(100% - 48px); max-width: 560px; }
+  .dock > .sep { display: none; }
+  .keys { flex: 1 1 100%; justify-content: space-between; }
   .time { flex: 1; width: auto; }
-  .hint { bottom: 172px; }
+  .hint { bottom: 150px; }
 }
 
 @media (max-width: 860px) {
@@ -239,9 +242,9 @@ body[data-theme="dark"] .cal-grid .sat { color: #8fb4ff; }
   .label h1 { font-size: 18px; }
   .tools { top: 14px; right: 14px; }
   .mods { top: 66px; right: 14px; width: calc(100% - 28px); }
-  .dock { bottom: 14px; width: calc(100% - 28px); gap: 8px; padding: 8px; }
-  .keys { grid-template-columns: repeat(4, 1fr); }
-  .hint { bottom: 222px; white-space: normal; width: calc(100% - 40px); text-align: center; }
+  .dock { bottom: 14px; width: calc(100% - 28px); gap: 6px; padding: 6px; }
+  .keys button { padding: 0 7px; }
+  .hint { bottom: 140px; white-space: normal; width: calc(100% - 40px); text-align: center; }
   .cal { width: calc(100% - 28px); }
 }
 

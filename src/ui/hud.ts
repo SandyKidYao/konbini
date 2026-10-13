@@ -37,7 +37,6 @@ export function initHud(app: App, live: LiveSync) {
   const keyBox = $('weatherKeys');
   keyBox.innerHTML = WEATHER_KINDS.map((k, i) => `
     <button type="button" data-weather="${k}" aria-pressed="false" title="${WEATHER_LABEL[k]}（${i + 1}）">
-      <span class="lamp" aria-hidden="true"></span>
       <svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[k]}</svg>
       <span class="name">${k === 'partly' ? '少云' : k === 'storm' ? '雷雨' : WEATHER_LABEL[k]}</span>
     </button>`).join('');
