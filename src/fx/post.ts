@@ -12,8 +12,10 @@ import type { Look } from '../engine/atmosphere';
 
 const FULLSCREEN_VS = `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
 
+// Sharp from 0.44 to 0.66 of the screen height (from the bottom): the orbit target sits at 0.5, and from the overview
+// camera the car park, the shop front and the shop's roof (up to 0.66–0.71) stay in focus
 const tiltShader = {
-  uniforms: { tDiffuse: { value: null }, uDir: { value: new THREE.Vector2() }, uAmount: { value: 16 }, uFocus: { value: 0.46 }, uBand: { value: 0.1 } },
+  uniforms: { tDiffuse: { value: null }, uDir: { value: new THREE.Vector2() }, uAmount: { value: 16 }, uFocus: { value: 0.55 }, uBand: { value: 0.11 } },
   vertexShader: FULLSCREEN_VS,
   fragmentShader: /* glsl */`
     uniform sampler2D tDiffuse; uniform vec2 uDir; uniform float uAmount, uFocus, uBand; varying vec2 vUv;
