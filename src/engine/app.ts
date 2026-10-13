@@ -29,6 +29,10 @@ export interface AppConfig {
   external?: string[];
   /** mod ids to skip */
   disabled?: string[];
+  /** draw only the model, over a transparent canvas (desktop-pet window) */
+  transparent?: boolean;
+  /** prefer the integrated GPU */
+  lowPower?: boolean;
 }
 
 type FrameFn = (dt: number, t: number, d: Drivers) => void;
@@ -50,6 +54,8 @@ export class App {
   readonly loaded: { id: string; layer: string; external: boolean; error?: string }[] = [];
   reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   elapsed = 0;
+  /** at most this many frames a second (0: every display frame) — saves power when nobody is looking closely */
+  maxFps = 0;
 
   private frameFns: FrameFn[] = [];
   private uiFns: (() => void)[] = [];
@@ -57,12 +63,13 @@ export class App {
   private frame = 0;
   private baseCtx: ModContext;
   private slow = { time: 0, frames: 0, strikes: 0 };
+  private owed = 0;
   private onFirstFrame: (() => void) | null = null;
 
   constructor(private config: AppConfig) {
-    this.stage = new Stage(config.container, config.camera);
+    this.stage = new Stage(config.container, config.camera, { transparent: config.transparent, lowPower: config.lowPower });
     this.interact = new Interact(this.stage.camera, this.stage.renderer.domElement, this.stage.world);
-    this.fx = new Fx(this.stage, config.bounds);
+    this.fx = new Fx(this.stage, config.bounds, config.transparent);
     this.prefabs = new Prefabs(() => this.baseCtx);
     this.states = new States(this.atmosphere, () => this.fx.skyChanged());
     this.director = new Director({
@@ -168,7 +175,10 @@ export class App {
   start(onFirstFrame?: () => void) {
     this.onFirstFrame = onFirstFrame ?? null;
     const tick = () => {
-      const dt = Math.min(this.clock.getDelta(), 0.05);
+      this.owed += this.clock.getDelta();
+      if (this.maxFps && this.owed < 1 / this.maxFps - 0.004) { requestAnimationFrame(tick); return; }
+      const dt = Math.min(this.owed, 0.05);
+      this.owed = 0;
       this.simulate(dt);
       this.audio.update(this.atmosphere.drivers, this.elapsed);
       this.stage.controls.update(dt);
@@ -189,7 +199,7 @@ export class App {
     if (s.time < 2) return;
     const avg = s.time / s.frames;
     s.time = 0; s.frames = 0;
-    s.strikes = avg > 1 / 40 ? s.strikes + 1 : 0;
+    s.strikes = avg > Math.max(1 / 40, 1.25 / (this.maxFps || 60)) ? s.strikes + 1 : 0;   // a frame cap is not slowness
     const pr = this.stage.renderer.getPixelRatio();
     if (s.strikes >= 2 && pr > 1) {
       this.stage.renderer.setPixelRatio(Math.max(1, pr - 0.25));

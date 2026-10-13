@@ -1,4 +1,5 @@
 // Post stack: ambient occlusion → bloom → [mod passes] → tilt-shift (miniature depth of field) → colour grade → output.
+// Colours stay premultiplied by alpha all the way through, so the same stack works over a transparent window.
 import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
@@ -38,7 +39,7 @@ const gradeShader = {
       vec4 c = texture2D(tDiffuse, vUv);
       float l = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
       vec3 col = mix(vec3(l), c.rgb, uSat) * uTint;
-      col = max(vec3(0.0), (col - 0.18) * uContrast + 0.18);
+      col = max(vec3(0.0), (col - 0.18 * c.a) * uContrast + 0.18 * c.a);   // pivot scaled by alpha: premultiplied
       gl_FragColor = vec4(col, c.a);
     }`,
 };
@@ -52,7 +53,7 @@ export class Post {
   private output = new OutputPass();
   private custom: { pass: Pass; order: number }[] = [];
 
-  constructor(private renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera) {
+  constructor(private renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera, transparent = false) {
     const s = renderer.getDrawingBufferSize(new THREE.Vector2());
     this.composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(s.x, s.y, { type: THREE.HalfFloatType, samples: 4 }));
     this.composer.setSize(innerWidth, innerHeight);
@@ -61,6 +62,7 @@ export class Post {
     this.gtao.output = GTAOPass.OUTPUT.Default;
     this.gtao.updateGtaoMaterial({ radius: 0.9, distanceExponent: 1.6, thickness: 1.4, scale: 1.0, samples: 16, distanceFallOff: 1.0 });
     this.bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.2, 0.4, 0.9);
+    if (transparent) { carryBloomAlpha(this.bloom); unpremultiplyOutput(this.output); }
     for (let i = 0; i < 2; i++) for (const axis of ['h', 'v'] as const) this.tilt.push({ pass: new ShaderPass(tiltShader), axis });
     this.grade = new ShaderPass(gradeShader);
     this.rebuild();
@@ -111,4 +113,36 @@ export class Post {
   }
 
   render() { this.composer.render(); }
+}
+
+/**
+ * Stock UnrealBloomPass blurs only rgb and writes alpha 1, which would fog the whole transparent window.
+ * Blur alpha with the colour instead, and add the glow premultiplied, so it fades out around lit things.
+ */
+function carryBloomAlpha(bloom: UnrealBloomPass) {
+  for (const m of bloom.separableBlurMaterials) {
+    m.fragmentShader = m.fragmentShader
+      .replace('vec3 diffuseSum = texture2D( colorTexture, vUv ).rgb', 'vec4 diffuseSum = texture2D( colorTexture, vUv )')
+      .replace(/vec3 (sample[12]) = texture2D\( colorTexture, (vUv [+-] uvOffset) \)\.rgb;/g, 'vec4 $1 = texture2D( colorTexture, $2 );')
+      .replace('gl_FragColor = vec4(diffuseSum/weightSum, 1.0);', 'gl_FragColor = diffuseSum/weightSum;');
+    if (!m.fragmentShader.includes('gl_FragColor = diffuseSum/weightSum;')) console.warn('[konbini] bloom blur shader changed; glow may haze a transparent window');
+    m.needsUpdate = true;
+  }
+  bloom.blendMaterial.premultipliedAlpha = true;   // additive (ONE, ONE) rather than scaling the glow by its alpha
+}
+
+/**
+ * Tone mapping and the sRGB curve are not linear, so applied to premultiplied colour they brighten every
+ * half-covered edge pixel into a white halo. Divide alpha out first, put it back after.
+ */
+function unpremultiplyOutput(output: OutputPass) {
+  const m = output.material;
+  const read = 'gl_FragColor = texture2D( tDiffuse, vUv );';
+  if (!m.fragmentShader.includes(read)) { console.warn('[konbini] output shader changed; edges may glow on a transparent window'); return; }
+  m.fragmentShader = m.fragmentShader
+    .replace(read, `${read}
+      float pa = clamp( gl_FragColor.a, 0.0, 1.0 );
+      gl_FragColor = vec4( pa > 0.0 ? gl_FragColor.rgb / pa : vec3( 0.0 ), 1.0 );`)
+    .replace(/}\s*$/, '  gl_FragColor = vec4( gl_FragColor.rgb * pa, pa );\n}');
+  m.needsUpdate = true;
 }

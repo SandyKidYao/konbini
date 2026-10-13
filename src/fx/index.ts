@@ -25,10 +25,12 @@ export class Fx {
   private boltLife = 0;
   private cubeCam: THREE.CubeCamera;
   private backdropMat: THREE.ShaderMaterial;
+  private backdrop: THREE.Mesh;
   private envDirty = 40;
   private frame = 0;
 
-  constructor(private stage: Stage, private bounds: Rect) {
+  /** transparent: no backdrop or distant lightning on screen — only the model, over whatever is behind the window */
+  constructor(private stage: Stage, private bounds: Rect, private transparent = false) {
     const { scene, renderer, camera } = stage;
     scene.add(this.hemi);
     const s = this.sun;
@@ -57,12 +59,13 @@ export class Fx {
           gl_FragColor = vec4(col, 1.0);
         }`,
     });
-    const backdrop = new THREE.Mesh(new THREE.SphereGeometry(600, 48, 24), this.backdropMat);
+    const backdrop = this.backdrop = new THREE.Mesh(new THREE.SphereGeometry(600, 48, 24), this.backdropMat);
     backdrop.frustumCulled = false;
     backdrop.renderOrder = -100;
+    backdrop.visible = !transparent;   // still captured into the reflections, so glass and paint keep their sky
     scene.add(backdrop);
 
-    this.post = new Post(renderer, scene, camera);
+    this.post = new Post(renderer, scene, camera, transparent);
     this.snowCover = new SnowCover(renderer, bounds);
     this.flashLight.position.set(10, 60, 30);
     scene.add(this.flashLight);
@@ -118,6 +121,9 @@ export class Fx {
     const fog = this.stage.fog;
     fog.color.copy(L.fog);
     fog.density = L.fogDensity;
+    // with nothing behind the model, fog fades it into a flat blob: thin it as if seen from closer up,
+    // so only the far side of the model goes misty
+    if (this.transparent) fog.density *= Math.min(1, 45 / this.stage.camera.position.distanceTo(this.stage.controls.target));
     this.hemi.color.copy(L.hemiSky);
     this.hemi.groundColor.copy(L.hemiGround);
     this.hemi.intensity = L.hemi;
@@ -135,7 +141,7 @@ export class Fx {
     this.backdropMat.uniforms.uFlash.value = D.flash;
     this.hemi.intensity += D.flash * 2.2;
     this.flashLight.intensity = D.flash * 5;
-    this.bolt.visible = this.boltLife > 0 && D.flash > 0.05;
+    this.bolt.visible = !this.transparent && this.boltLife > 0 && D.flash > 0.05;
     if (atm.isAnimating) this.envDirty = Math.max(this.envDirty, 6);
   }
 
@@ -146,11 +152,13 @@ export class Fx {
     hidden.push(this.bolt);
     const vis = hidden.map((o) => o.visible);
     hidden.forEach((o) => (o.visible = false));
+    this.backdrop.visible = true;
     const r = this.stage.renderer;
     r.shadowMap.autoUpdate = false;
     this.cubeCam.update(r, this.stage.scene);
     r.shadowMap.autoUpdate = true;
     hidden.forEach((o, i) => (o.visible = vis[i]));
+    this.backdrop.visible = !this.transparent;
   }
 
   render() {

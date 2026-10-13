@@ -3,6 +3,7 @@
 //   ?weather=clear|partly|cloudy|fog|drizzle|rain|storm|snow   ?time=1130
 //   ?date=2026-07-07 | 07-07   ?season=spring|summer|autumn|winter (a typical date in that season)
 //   ?site=konbini   ?mods=url1,url2   ?disable=mod.id,…   ?cam=x,y,z,tx,ty,tz   ?warp=60
+//   ?pet=1 (desktop pet: only the model, on a transparent window — see desktop/)
 import './ui/style.css';
 import { App } from './engine/app';
 import { WEATHER_KINDS, type WeatherKind } from './engine/atmosphere';
@@ -10,13 +11,18 @@ import { SEASONS, SEASON_SAMPLE, parseDate, type Season } from './engine/calenda
 import { LiveSync, type Place } from './engine/live';
 import { builtinMods } from './content';
 import { initHud, revealStage } from './ui/hud';
+import { initPet } from './ui/pet';
 
 const q = new URLSearchParams(location.search);
+const pet = q.get('pet') === '1';
 const list = (k: string) => (q.get(k) ?? '').split(',').map((s) => s.trim()).filter(Boolean);
 // external mods: same-origin relative paths only, unless remote loading is asked for explicitly
 const external = list('mods').filter((u) => !/^[a-z]+:\/\//i.test(u) || q.has('allowRemoteMods'));
 
-let camera = { position: [50, 33, 62] as [number, number, number], target: [0, -1.6, 0] as [number, number, number] };
+// the pet's window is small and the model must fit whole while the turntable spins: stand further back
+let camera = pet
+  ? { position: [74, 48, 92] as [number, number, number], target: [0, -3, 0] as [number, number, number] }
+  : { position: [50, 33, 62] as [number, number, number], target: [0, -1.6, 0] as [number, number, number] };
 const cam = q.get('cam')?.split(',').map(Number);
 if (cam?.length === 6 && cam.every(Number.isFinite)) camera = { position: [cam[0], cam[1], cam[2]], target: [cam[3], cam[4], cam[5]] };
 
@@ -28,6 +34,8 @@ const app = new App({
   mods: builtinMods,
   external,
   disabled: list('disable'),
+  transparent: pet,
+  lowPower: pet,
 });
 
 // a fixed place for live mode, e.g. ?place=35.68,139.69,東京
@@ -51,7 +59,8 @@ const wantLive = q.get('live') === '1' || (q.get('live') !== '0' && !manual && L
 if (wantLive) void live.start();   // applies cached weather synchronously, refreshes in the background
 app.atmosphere.settle();
 
-initHud(app, live);
+const hud = initHud(app, live);
+const petUi = pet ? initPet(app, live, hud) : null;
 
 await app.load();
 app.warp(Number(q.get('warp')) || 0);
@@ -59,4 +68,4 @@ app.interact.attach(document.getElementById('tip')!);
 app.start(revealStage);
 
 // handy for tinkering from the console
-Object.assign(window, { konbini: app, live });
+Object.assign(window, { konbini: app, live, pet: petUi });

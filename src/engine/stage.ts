@@ -3,6 +3,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 export interface CameraPose { position: [number, number, number]; target: [number, number, number] }
+/** transparent: the canvas clears to nothing (the desktop shows through); lowPower: prefer the integrated GPU */
+export interface StageOptions { transparent?: boolean; lowPower?: boolean }
 
 export class Stage {
   readonly renderer: THREE.WebGLRenderer;
@@ -11,8 +13,11 @@ export class Stage {
   readonly camera: THREE.PerspectiveCamera;
   readonly controls: OrbitControls;
 
-  constructor(container: HTMLElement, pose: CameraPose) {
-    const r = this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+  constructor(container: HTMLElement, pose: CameraPose, opts: StageOptions = {}) {
+    const r = this.renderer = new THREE.WebGLRenderer({
+      antialias: true, alpha: !!opts.transparent, powerPreference: opts.lowPower ? 'low-power' : 'high-performance',
+    });
+    if (opts.transparent) r.setClearColor(0x000000, 0);
     r.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
     r.setSize(innerWidth, innerHeight);
     r.shadowMap.enabled = true;

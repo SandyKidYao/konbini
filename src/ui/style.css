@@ -251,3 +251,16 @@ body[data-theme="dark"] .cal-grid .sat { color: #8fb4ff; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0.01s !important; }
 }
+
+/* --- desktop pet (?pet=1): only the model on a transparent window; settings live in the native menu --- */
+body.pet, body.pet .veil { background: transparent; }
+body.pet .label, body.pet .dock, body.pet .tools, body.pet .mods, body.pet .cal, body.pet .hint { display: none !important; }
+.pet-handle {
+  position: fixed; left: 50%; bottom: 10px; z-index: 6; display: flex; gap: 4px; align-items: center;
+  padding: 7px 13px; border-radius: 999px; background: var(--paper); box-shadow: var(--shadow); cursor: grab;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  transform: translate(-50%, 6px); opacity: 0; pointer-events: none; transition: opacity 0.3s var(--ease), transform 0.3s var(--ease);
+}
+.pet-handle i { width: 5px; height: 5px; border-radius: 50%; background: var(--muted); }
+.pet-handle:active { cursor: grabbing; }
+body.pet-hover .pet-handle { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }

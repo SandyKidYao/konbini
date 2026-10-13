@@ -19,7 +19,19 @@ const ICONS: Record<WeatherKind, string> = {
   snow: '<path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9"/><path d="M9.8 4.6 12 6.4l2.2-1.8M9.8 19.4 12 17.6l2.2 1.8"/>',
 };
 
-export function initHud(app: App, live: LiveSync) {
+/** What the controls can do, for other front ends (the desktop pet's native menu). */
+export interface HudActions {
+  setWeather(w: WeatherKind): void;
+  setTime(hour: number): void;
+  setDate(month: number, date: number): void;
+  clearDate(): void;
+  toggleLive(): void;
+  setSpin(on: boolean): void;
+  readonly spin: boolean;
+  toggleSound(): void;
+}
+
+export function initHud(app: App, live: LiveSync): HudActions {
   const atm = app.atmosphere, controls = app.stage.controls, audio = app.audio;
   const tick = () => audio.play('tick');
   // last values written to the DOM (declared first: the live listener below fires immediately)
@@ -165,6 +177,17 @@ export function initHud(app: App, live: LiveSync) {
     const bg = `#${atm.look.bgFloor.getHexString()}`;
     if (bg !== lastBg) { lastBg = bg; document.body.style.setProperty('--bg', bg); }
   });
+
+  return {
+    setWeather,
+    setTime: (hour) => { tick(); takeControl(); atm.setTime(hour); syncUrl(); },
+    setDate: (month, date) => { tick(); takeControl(); atm.setDate(month, date); syncUrl(); },
+    clearDate: () => { tick(); atm.clearDate(); syncUrl(); },
+    toggleLive,
+    setSpin,
+    get spin() { return spinOn; },
+    toggleSound,
+  };
 
   function syncUrl() {
     const q = new URLSearchParams(location.search);

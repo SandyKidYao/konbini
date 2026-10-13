@@ -14,6 +14,25 @@ npm run preview    # 用本地服务器预览打包结果（加载外部模组�
 npm run shots      # 用本机 Chrome 无头截图一组场景到 tmp/shots/，页面报错时失败（先 build）
 ```
 
+## 桌面版（桌宠，macOS，试验中）
+
+用 Electron 把场景放进一个透明、无边框、浮在最上层的小窗口：桌面上只看到这块底座模型，模型以外的地方点击会穿透到下面的窗口。
+
+```bash
+npm run pet        # 打包后打开桌宠
+npm run dev        # 另开一个终端：
+npm run pet:dev    #   桌宠加载开发服务器，改代码即时刷新
+```
+
+- 鼠标移到模型上才接管点击：拖动转一转、滚轮缩放、点小猫和车；底下出现的小把手拖动可以移动窗口（或按住 ⌥ 拖模型）
+- 右键模型，或点菜单栏的 🏪：天气、时刻、季节、实况、转台、声音、省电、大小（小 / 中 / 大）、浮在最上层、退出
+- 平时 20 帧，指针在模型上时 60 帧；「省电」把平时降到 10 帧。窗口位置、大小、置顶记在用户数据目录的 `pet.json`
+- 不显示在 Dock 和 ⌘Tab 里；只能从菜单退出
+- 网页版加 `?pet=1` 可以看到同样的透明画面（没有点击穿透和菜单）
+- 从 VS Code 扩展里启动的终端可能带着 `ELECTRON_RUN_AS_NODE=1`，Electron 会当成 Node 运行而报错，先 `unset ELECTRON_RUN_AS_NODE`
+
+外壳在 `desktop/`（`main.js` 窗口与菜单，`preload.cjs` 页面与外壳之间的接口），页面这边在 `src/ui/pet.ts`。
+
 ## 操作
 
 - 拖动旋转、滚轮缩放、右键平移；松手 6 秒后转台会继续慢慢转
@@ -76,7 +95,8 @@ src/
     site/konbini/      主体（layer: site）：店铺、门前场地、员工后院、旗位、节日装饰
     events/            事件（layer: events）：收银员、顾客、店员休息、摆收旗、路人、游客、街上的车、开车来的顾客、送货车
     common/            内置内容共用的色板、贴图、材质
-  ui/                  界面
+  ui/                  界面（pet.ts：桌宠模式）
+desktop/               桌宠外壳（Electron）
 public/mods/           外部模组示例（chochin.js：店门口的一串提灯；furin.js：只在夏天挂出来的风铃）
 scripts/shots.mjs      无头截图检查（npm run shots）
 ```
