@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const out = `${root}tmp/shots`;
 
-// the overview camera; close-ups pass their own ?cam
+// the overview camera (the default view); close-ups pass their own ?cam or ?view
 const SCENES = [
   { name: 'clear-day', q: 'weather=clear&time=1130' },
   { name: 'clear-dusk', q: 'weather=clear&time=1750' },
@@ -81,20 +81,35 @@ const SCENES = [
   // the shop front from above: the car park, the plaza and the lane people walk in by
   { name: 'front-plan', q: 'weather=clear&time=1200&date=2026-10-17&warp=60&cam=0,70,-4,0,0,-5' },
   { name: 'lot-delivery', q: 'weather=partly&time=1430&date=2026-10-14&warp=200&cam=1,13,20,1,0,0' },
-  // the date picker, driven like a person would: open it, pick a season / festival / day
-  { name: 'ui-picker', q: 'weather=clear&time=1100&date=2026-10-13', act: async (p) => { await p.click('#dateBtn'); } },
+  // the camera presets (the overview is the default view, shot above)
+  { name: 'view-facade', q: 'weather=clear&time=1600&date=2026-10-14&warp=60&view=facade' },
+  { name: 'view-bird', q: 'weather=clear&time=1600&date=2026-10-14&warp=60&view=bird' },
+  { name: 'view-corner', q: 'weather=rain&time=1830&date=2026-10-14&warp=60&view=corner' },
+  { name: 'view-yard', q: 'weather=clear&time=2100&date=2026-10-14&warp=60&view=yard' },
+  // the controls, driven like a person would: they only come out once the pointer moves
+  { name: 'ui-bar', q: 'weather=clear&time=1100&date=2026-10-13', wait: 600, act: async (p) => { await reveal(p); } },
+  { name: 'ui-view-click', q: 'weather=clear&time=1100&date=2026-10-13', act: async (p) => { await reveal(p); await p.click('[data-view="facade"]'); } },
+  { name: 'ui-tray', q: 'weather=clear&time=1100&date=2026-10-13', act: async (p) => { await reveal(p); await p.click('#trayBtn'); } },
+  { name: 'ui-picker', q: 'weather=clear&time=1100&date=2026-10-13', act: async (p) => { await openTray(p); await p.click('#dateBtn'); } },
   { name: 'ui-picker-autumn', q: 'weather=clear&time=1100&date=2026-07-01', act: async (p) => {
-    await p.click('#dateBtn'); await p.click('[data-season="autumn"]'); } },
+    await openTray(p); await p.click('#dateBtn'); await p.click('[data-season="autumn"]'); } },
   { name: 'ui-picker-festival', q: 'weather=clear&time=1100', act: async (p) => {
-    await p.click('#labelDateRow'); await p.click('[data-fest="natsumatsuri"]'); await p.waitForTimeout(3000); } },
+    await openTray(p); await p.click('#dateBtn'); await p.click('[data-fest="natsumatsuri"]'); await p.waitForTimeout(3000); } },
   { name: 'ui-picker-day', q: 'weather=clear&time=1100&date=2026-12-01', act: async (p) => {
-    await p.click('#dateBtn'); await p.click('#calNext'); await p.click('[data-day="2"]'); } },
-  { name: 'ui-picker-closed', q: 'weather=clear&time=1100&date=2026-12-01', act: async (p) => {
-    await p.click('#dateBtn'); await p.click('[data-season="spring"]'); await p.keyboard.press('Escape'); } },
-  { name: 'ui-time-hover', q: 'weather=clear&time=1430', act: async (p) => { await p.hover('#timeKnob', { force: true }); } },
-  { name: 'ui-picker-narrow', q: 'weather=partly&time=0900', viewport: { width: 390, height: 844 }, act: async (p) => { await p.click('#dateBtn'); } },
+    await openTray(p); await p.click('#dateBtn'); await p.click('#calNext'); await p.click('[data-day="2"]'); } },
+  // Escape closes the calendar, then the tray; resting the pointer fades the bar away again
+  { name: 'ui-closed', q: 'weather=clear&time=1100&date=2026-12-01', wait: 4000, act: async (p) => {
+    await openTray(p); await p.click('#dateBtn'); await p.click('[data-season="spring"]');
+    await p.keyboard.press('Escape'); await p.keyboard.press('Escape'); } },
+  { name: 'ui-time-hover', q: 'weather=clear&time=1430', act: async (p) => { await openTray(p); await p.hover('#timeKnob', { force: true }); } },
+  { name: 'ui-picker-narrow', q: 'weather=partly&time=0900', viewport: { width: 390, height: 844 }, act: async (p) => {
+    await p.tap('#stage canvas', { position: { x: 195, y: 300 } }); await p.click('#trayBtn'); await p.click('#dateBtn'); }, touch: true },
   { name: 'narrow', q: 'weather=partly&time=0900', viewport: { width: 390, height: 844 } },
 ];
+
+// the controls stay hidden until the pointer moves over the page
+const reveal = async (p) => { await p.mouse.move(400, 300); await p.mouse.move(420, 310); await p.waitForTimeout(400); };
+const openTray = async (p) => { await reveal(p); await p.click('#trayBtn'); };
 
 const only = process.argv.slice(2);
 const scenes = only.length ? SCENES.filter((s) => only.some((w) => s.name.includes(w))) : SCENES;
@@ -123,6 +138,7 @@ for (const s of scenes) {
     viewport: s.viewport ?? { width: 1280, height: 800 },
     deviceScaleFactor: 1,
     reducedMotion: 'reduce',
+    hasTouch: !!s.touch,
     locale: 'zh-CN',
     timezoneId: 'Asia/Tokyo',
   });
@@ -141,8 +157,13 @@ for (const s of scenes) {
     if (s.act) await s.act(page);
     await page.waitForTimeout(s.wait ?? 2500);
     await page.screenshot({ path: `${out}/${s.name}.png` });
-    const label = await page.evaluate(() => document.querySelector('.label dl').innerText.replace(/\s*\n\s*/g, ' ')
-      + (document.getElementById('labelStatus').hidden ? '' : ` [${document.getElementById('labelStatus').textContent}]`));
+    const label = await page.evaluate(() => {
+      const k = window.konbini, a = k.atmosphere, d = a.day, h = a.drivers.hour;
+      const st = window.live.status;
+      return `${d.month}/${d.date} ${String(Math.floor(h)).padStart(2, '0')}:${String(Math.floor((h % 1) * 60)).padStart(2, '0')} ${a.weather}`
+        + (st.state !== 'off' ? ` live:${st.state}${st.place?.name ? ` ${st.place.name}` : ''}${st.message ? ` [${st.message}]` : ''}` : '')
+        + (document.body.classList.contains('chrome-on') ? ' (controls shown)' : '');
+    });
     const mods = await page.evaluate(() => window.konbini?.loaded.filter((m) => m.error).map((m) => `${m.id}: ${m.error}`) ?? []);
     problems.push(...mods.map((m) => `mod failed: ${m}`));
     console.log(`${problems.length ? '✗' : '✓'} ${s.name.padEnd(18)} ${((Date.now() - t0) / 1000).toFixed(1)}s  ${label}`);

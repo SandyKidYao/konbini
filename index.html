@@ -10,32 +10,25 @@
 </head>
 <body data-theme="light">
   <div id="stage"></div>
-  <div class="veil" id="veil" aria-hidden="true"><p>开店准备中</p></div>
+  <div class="veil" id="veil" aria-hidden="true"><span class="veil-mark"><i></i><i></i><i></i></span></div>
 
-  <!-- the exhibit label that sits beside a model -->
-  <aside class="label panel" aria-live="polite">
-    <div class="label-stripe" aria-hidden="true"><i></i><i></i><i></i></div>
-    <div class="label-body">
-      <h1>ひかりマート</h1>
-      <p class="label-sub">桜坂二丁目店</p>
-      <dl>
-        <div><dt>比例</dt><dd>1 : 150</dd></div>
-        <div class="label-date" id="labelDateRow" title="点击选择日期（[ ] 前后一天）"><dt>日期</dt><dd id="labelDate"></dd></div>
-        <div><dt>时刻</dt><dd><span id="labelTime">11:20</span><span class="live" id="labelLive" hidden>实况</span></dd></div>
-        <div><dt>天气</dt><dd id="labelWeather">晴</dd></div>
-        <div id="labelPlaceRow" hidden><dt>地点</dt><dd id="labelPlace"></dd></div>
-      </dl>
-      <p class="label-status" id="labelStatus" hidden></p>
-    </div>
-  </aside>
+  <!-- Everything below stays out of sight until the pointer moves; the model is the page. -->
 
-  <!-- controls: weather keys (styled after vending-machine buttons), the time of day and the date -->
-  <section class="dock panel" aria-label="时间、日期与天气">
-    <div class="keys" id="weatherKeys" role="group" aria-label="天气"></div>
+  <!-- the bar: view presets | the weather & time tray -->
+  <nav class="bar panel chrome" aria-label="视角">
+    <div class="views" id="views" role="group" aria-label="视角"></div>
     <span class="sep" aria-hidden="true"></span>
+    <button type="button" class="ico" id="trayBtn" aria-expanded="false" aria-controls="tray" aria-label="天气与时间">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
+    </button>
+  </nav>
+
+  <!-- the tray: weather, time of day, date, real time; turntable, sound, mods -->
+  <section class="tray panel chrome" id="tray" aria-label="天气与时间" hidden>
+    <div class="keys" id="weatherKeys" role="group" aria-label="天气"></div>
     <div class="time">
       <div class="track">
-        <input id="timeRange" type="range" min="0" max="24" step="0.05" value="11.33" aria-label="一天中的时刻">
+        <input id="timeRange" type="range" min="0" max="24" step="0.05" value="11.33" aria-label="时刻">
         <span class="knob" id="timeKnob" aria-hidden="true">
           <svg class="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/></svg>
           <svg class="moon" viewBox="0 0 24 24"><path d="M15.5 4.5a7.5 7.5 0 1 0 4 13.6A8.5 8.5 0 0 1 15.5 4.5z"/></svg>
@@ -43,65 +36,66 @@
         </span>
       </div>
       <div class="marks">
-        <button type="button" data-hour="6.4" style="left: calc(6.4 / 24 * 100%)">清晨</button>
-        <button type="button" data-hour="12" style="left: 50%">正午</button>
-        <button type="button" data-hour="17.7" style="left: calc(17.7 / 24 * 100%)">傍晚</button>
-        <button type="button" data-hour="23.2" style="left: calc(23.2 / 24 * 100%)">深夜</button>
+        <button type="button" data-hour="6.4" aria-label="清晨" style="left: calc(6.4 / 24 * 100%)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 19h18M6.5 19a5.5 5.5 0 0 1 11 0"/><path d="M12 3.5v6M9.3 6.2 12 3.5l2.7 2.7"/></svg>
+        </button>
+        <button type="button" data-hour="12" aria-label="正午" style="left: 50%">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.5 1.5M16.9 16.9l1.5 1.5M5.6 18.4l1.5-1.5M16.9 7.1l1.5-1.5"/></svg>
+        </button>
+        <button type="button" data-hour="17.7" aria-label="傍晚" style="left: calc(17.7 / 24 * 100%)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 19h18M6.5 19a5.5 5.5 0 0 1 11 0"/><path d="M12 3.5v6M9.3 6.8 12 9.5l2.7-2.7"/></svg>
+        </button>
+        <button type="button" data-hour="23.2" aria-label="深夜" style="left: calc(23.2 / 24 * 100%)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 4.5a7.5 7.5 0 1 0 4 13.6A8.5 8.5 0 0 1 15.5 4.5z"/></svg>
+        </button>
       </div>
     </div>
-    <span class="sep" aria-hidden="true"></span>
-    <button type="button" class="date-btn" id="dateBtn" aria-expanded="false" aria-controls="calPanel" title="选择日期（[ ] 前后一天）">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5.5" width="16" height="14.5" rx="2.5"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/></svg>
-      <span id="dateBtnText">10月13日</span>
-      <i class="dot" id="dateBtnDot" hidden></i>
-    </button>
-    <button type="button" class="live-btn" id="liveBtn" aria-pressed="false" title="实况：跟随你所在地的真实时间和天气（L）">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>
-      <span>实况</span>
-    </button>
+    <div class="tray-row">
+      <button type="button" class="ico date-btn" id="dateBtn" aria-expanded="false" aria-controls="calPanel" aria-label="日期">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5.5" width="16" height="14.5" rx="2.5"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/></svg>
+        <span class="num" id="dateBtnText">10/13</span>
+        <i class="dot" id="dateBtnDot" hidden></i>
+      </button>
+      <button type="button" class="ico live-btn" id="liveBtn" aria-pressed="false" aria-label="实况">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>
+        <i class="dot"></i>
+      </button>
+      <span class="grow"></span>
+      <button type="button" class="ico" id="spinBtn" aria-pressed="false" aria-label="转台">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="15.5" rx="8.5" ry="3.2"/><path d="M12 12.3V5"/><path d="M17.5 7.8 20 10.2l-3.1.6"/><path d="M20 10.2c-1.4-2.6-4.4-4.2-8-4.2"/></svg>
+      </button>
+      <button type="button" class="ico" id="soundBtn" aria-pressed="false" aria-label="声音">
+        <svg class="on" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.2L12 5.5v13l-4.8-4H4z"/><path d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a7.8 7.8 0 0 1 0 11"/></svg>
+        <svg class="off" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.2L12 5.5v13l-4.8-4H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></svg>
+      </button>
+      <button type="button" class="ico" id="modsBtn" aria-expanded="false" aria-controls="modsPanel" aria-label="模组">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5 12 4l8 4.5-8 4.5z"/><path d="m4 12.5 8 4.5 8-4.5"/><path d="m4 16.5 8 4.5 8-4.5"/></svg>
+      </button>
+    </div>
   </section>
 
-  <!-- the date picker: seasons and festivals one click away, a month calendar for anything else -->
-  <div class="cal panel" id="calPanel" role="dialog" aria-label="选择日期" hidden>
+  <!-- the date picker: seasons and festivals as glyphs, a month calendar for anything else -->
+  <div class="cal panel chrome" id="calPanel" role="dialog" aria-label="日期" hidden>
     <div class="cal-quick">
-      <div class="cal-row"><span class="cal-h">季节</span><div class="chips" id="calSeasons"></div></div>
-      <div class="cal-row"><span class="cal-h">节日</span><div class="chips" id="calFestivals"></div></div>
+      <div class="chips" id="calSeasons" role="group" aria-label="季节"></div>
+      <div class="chips" id="calFestivals" role="group" aria-label="节日"></div>
     </div>
     <div class="cal-head">
-      <button type="button" class="cal-nav" id="calPrev" aria-label="上个月">‹</button>
-      <span id="calTitle">2026年10月</span>
-      <button type="button" class="cal-nav" id="calNext" aria-label="下个月">›</button>
+      <button type="button" class="cal-nav" id="calPrev" aria-label="上个月"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6 8.5 12l6 6"/></svg></button>
+      <span id="calTitle">2026 · 10</span>
+      <button type="button" class="cal-nav" id="calNext" aria-label="下个月"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6l6 6-6 6"/></svg></button>
     </div>
     <div class="cal-grid" id="calGrid" role="grid"></div>
     <div class="cal-foot">
-      <span class="cal-note" id="calNote"></span>
-      <button type="button" class="cal-today" id="calToday">回到今天</button>
+      <button type="button" class="cal-today" id="calToday" aria-label="回到今天">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4.5 4v3.5H8"/><circle cx="12" cy="12" r="1.6"/></svg>
+      </button>
     </div>
   </div>
 
-  <div class="tools">
-    <button type="button" id="modsBtn" aria-expanded="false" aria-controls="modsPanel" title="已加载的模组">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5 12 4l8 4.5-8 4.5z"/><path d="m4 12.5 8 4.5 8-4.5"/><path d="m4 16.5 8 4.5 8-4.5"/></svg>
-      <span class="sr">模组</span>
-    </button>
-    <button type="button" id="spinBtn" aria-pressed="true" title="转台（R）">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="15.5" rx="8.5" ry="3.2"/><path d="M12 12.3V5"/><path d="M17.5 7.8 20 10.2l-3.1.6"/><path d="M20 10.2c-1.4-2.6-4.4-4.2-8-4.2"/></svg>
-      <span class="sr">转台</span>
-    </button>
-    <button type="button" id="soundBtn" aria-pressed="false" title="声音（M）">
-      <svg class="on" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.2L12 5.5v13l-4.8-4H4z"/><path d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a7.8 7.8 0 0 1 0 11"/></svg>
-      <svg class="off" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.2L12 5.5v13l-4.8-4H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></svg>
-      <span class="sr">声音</span>
-    </button>
-  </div>
-  <div class="mods panel" id="modsPanel" hidden>
-    <h2>已加载的模组</h2>
+  <div class="mods panel chrome" id="modsPanel" aria-label="模组" hidden>
     <ul id="modsList"></ul>
-    <p>在网址后加 <code>?mods=mods/chochin.js</code> 可以加载外部模组。</p>
   </div>
-
-  <p class="hint" id="hint">拖动转一转，滚轮靠近看看。拖动太阳改变时刻，点「实况」看你那里此刻的天气。</p>
-  <div class="tip" id="tip" role="status"></div>
 
   <script type="module" src="/src/main.ts"></script>
 </body>

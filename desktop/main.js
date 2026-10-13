@@ -29,7 +29,7 @@ const savePrefs = () => { try { fs.writeFileSync(prefsFile, JSON.stringify(prefs
 
 /** @type {BrowserWindow} */ let win;
 /** @type {Tray} */ let tray;
-let state = { weather: 'clear', live: false, spin: true, sound: false, season: 'autumn', pickedDate: false, saver: false };
+let state = { weather: 'clear', live: false, spin: false, sound: false, season: 'autumn', pickedDate: false, saver: false };
 let dragTimer = null;
 
 if (!app.requestSingleInstanceLock()) app.quit();

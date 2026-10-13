@@ -1,4 +1,5 @@
-// Click (without dragging) on things to get a reaction; hovering shows their name next to the cursor.
+// Click (without dragging) on things to get a reaction; hovering one turns the cursor into a pointer.
+// The label is kept for whoever needs a name (no text is shown on screen).
 import * as THREE from 'three';
 
 interface Clickable { object: THREE.Object3D; onClick: () => void; label: string }
@@ -47,7 +48,7 @@ export class Interact {
     return root ? this.items.find((c) => c.object === root) : undefined;
   }
 
-  attach(tip: HTMLElement) {
+  attach() {
     const el = this.dom;
     let down: { x: number; y: number } | null = null, pending = false, last: PointerEvent | null = null;
     el.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY }; });
@@ -63,17 +64,8 @@ export class Interact {
       pending = true;
       setTimeout(() => {
         pending = false;
-        if (!last || last.buttons) { tip.classList.remove('show'); return; }
-        const p = this.pickAt(last.clientX, last.clientY);
-        el.style.cursor = p ? 'pointer' : '';
-        tip.classList.toggle('show', !!p);
-        if (p) {
-          tip.textContent = p.label;
-          tip.style.left = `${last.clientX}px`;
-          tip.style.top = `${last.clientY}px`;
-        }
+        el.style.cursor = last && !last.buttons && this.pickAt(last.clientX, last.clientY) ? 'pointer' : '';
       }, 90);
     });
-    el.addEventListener('pointerleave', () => tip.classList.remove('show'));
   }
 }

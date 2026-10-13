@@ -182,7 +182,7 @@ export class App {
       this.owed = 0;
       this.simulate(dt);
       this.audio.update(this.atmosphere.drivers, this.elapsed);
-      this.stage.controls.update(dt);
+      this.stage.update(dt);
       for (const f of this.uiFns) f();
       this.fx.render();
       if (this.frame > 60) this.adaptQuality(dt);
