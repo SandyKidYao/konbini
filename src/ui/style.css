@@ -71,6 +71,8 @@ button { font: inherit; color: inherit; }
 .label .tag { font-size: 11px; padding: 0 6px; border-radius: 6px; background: var(--well); color: var(--muted); white-space: nowrap; }
 .label .tag.special { background: rgba(255, 138, 30, 0.16); color: var(--orange); }
 .label .temp { color: var(--muted); }
+.label-date { cursor: pointer; border-radius: 6px; margin: -2px -6px; padding: 2px 6px; transition: background 0.3s; }
+.label-date:hover { background: var(--well); }
 .label-status { margin: 10px 0 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
 
 /* --- dock: weather keys | time of day | real time --- */
@@ -87,7 +89,7 @@ button { font: inherit; color: inherit; }
 .keys button:hover { background: var(--key); }
 .keys button:active { transform: translateY(1.5px) scale(0.985); }
 .keys button[aria-pressed="true"] { background: var(--key); box-shadow: inset 0 -2px 0 var(--line), 0 1px 0 rgba(255, 255, 255, 0.4); }
-.keys svg, .live-btn svg, .tools svg {
+.keys svg, .live-btn svg, .date-btn svg, .tools svg {
   width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round;
 }
 .keys svg { opacity: 0.75; }
@@ -117,12 +119,62 @@ button { font: inherit; color: inherit; }
 .knob .moon { fill: #8fa3d6; opacity: 0; }
 .knob.night .sun { opacity: 0; }
 .knob.night .moon { opacity: 1; }
+/* the time, shown above the knob while you point at or drag the track */
+.knob-time {
+  position: absolute; bottom: calc(100% + 7px); left: 50%; transform: translate(-50%, 3px);
+  padding: 2px 7px; border-radius: 7px; background: var(--ink); color: var(--bg); font-size: 12px; font-variant-numeric: tabular-nums;
+  white-space: nowrap; opacity: 0; transition: opacity 0.25s, transform 0.25s var(--ease);
+}
+.track:hover .knob-time, .track:focus-within .knob-time { opacity: 0.92; transform: translate(-50%, 0); }
 .marks { position: relative; height: 20px; margin-top: 2px; }
 .marks button {
   position: absolute; transform: translateX(-50%); border: 0; background: none; padding: 1px 4px; cursor: pointer;
   font-size: 12px; color: var(--muted); border-radius: 6px; white-space: nowrap; transition: color 0.3s, background 0.3s;
 }
 .marks button:hover { color: var(--ink); background: var(--well); }
+
+/* --- date button + picker --- */
+.date-btn {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 10px; border: 0;
+  border-radius: var(--radius-key); background: none; cursor: pointer; font-size: 12px; color: var(--muted); white-space: nowrap;
+  font-variant-numeric: tabular-nums; transition: background 0.3s, color 0.3s;
+}
+.date-btn:hover, .date-btn[aria-expanded="true"] { background: var(--well); color: var(--ink); }
+/* an orange dot: showing a day other than today */
+.date-btn .dot { position: absolute; top: 6px; right: 8px; width: 6px; height: 6px; border-radius: 50%; background: var(--orange); }
+
+.cal { position: fixed; z-index: 10; width: 300px; padding: 14px 14px 12px; border-radius: var(--radius-card); font-size: 13px; }
+.cal-quick { display: grid; gap: 8px; padding-bottom: 12px; margin-bottom: 10px; border-bottom: 1px dashed var(--line); }
+.cal-row { display: flex; gap: 10px; align-items: flex-start; }
+.cal-h { flex: none; padding-top: 4px; color: var(--muted); font-size: 12px; }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chips button {
+  border: 0; padding: 3px 10px; border-radius: 999px; background: var(--well); cursor: pointer; font-size: 13px;
+  transition: background 0.25s, color 0.25s;
+}
+.chips button:hover { background: var(--key); }
+.chips button[aria-pressed="true"] { background: rgba(255, 138, 30, 0.18); color: var(--orange); }
+.cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; font-size: 14px; }
+.cal-nav { width: 28px; height: 28px; border: 0; border-radius: 8px; background: none; cursor: pointer; font-size: 18px; line-height: 1; color: var(--muted); }
+.cal-nav:hover { background: var(--well); color: var(--ink); }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; font-variant-numeric: tabular-nums; }
+.cal-grid .wd { font-size: 11px; color: var(--muted); padding: 2px 0 4px; }
+.cal-grid button {
+  position: relative; height: 30px; border: 0; border-radius: 8px; background: none; cursor: pointer; font-size: 13px;
+  transition: background 0.2s;
+}
+.cal-grid button:hover { background: var(--well); }
+.cal-grid .sun { color: #d7383b; }
+.cal-grid .sat { color: var(--blue); }
+body[data-theme="dark"] .cal-grid .sun { color: #ff8a8a; }
+body[data-theme="dark"] .cal-grid .sat { color: #8fb4ff; }
+.cal-grid .fest::after { content: ""; position: absolute; left: 50%; bottom: 3px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--orange); }
+.cal-grid .today { box-shadow: inset 0 0 0 1px var(--line); }
+.cal-grid button.sel { background: var(--ink); color: var(--bg); }
+.cal-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; min-height: 26px; }
+.cal-note { color: var(--muted); font-size: 12px; line-height: 1.4; }
+.cal-today { flex: none; border: 0; padding: 4px 10px; border-radius: 8px; background: var(--well); cursor: pointer; font-size: 12px; }
+.cal-today:hover { background: var(--key); }
 
 .live-btn {
   display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 10px; border: 0; border-radius: var(--radius-key);
@@ -168,7 +220,7 @@ button { font: inherit; color: inherit; }
 }
 .tip.show { opacity: 1; }
 
-@media (max-width: 1380px) {
+@media (max-width: 1460px) {
   /* not enough room beside the dock: the label moves to the top-left corner */
   .label { top: 24px; bottom: auto; left: 24px; }
 }
@@ -190,6 +242,7 @@ button { font: inherit; color: inherit; }
   .dock { bottom: 14px; width: calc(100% - 28px); gap: 8px; padding: 8px; }
   .keys { grid-template-columns: repeat(4, 1fr); }
   .hint { bottom: 222px; white-space: normal; width: calc(100% - 40px); text-align: center; }
+  .cal { width: calc(100% - 28px); }
 }
 
 @media (prefers-reduced-motion: reduce) {

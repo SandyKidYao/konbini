@@ -20,7 +20,7 @@
       <p class="label-sub">桜坂二丁目店</p>
       <dl>
         <div><dt>比例</dt><dd>1 : 150</dd></div>
-        <div title="[ ] 前后一天，Shift 加 [ ] 前后一周"><dt>日期</dt><dd id="labelDate"></dd></div>
+        <div class="label-date" id="labelDateRow" title="点击选择日期（[ ] 前后一天）"><dt>日期</dt><dd id="labelDate"></dd></div>
         <div><dt>时刻</dt><dd><span id="labelTime">11:20</span><span class="live" id="labelLive" hidden>实况</span></dd></div>
         <div><dt>天气</dt><dd id="labelWeather">晴</dd></div>
         <div id="labelPlaceRow" hidden><dt>地点</dt><dd id="labelPlace"></dd></div>
@@ -29,8 +29,8 @@
     </div>
   </aside>
 
-  <!-- controls: weather keys (styled after vending-machine buttons) and the time of day -->
-  <section class="dock panel" aria-label="时间与天气">
+  <!-- controls: weather keys (styled after vending-machine buttons), the time of day and the date -->
+  <section class="dock panel" aria-label="时间、日期与天气">
     <div class="keys" id="weatherKeys" role="group" aria-label="天气"></div>
     <div class="time">
       <div class="track">
@@ -38,6 +38,7 @@
         <span class="knob" id="timeKnob" aria-hidden="true">
           <svg class="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/></svg>
           <svg class="moon" viewBox="0 0 24 24"><path d="M15.5 4.5a7.5 7.5 0 1 0 4 13.6A8.5 8.5 0 0 1 15.5 4.5z"/></svg>
+          <span class="knob-time" id="knobTime">11:20</span>
         </span>
       </div>
       <div class="marks">
@@ -47,11 +48,34 @@
         <button type="button" data-hour="23.2" style="left: calc(23.2 / 24 * 100%)">深夜</button>
       </div>
     </div>
+    <button type="button" class="date-btn" id="dateBtn" aria-expanded="false" aria-controls="calPanel" title="选择日期（[ ] 前后一天）">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5.5" width="16" height="14.5" rx="2.5"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/></svg>
+      <span id="dateBtnText">10月13日</span>
+      <i class="dot" id="dateBtnDot" hidden></i>
+    </button>
     <button type="button" class="live-btn" id="liveBtn" aria-pressed="false" title="实况：跟随你所在地的真实时间和天气（L）">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>
       <span>实况</span>
     </button>
   </section>
+
+  <!-- the date picker: seasons and festivals one click away, a month calendar for anything else -->
+  <div class="cal panel" id="calPanel" role="dialog" aria-label="选择日期" hidden>
+    <div class="cal-quick">
+      <div class="cal-row"><span class="cal-h">季节</span><div class="chips" id="calSeasons"></div></div>
+      <div class="cal-row"><span class="cal-h">节日</span><div class="chips" id="calFestivals"></div></div>
+    </div>
+    <div class="cal-head">
+      <button type="button" class="cal-nav" id="calPrev" aria-label="上个月">‹</button>
+      <span id="calTitle">2026年10月</span>
+      <button type="button" class="cal-nav" id="calNext" aria-label="下个月">›</button>
+    </div>
+    <div class="cal-grid" id="calGrid" role="grid"></div>
+    <div class="cal-foot">
+      <span class="cal-note" id="calNote"></span>
+      <button type="button" class="cal-today" id="calToday">回到今天</button>
+    </div>
+  </div>
 
   <div class="tools">
     <button type="button" id="modsBtn" aria-expanded="false" aria-controls="modsPanel" title="已加载的模组">

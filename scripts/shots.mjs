@@ -56,6 +56,18 @@ const SCENES = [
       f.root.scale.setScalar(1);
       konbini.stage.world.add(f.root);
     });` },
+  // the date picker, driven like a person would: open it, pick a season / festival / day
+  { name: 'ui-picker', q: 'weather=clear&time=1100&date=2026-10-13', act: async (p) => { await p.click('#dateBtn'); } },
+  { name: 'ui-picker-autumn', q: 'weather=clear&time=1100&date=2026-07-01', act: async (p) => {
+    await p.click('#dateBtn'); await p.click('[data-season="autumn"]'); } },
+  { name: 'ui-picker-festival', q: 'weather=clear&time=1100', act: async (p) => {
+    await p.click('#labelDateRow'); await p.click('[data-fest="natsumatsuri"]'); await p.waitForTimeout(3000); } },
+  { name: 'ui-picker-day', q: 'weather=clear&time=1100&date=2026-12-01', act: async (p) => {
+    await p.click('#dateBtn'); await p.click('#calNext'); await p.click('[data-day="2"]'); } },
+  { name: 'ui-picker-closed', q: 'weather=clear&time=1100&date=2026-12-01', act: async (p) => {
+    await p.click('#dateBtn'); await p.click('[data-season="spring"]'); await p.keyboard.press('Escape'); } },
+  { name: 'ui-time-hover', q: 'weather=clear&time=1430', act: async (p) => { await p.hover('#timeKnob', { force: true }); } },
+  { name: 'ui-picker-narrow', q: 'weather=partly&time=0900', viewport: { width: 390, height: 844 }, act: async (p) => { await p.click('#dateBtn'); } },
   { name: 'narrow', q: 'weather=partly&time=0900', viewport: { width: 390, height: 844 } },
 ];
 
@@ -101,6 +113,7 @@ for (const s of scenes) {
     await page.goto(`${url}?${s.q}`, { waitUntil: 'commit' });
     await page.waitForSelector('#veil.done', { timeout: 180000 });
     if (s.setup) await page.evaluate(s.setup);
+    if (s.act) await s.act(page);
     await page.waitForTimeout(s.wait ?? 2500);
     await page.screenshot({ path: `${out}/${s.name}.png` });
     const label = await page.evaluate(() => document.querySelector('.label dl').innerText.replace(/\s*\n\s*/g, ' ')

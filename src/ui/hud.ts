@@ -3,6 +3,7 @@ import type { App } from '../engine/app';
 import { formatHour, WEATHER_KINDS, WEATHER_LABEL, type WeatherKind } from '../engine/atmosphere';
 import { FESTIVAL_LABEL, SEASON_LABEL, formatDay, type Day } from '../engine/calendar';
 import type { LiveSync, LiveStatus } from '../engine/live';
+import { initDatePicker } from './date-picker';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -100,6 +101,7 @@ export function initHud(app: App, live: LiveSync) {
   showDay(atm.day);
   atm.onDayChange(showDay);
   const shiftDate = (days: number) => { takeControl(); atm.shiftDate(days); syncUrl(); };
+  initDatePicker(atm, { takeControl, syncUrl, tick });
 
   // --- turntable: pauses while you handle the model, resumes when you let go ---
   const spinBtn = $('spinBtn');
@@ -141,14 +143,14 @@ export function initHud(app: App, live: LiveSync) {
   });
 
   // --- reflect state every frame (time animates, real time ticks, theme follows daylight) ---
-  const labelTime = $('labelTime'), labelWeather = $('labelWeather');
+  const labelTime = $('labelTime'), labelWeather = $('labelWeather'), knobTime = $('knobTime');
   app.onFrameUI(() => {
     syncSolar();
     const d = atm.drivers;
     const minute = Math.floor(d.hour * 60);
     if (minute !== lastMinute) {
       lastMinute = minute;
-      labelTime.textContent = formatHour(d.hour);
+      labelTime.textContent = knobTime.textContent = formatHour(d.hour);
       if (document.activeElement !== range) range.value = String(d.hour);
     }
     knob.style.left = `${(d.hour / 24) * 100}%`;
