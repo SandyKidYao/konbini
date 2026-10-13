@@ -42,6 +42,10 @@ const SCENES = [
   { name: 'xmas-door', q: 'weather=snow&time=1900&date=2026-12-22&cam=10,5,12,1,0.8,-1.5&warp=20' },
   { name: 'festival-street', q: 'weather=clear&time=1940&date=2026-08-08&warp=90&cam=-2,4,19,-2,0.9,9' },
   { name: 'winter-street', q: 'weather=cloudy&time=0800&date=2027-01-20&warp=90&cam=-2,4,19,-2,0.9,9' },
+  { name: 'furin-summer', q: 'weather=partly&time=1400&season=summer&mods=mods/furin.js&cam=4,3.2,4.5,4,2.1,0' },
+  // stepping the date with ] at runtime: bare branches on 3-20, blossom five days later (snow cover re-bakes)
+  { name: 'date-keys', q: 'weather=snow&time=1200&date=2026-03-20&cam=-9,7,14,-16,3,4', setup: `
+    for (let i = 0; i < 5; i++) dispatchEvent(new KeyboardEvent('keydown', { key: ']' }));` },
   // a line-up of figures in every outfit, on the sidewalk in front of the shop
   { name: 'outfits', q: 'weather=clear&time=1100&cam=-1,2.6,13.5,-1,1,8.8', setup: `
     const outfits = [{ yukata: '#2c3d66' }, { yukata: '#e9a0b8' }, { coat: '#c9b48a', scarf: true, hat: 'knit' }, { coat: '#3a4558' },

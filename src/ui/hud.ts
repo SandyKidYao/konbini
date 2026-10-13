@@ -129,7 +129,7 @@ export function initHud(app: App, live: LiveSync) {
 
   // --- keyboard ---
   addEventListener('keydown', (e) => {
-    if ((e.target as HTMLElement).closest('input, textarea')) return;
+    if (e.target instanceof Element && e.target.closest('input, textarea')) return;
     const k = e.key.toLowerCase();
     const n = Number(k);
     if (n >= 1 && n <= WEATHER_KINDS.length) setWeather(WEATHER_KINDS[n - 1]);
