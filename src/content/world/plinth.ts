@@ -49,7 +49,12 @@ export default defineMod({
     plate.castShadow = true;
     root.add(plate);
 
-    // studio floor: a shadow catcher and a soft contact shadow
+    // the display stand is not part of the scene: no snow settles on it
+    for (const o of [top, plate]) o.userData.noSnow = true;
+    root.children.forEach((o) => { if (o !== slab) o.userData.noSnow = true; });
+
+    // studio floor: a shadow catcher and a soft contact shadow (on a transparent window the desk is the floor)
+    if (ctx.fx.transparent) return;
     const floorShadow = new THREE.ShadowMaterial({ opacity: 0.2, transparent: true });
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), floorShadow);
     floor.rotation.x = -Math.PI / 2;
@@ -62,10 +67,6 @@ export default defineMod({
     c.position.set(slab.position.x, FLOOR_Y + 0.01, slab.position.z);
     c.renderOrder = -1;
     ctx.scene.add(c);
-
-    // the display stand is not part of the scene: no snow settles on it
-    for (const o of [top, plate]) o.userData.noSnow = true;
-    root.children.forEach((o) => { if (o !== slab) o.userData.noSnow = true; });
 
     ctx.onFrame(() => {
       floorShadow.opacity = ctx.atmosphere.look.floorShadow;

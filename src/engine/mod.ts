@@ -49,6 +49,8 @@ export interface SitePlot {
 
 export interface FxApi {
   readonly envMap: THREE.Texture;
+  /** only the model is drawn, over a transparent window (desktop pet): no studio floor or backdrop around it */
+  readonly transparent: boolean;
   wetable<M extends THREE.MeshStandardMaterial>(mat: M): M;
   addPuddle(x: number, z: number, r: number, sx?: number, sz?: number): THREE.Mesh;
   addSheen(rect: Rect, y: number): THREE.Mesh;

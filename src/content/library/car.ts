@@ -19,7 +19,8 @@ function shell(clip?: THREE.Plane[]): Shell {
   const g = new THREE.Group();
   return {
     g,
-    cm: (c, p = {}) => mat(c, clip ? { clippingPlanes: clip, ...p } : p),
+    // clip the shadow too: a car still outside the model must not cast one onto it (or the floor)
+    cm: (c, p = {}) => mat(c, clip ? { clippingPlanes: clip, clipShadows: true, ...p } : p),
     add(geo, m, x, y, z) {
       const ob = new THREE.Mesh(geo, m); ob.position.set(x, y, z); ob.castShadow = ob.receiveShadow = true; g.add(ob); return ob;
     },

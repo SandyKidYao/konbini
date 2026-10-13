@@ -40,7 +40,7 @@ export default defineMod({
 | `ctx.steps` | 角色脚本：`go` `walk` `wait` `until` `face` `pose` `sit` `stand` `place` `run` `leave` |
 | `ctx.services` | `provide(name, impl)` / `get(name)`：模组之间按名字协作，不互相 import |
 | `ctx.bus` | 松散的消息：`emit` / `on` |
-| `ctx.fx` | `envMap`、`wetable(mat)`、`addPuddle`、`addSheen`、`addPass`（自定义后期）、`skyChanged()`（挡雪的东西变了） |
+| `ctx.fx` | `envMap`、`transparent`（桌宠：只画模型，周围没有摄影棚地面和背景）、`wetable(mat)`、`addPuddle`、`addSheen`、`addPass`（自定义后期）、`skyChanged()`（挡雪的东西变了） |
 | `ctx.audio` | `define(name, recipe)` 定义音效、`play(name)` |
 | `ctx.interact.clickable(obj, fn, '名字')` | 可点击，悬停显示名字 |
 | `ctx.onFrame(fn)` | 每帧回调 `(dt, t, drivers)` |
