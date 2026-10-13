@@ -23,7 +23,7 @@ const SCENES = [
   { name: 'snow-day', q: 'weather=snow&time=1300' },
   { name: 'snow-night', q: 'weather=snow&time=2200' },
   { name: 'fog-day', q: 'weather=fog&time=1000' },
-  { name: 'shop-night-close', q: 'weather=clear&time=2300&cam=14,7,17,1.5,0.8,-2' },
+  { name: 'shop-night-close', q: 'weather=clear&time=2300&cam=14,7,13,1.5,0.8,-6.5' },
   { name: 'live-tokyo', q: 'live=1&place=35.68,139.69,東京', wait: 6000 },
   // no place given: geolocation is denied in headless Chrome, so this exercises the IP / time-zone fallback
   { name: 'live-fallback', q: 'live=1', wait: 15000 },
@@ -36,13 +36,13 @@ const SCENES = [
   { name: 'summer-festival', q: 'weather=clear&time=1930&date=2026-08-08&warp=40' },
   { name: 'autumn-leaves', q: 'weather=partly&time=1500&date=2026-11-12' },
   { name: 'winter-bare', q: 'weather=clear&time=1200&date=2026-01-21&warp=30' },
-  { name: 'newyear-door', q: 'weather=clear&time=1000&date=2027-01-02&cam=10,5,12,1,0.8,-1.5' },
-  { name: 'tanabata-door', q: 'weather=clear&time=1800&date=2026-07-05&cam=10,5,12,1,0.8,-1.5' },
-  { name: 'halloween-door', q: 'weather=clear&time=2000&date=2026-10-25&cam=10,5,12,1,0.8,-1.5' },
-  { name: 'xmas-door', q: 'weather=snow&time=1900&date=2026-12-22&cam=10,5,12,1,0.8,-1.5&warp=20' },
+  { name: 'newyear-door', q: 'weather=clear&time=1000&date=2027-01-02&cam=10,5,7.5,1,0.8,-6' },
+  { name: 'tanabata-door', q: 'weather=clear&time=1800&date=2026-07-05&cam=10,5,7.5,1,0.8,-6' },
+  { name: 'halloween-door', q: 'weather=clear&time=2000&date=2026-10-25&cam=10,5,7.5,1,0.8,-6' },
+  { name: 'xmas-door', q: 'weather=snow&time=1900&date=2026-12-22&cam=10,5,7.5,1,0.8,-6&warp=20' },
   { name: 'festival-street', q: 'weather=clear&time=1940&date=2026-08-08&warp=90&cam=-2,4,19,-2,0.9,9' },
   { name: 'winter-street', q: 'weather=cloudy&time=0800&date=2027-01-20&warp=90&cam=-2,4,19,-2,0.9,9' },
-  { name: 'furin-summer', q: 'weather=partly&time=1400&season=summer&mods=mods/furin.js&cam=4,3.2,4.5,4,2.1,0' },
+  { name: 'furin-summer', q: 'weather=partly&time=1400&season=summer&mods=mods/furin.js&cam=4,3.2,0,4,2.1,-4.5' },
   // stepping the date with ] at runtime: bare branches on 3-20, blossom five days later (snow cover re-bakes)
   { name: 'date-keys', q: 'weather=snow&time=1200&date=2026-03-20&cam=-9,7,14,-16,3,4', setup: `
     for (let i = 0; i < 5; i++) dispatchEvent(new KeyboardEvent('keydown', { key: ']' }));` },
@@ -56,6 +56,31 @@ const SCENES = [
       f.root.scale.setScalar(1);
       konbini.stage.world.add(f.root);
     });` },
+  // every vehicle body, lined up on road A, lamps on (brake, indicators) to check them by eye
+  { name: 'vehicles', q: 'weather=clear&time=1100&disable=konbini.events.traffic,konbini.events.parking&cam=-5,16,38,-5,0,12', setup: `
+    const list = [['car', { color: '#f6e7c8', len: 3.4, width: 1.48, bodyH: 0.68, cabinLen: 2.55, cabinH: 0.86, cabinX: -0.3 }],
+      ['car', { color: '#c3c8cd', len: 4.0, width: 1.66, bodyH: 0.68, cabinLen: 2.3, cabinH: 0.62, cabinX: -0.45 }],
+      ['car', { color: '#2f3f63', len: 4.7, width: 1.74, bodyH: 0.72, cabinLen: 3.5, cabinH: 0.82, cabinX: -0.45 }],
+      ['car', { color: '#f2c84b', belt: '#2a7a55', roofLamp: true }], ['car', { color: '#1c1d20', patrol: true, len: 4.6, width: 1.74, bodyH: 0.66, cabinLen: 2.3, cabinH: 0.58, cabinX: -0.3 }],
+      ['truck', { type: 'kei', load: 'cabbage' }], ['truck', { type: 'box', stripe: '#2f6db5' }], ['bus', {}]];
+    let x = -16, z = 12.2;
+    for (const [k, o] of list) {
+      const b = konbini.prefabs.create(k, o);
+      if (k !== 'car' && z < 13) { x = -16; z = 15.6; }
+      x += b.len / 2 + 0.8;
+      b.root.position.set(x, 0, z);
+      b.lamps({ head: 1, brake: true, reverse: false, blink: 'hazard', engine: true, flash: 0 }, 0);
+      konbini.stage.world.add(b.root);
+      x += b.len / 2 + 0.8;
+    }` },
+  // traffic by the clock: a weekday rush, a quiet weekend afternoon, late night (taxis), the lot close up
+  { name: 'traffic-rush', q: 'weather=cloudy&time=0800&date=2026-10-14&warp=120' },
+  { name: 'traffic-night', q: 'weather=clear&time=2330&date=2026-10-14&warp=120' },
+  { name: 'traffic-rain-dusk', q: 'weather=rain&time=1820&date=2026-10-14&warp=120' },
+  { name: 'lot-lunch', q: 'weather=clear&time=1215&date=2026-10-14&warp=150&cam=1,13,20,1,0,0' },
+  // the shop front from above: the car park, the plaza and the lane people walk in by
+  { name: 'front-plan', q: 'weather=clear&time=1200&date=2026-10-17&warp=60&cam=0,70,-4,0,0,-5' },
+  { name: 'lot-delivery', q: 'weather=partly&time=1430&date=2026-10-14&warp=200&cam=1,13,20,1,0,0' },
   // the date picker, driven like a person would: open it, pick a season / festival / day
   { name: 'ui-picker', q: 'weather=clear&time=1100&date=2026-10-13', act: async (p) => { await p.click('#dateBtn'); } },
   { name: 'ui-picker-autumn', q: 'weather=clear&time=1100&date=2026-07-01', act: async (p) => {

@@ -16,7 +16,7 @@ export default defineMod({
     const FL = STORE.floor;
     const { range: rr, pick } = ctx.mod.random;
     // the spot left of the door, under the awning
-    const BESIDE_DOOR = V(-0.55, FL, -1.45);
+    const BESIDE_DOOR = V(-0.55, FL, -5.95);
 
     // ---------------------------------------------------------------- 門松, a pair flanking the way in
     const kadomatsu = new THREE.Group();
@@ -45,7 +45,7 @@ export default defineMod({
           b.position.set(rr(-0.15, 0.15), rr(0.45, 0.6), rr(0.05, 0.18));
           g.add(b);
         }
-        g.position.set(x, FL, -0.8);
+        g.position.set(x, FL, -5.3);
         kadomatsu.add(g);
       }
       ctx.root.add(kadomatsu);

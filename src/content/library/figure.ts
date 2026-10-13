@@ -38,7 +38,7 @@ export interface FigureOptions {
 export type FigureHat = 'straw' | 'knit' | 'santa' | 'cap';
 export const COATS = ['#3a4558', '#6b5a4a', '#2b2b2e', '#8a3a36', '#c9b48a', '#4a6a5a', '#e8e2d6'];
 export const YUKATA = ['#2c3d66', '#f3eee2', '#e9a0b8', '#3a7a5a', '#a684cf', '#1f2a3a'];
-export type HeldProp = 'bag' | 'can' | 'camera' | `flag:${NoboriDesign}` | null;
+export type HeldProp = 'bag' | 'can' | 'camera' | 'crate' | `flag:${NoboriDesign}` | null;
 
 const geo = {
   thigh: new THREE.CylinderGeometry(0.08, 0.07, 0.42, 10).translate(0, -0.21, 0),
@@ -125,6 +125,13 @@ function makeBag() {
 function makeCan() {
   const g = new THREE.Group();
   mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.12, 12), M(pickR(['#c8553d', '#2f6db5', '#e2b13c', '#3a7a5a']), { metalness: 0.4, roughness: 0.3 }), g, 0, -0.02, 0.03);
+  return g;
+}
+/** a stack of folding delivery crates, carried in front with both hands */
+function makeCrates() {
+  const g = new THREE.Group();
+  ['#3d78d6', '#e8863a'].forEach((c, i) => mesh(new RoundedBoxGeometry(0.46, 0.2, 0.34, 2, 0.03), M(c, { roughness: 0.5 }), g, 0, i * 0.21, 0));
+  mesh(new THREE.BoxGeometry(0.4, 0.06, 0.28), M('#f6efe0'), g, 0, 0.33, 0);
   return g;
 }
 function makeCamera() {
@@ -250,6 +257,13 @@ export class Figure implements Walker {
       this.prop = f.root; this.flag = f;
       return;
     }
+    if (name === 'crate') {
+      const c = makeCrates();
+      c.position.set(0, 1.0, 0.32);
+      this.root.add(c);
+      this.prop = c;
+      return;
+    }
     const p = name === 'bag' ? makeBag() : name === 'can' ? makeCan() : makeCamera();
     this.arms[0].hold.add(p);
     this.prop = p;
@@ -305,6 +319,7 @@ export class Figure implements Walker {
     }
     if (this.sitting) { T.hipL = T.hipR = -1.45; T.kneeL = T.kneeR = 1.45; }
     if (this.propName === 'bag' && this.moving) T.armR *= 0.4;
+    if (this.propName === 'crate') { T.armR = T.armL = -1.05; T.armRz = 0.2; T.armLz = -0.2; }
     if (this.flag) {
       T.armR = -0.35; T.armRz = -0.3;
       this.flag.update(t, d.wind);

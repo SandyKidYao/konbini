@@ -43,9 +43,17 @@ export class Director {
   private running: Running[] = [];
   private nextSpawn = 1.2;
 
-  constructor(private env: AgentEnv, private nav: NavGraph, private services: Services, private today: () => Day) {}
+  constructor(private env: AgentEnv, private nav: NavGraph, private services: Services, private today: () => Day) {
+    env.blockers ??= [];
+  }
 
   define(def: EventDef) { this.events.set(def.id, def); }
+
+  /** Something walkers give way to: return true when someone shouldn't step to (x, z) just now. */
+  avoid(blocked: (a: Actor, x: number, z: number) => boolean) {
+    this.env.blockers!.push(blocked);
+    return () => { const i = this.env.blockers!.indexOf(blocked); if (i >= 0) this.env.blockers!.splice(i, 1); };
+  }
   list() { return [...this.events.values()]; }
 
   spawn(walker: Walker, o: ActorOptions = {}) {

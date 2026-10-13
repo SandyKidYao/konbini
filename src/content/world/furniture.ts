@@ -13,12 +13,15 @@ export interface Signals {
   vehicle(t: number): Aspect;
   /** the green man for the crossing over road B ('flash' = finish crossing, don't start) */
   ped(t: number): 'g' | 'flash' | 'r';
+  /** traffic coming up road B into road A: its turn comes while road A is held at red */
+  side(t: number): Aspect;
 }
 
 const CYCLE = 22;
 const signals: Signals = {
   vehicle(t) { const c = t % CYCLE; return c < 10 ? 'g' : c < 13 ? 'y' : 'r'; },
   ped(t) { const c = t % CYCLE; return c < 6.5 ? 'g' : c < 10 ? 'flash' : 'r'; },
+  side(t) { const c = t % CYCLE; return c >= 14 && c < 19.5 ? 'g' : c >= 19.5 && c < 21 ? 'y' : 'r'; },
 };
 
 export default defineMod({

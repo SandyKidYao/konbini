@@ -24,7 +24,7 @@ export default defineMod({
     ctx.root.add(yard);
 
     // ------------------------------------------------------------------ back door
-    const DOOR_Z0 = -10.15, DOOR_Z1 = -9.05, DOOR_H = 2.2;
+    const DOOR_Z0 = -14.65, DOOR_Z1 = -13.55, DOOR_H = 2.2;
     const peekTex = canvasTex(128, 256, (g, w, h) => {
       // what you glimpse through the open door: a warm, cramped stock room
       const bg = g.createLinearGradient(0, 0, 0, h); bg.addColorStop(0, '#fff2d8'); bg.addColorStop(1, '#e8c99a');
@@ -102,8 +102,8 @@ export default defineMod({
       ctx.onFrame(() => { light.intensity = ctx.atmosphere.channel('lamp') * 2.4 + ctx.atmosphere.channel('window') * 0.6; });
     }
     // hose reel and an electric meter on the wall
-    cyl(yard, 0.22, 0.22, 0.12, mat('#3f7f5f', { roughness: 0.5 }), WALL_X - 0.1, 0.9, -5.6, 18).rotation.z = Math.PI / 2;
-    box(yard, 0.12, 0.42, 0.3, mat('#e6e6e1'), WALL_X - 0.06, 1.35, -7.0);
+    cyl(yard, 0.22, 0.22, 0.12, mat('#3f7f5f', { roughness: 0.5 }), WALL_X - 0.1, 0.9, -10.1, 18).rotation.z = Math.PI / 2;
+    box(yard, 0.12, 0.42, 0.3, mat('#e6e6e1'), WALL_X - 0.06, 1.35, -11.5);
 
     // ------------------------------------------------------------------ mesh fence with a gate
     const fenceM = mat('#466e5c', { roughness: 0.5, metalness: 0.3 });
@@ -113,7 +113,7 @@ export default defineMod({
       g.beginPath(); g.moveTo(0, 0); g.lineTo(64, 64); g.moveTo(64, 0); g.lineTo(0, 64); g.stroke();
     }, true);
     const meshM = mat('#466e5c', { map: meshTex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.5, metalness: 0.3 });
-    const FENCE_Z = -3.3, FENCE_H = 1.25;
+    const FENCE_Z = -7.8, FENCE_H = 1.25;
     function fencePanel(x0: number, x1: number, parent: THREE.Object3D = yard, z = FENCE_Z) {
       const w = x1 - x0;
       const pm = meshM.clone();
@@ -141,11 +141,11 @@ export default defineMod({
     }
 
     // ------------------------------------------------------------------ storage shed (back corner)
-    boxE(yard, -13.3, -10.9, G, 2.1, -13.6, -11.9, mat('#d5dfcf', { roughness: 0.6 }));
-    boxE(yard, -13.45, -10.75, 2.1, 2.2, -13.75, -11.75, mat('#9fb098'));
-    boxE(yard, -13.1, -12.1, 0.2, 1.9, -11.9, -11.86, mat('#c4cebc'), { plain: true });
-    boxE(yard, -12.1, -11.1, 0.2, 1.9, -11.88, -11.84, mat('#bcc6b4'), { plain: true });
-    for (const z of [-13.2, -12.75]) cyl(yard, 0.18, 0.18, 1.2, mat('#dde2e6', { metalness: 0.35, roughness: 0.4 }), -10.45, G, z, 16);
+    boxE(yard, -13.3, -10.9, G, 2.1, -18.1, -16.4, mat('#d5dfcf', { roughness: 0.6 }));
+    boxE(yard, -13.45, -10.75, 2.1, 2.2, -18.25, -16.25, mat('#9fb098'));
+    boxE(yard, -13.1, -12.1, 0.2, 1.9, -16.4, -16.36, mat('#c4cebc'), { plain: true });
+    boxE(yard, -12.1, -11.1, 0.2, 1.9, -16.38, -16.34, mat('#bcc6b4'), { plain: true });
+    for (const z of [-17.7, -17.25]) cyl(yard, 0.18, 0.18, 1.2, mat('#dde2e6', { metalness: 0.35, roughness: 0.4 }), -10.45, G, z, 16);
 
     // ------------------------------------------------------------------ restocking: roll cage cart of folding crates
     {
@@ -163,13 +163,13 @@ export default defineMod({
         rod(cart, V(-cw / 2, y, -cd / 2), V(-cw / 2, y, cd / 2), 0.01, wire, 4);
       }
       ['#f39a4a', '#4f8fd9', '#f2c14e', '#f39a4a'].forEach((c, i) => box(cart, 0.62, 0.3, 0.5, mat(c, { roughness: 0.6 }), 0, 0.19 + i * 0.31, 0, { r: 0.03 }));
-      cart.position.set(WALL_X - 0.75, G, -11.2);
+      cart.position.set(WALL_X - 0.75, G, -15.7);
       cart.rotation.y = 0.15;
       yard.add(cart);
     }
     // a couple of crates waiting by the step, one with a lid open
-    box(yard, 0.62, 0.3, 0.5, mat('#4f8fd9', { roughness: 0.6 }), WALL_X - 1.45, G, -8.35, { r: 0.03, ry: 0.3 });
-    box(yard, 0.62, 0.3, 0.5, mat('#f39a4a', { roughness: 0.6 }), WALL_X - 1.45, G + 0.3, -8.35, { r: 0.03, ry: 0.22 });
+    box(yard, 0.62, 0.3, 0.5, mat('#4f8fd9', { roughness: 0.6 }), WALL_X - 1.45, G, -12.85, { r: 0.03, ry: 0.3 });
+    box(yard, 0.62, 0.3, 0.5, mat('#f39a4a', { roughness: 0.6 }), WALL_X - 1.45, G + 0.3, -12.85, { r: 0.03, ry: 0.22 });
 
     // ------------------------------------------------------------------ garbage station along the left wall
     function wheelieBin(x: number, z: number, color: string) {
@@ -181,12 +181,12 @@ export default defineMod({
       g.position.set(x, G, z); g.rotation.y = Math.PI / 2 + rr(-0.05, 0.05);
       yard.add(g);
     }
-    wheelieBin(-13.35, -10.4, '#6f8fa8');
-    wheelieBin(-13.35, -9.25, '#7ea08a');
+    wheelieBin(-13.35, -14.9, '#6f8fa8');
+    wheelieBin(-13.35, -13.75, '#7ea08a');
     {
       // trash bags
       const bagM = [mat('#e9eef4', { roughness: 0.25, transparent: true, opacity: 0.85 }), mat('#bcd3ea', { roughness: 0.25, transparent: true, opacity: 0.85 })];
-      [[-13.2, -8.25, 0.34], [-12.75, -8.05, 0.3], [-13.3, -7.75, 0.28]].forEach(([x, z, r], i) => {
+      [[-13.2, -12.75, 0.34], [-12.75, -12.55, 0.3], [-13.3, -12.25, 0.28]].forEach(([x, z, r], i) => {
         const b = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 12), bagM[i % 2]);
         b.scale.set(1, 1.1, 0.95); b.position.set(x, G + r, z); b.castShadow = true;
         yard.add(b);
@@ -195,7 +195,7 @@ export default defineMod({
       // flattened cardboard tied in bundles
       const card = mat('#c6a173', { roughness: 0.9 });
       for (let i = 0; i < 2; i++) {
-        const bx = -13.25, bz = -6.9 + i * 0.05, y0 = G + i * 0.24;
+        const bx = -13.25, bz = -11.4 + i * 0.05, y0 = G + i * 0.24;
         box(yard, 0.85, 0.22, 0.65, card, bx, y0, bz, { r: 0.01, ry: i * 0.2 });
         box(yard, 0.87, 0.225, 0.04, M.white, bx, y0, bz, { plain: true, ry: i * 0.2 });
       }
@@ -205,30 +205,30 @@ export default defineMod({
     // staff vending machine against the block wall
     const staffVending = ctx.prefabs.create('vending-machine', { body: '#f2f4f0', accent: '#14a05a', seed: 57, label: '员工自动贩卖机' });
     staffVending.root.rotation.y = Math.PI / 2;
-    staffVending.root.position.set(-13.45, G, -4.6);
+    staffVending.root.position.set(-13.45, G, -9.1);
     yard.add(staffVending.root);
     // wooden bench
-    const benchX = -11.2, benchZ = -5.4;
+    const benchX = -11.2, benchZ = -9.9;
     {
       const wood = mat('#c49a6c', { roughness: 0.6 });
       for (let i = 0; i < 3; i++) box(yard, 1.7, 0.05, 0.12, wood, benchX, G + 0.45, benchZ - 0.15 + i * 0.15, { r: 0.015 });
       for (const sx of [-0.7, 0.7]) box(yard, 0.06, 0.45, 0.42, M.darkMetal, benchX + sx, G, benchZ, { r: 0.01 });
     }
     // upturned crates used as stools, an ashtray stand, potted plants, a broom
-    box(yard, 0.45, 0.32, 0.36, mat('#f2c14e', { roughness: 0.6 }), -10.0, G, -6.5, { r: 0.03, ry: 0.4 });
-    box(yard, 0.45, 0.32, 0.36, mat('#4f8fd9', { roughness: 0.6 }), -12.3, G, -6.6, { r: 0.03, ry: -0.3 });
-    cyl(yard, 0.16, 0.18, 0.72, mat('#c9ced3', { metalness: 0.6, roughness: 0.3 }), -8.4, G, -5.8, 16);
-    cyl(yard, 0.2, 0.17, 0.06, mat('#9aa0a6', { metalness: 0.6, roughness: 0.3 }), -8.4, G + 0.72, -5.8, 16);
+    box(yard, 0.45, 0.32, 0.36, mat('#f2c14e', { roughness: 0.6 }), -10.0, G, -11, { r: 0.03, ry: 0.4 });
+    box(yard, 0.45, 0.32, 0.36, mat('#4f8fd9', { roughness: 0.6 }), -12.3, G, -11.1, { r: 0.03, ry: -0.3 });
+    cyl(yard, 0.16, 0.18, 0.72, mat('#c9ced3', { metalness: 0.6, roughness: 0.3 }), -8.4, G, -10.3, 16);
+    cyl(yard, 0.2, 0.17, 0.06, mat('#9aa0a6', { metalness: 0.6, roughness: 0.3 }), -8.4, G + 0.72, -10.3, 16);
     {
       const potM = mat('#c27a55', { roughness: 0.7 }), leafM = mat('#6f9a5c', { roughness: 0.8 });
-      for (const [x, z, s] of [[-13.5, -3.7, 1.1], [-12.95, -3.65, 0.8], [WALL_X - 0.35, -3.9, 0.9]]) {
+      for (const [x, z, s] of [[-13.5, -8.2, 1.1], [-12.95, -8.15, 0.8], [WALL_X - 0.35, -8.4, 0.9]]) {
         cyl(yard, 0.2 * s, 0.15 * s, 0.32 * s, potM, x, G, z, 14);
         const l = new THREE.Mesh(new THREE.IcosahedronGeometry(0.32 * s, 1), leafM);
         l.position.set(x, G + 0.32 * s + 0.22 * s, z); l.scale.y = 1.2; l.castShadow = true;
         yard.add(l);
       }
-      rod(yard, V(WALL_X - 0.08, G, -6.4), V(WALL_X - 0.12, G + 1.35, -6.15), 0.018, M.wood, 6);
-      box(yard, 0.08, 0.18, 0.32, mat('#d9c58a', { roughness: 0.9 }), WALL_X - 0.1, G, -6.45, { r: 0.02 });
+      rod(yard, V(WALL_X - 0.08, G, -10.9), V(WALL_X - 0.12, G + 1.35, -10.65), 0.018, M.wood, 6);
+      box(yard, 0.08, 0.18, 0.32, mat('#d9c58a', { roughness: 0.9 }), WALL_X - 0.1, G, -10.95, { r: 0.02 });
     }
 
     // ------------------------------------------------------------------ a cat curled up asleep on the bench
@@ -267,7 +267,7 @@ export default defineMod({
     // staff bicycle parked inside the fence
     {
       const b = ctx.prefabs.create('bicycle', { color: '#8fb3a3' }).root;
-      b.position.set(-11.6, G, -3.75);
+      b.position.set(-11.6, G, -8.25);
       b.rotation.y = 0.05;
       yard.add(b);
     }
@@ -279,10 +279,10 @@ export default defineMod({
     const N = ctx.nav, doorZ = (DOOR_Z0 + DOOR_Z1) / 2;
     N.addNode('shop.staffdoor', WALL_X - 0.25, doorZ, { heading: -Math.PI / 2 });
     N.addNode('shop.yard.canopy', WALL_X - 0.6, DOOR_Z1 - 0.1, { heading: -Math.PI / 2 });
-    N.addNode('shop.yard.a', -9.0, -9.9);
-    N.addNode('shop.yard.b', -9.0, -7.2);
-    N.addNode('shop.yard.c', -10.2, -4.5);
-    N.addNode('shop.yard.vending', -12.75, -4.5, { heading: -Math.PI / 2 });
+    N.addNode('shop.yard.a', -9.0, -14.4);
+    N.addNode('shop.yard.b', -9.0, -11.7);
+    N.addNode('shop.yard.c', -10.2, -9.0);
+    N.addNode('shop.yard.vending', -12.75, -9.0, { heading: -Math.PI / 2 });
     N.addNode('shop.yard.bench', benchX - 0.55, benchZ + 0.65, { heading: 0 });
     N.addEdge('shop.staffdoor', 'shop.yard.canopy');
     N.addEdge('shop.staffdoor', 'shop.yard.a', { onEnter: () => openBackDoor(2.5) });

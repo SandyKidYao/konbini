@@ -28,10 +28,11 @@ export default {
 
     const chimes = [];
     const all = new THREE.Group();
+    const aw = ctx.services.get('shop')?.awning ?? { x0: -7.15, x1: 10.95, z: -4.36, y: 2.38 };
     for (const x of [-5, 3.2, 7.4]) {
       const pivot = new THREE.Group();
       // hung from the underside of the green fascia, just in front of the awning
-      pivot.position.set(x, 2.38, 0.14);
+      pivot.position.set(x, aw.y, aw.z);
       kit.cyl(pivot, 0.004, 0.004, 0.16, kit.mat('#555'), 0, -0.16, 0, 4);
       const bell = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), glass);
       bell.position.y = -0.16;

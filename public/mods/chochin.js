@@ -20,11 +20,13 @@ export default {
     const cap = kit.mat('#2a2a2a', { roughness: 0.6 });
     const string = kit.mat('#3a3a3a');
 
+    // hang them from the front edge of the shop's awning, wherever the shop puts it
+    const aw = ctx.services.get('shop')?.awning ?? { x0: -7.15, x1: 10.95, z: -4.36, y: 2.38 };
     const lanterns = [];
     for (let i = 0; i < 9; i++) {
       const x = -6 + i * 2;
       const pivot = new THREE.Group();
-      pivot.position.set(x, 2.36, 0.22);
+      pivot.position.set(x, aw.y - 0.02, aw.z + 0.08);
       const l = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 12), body);
       l.scale.set(1, 1.35, 1);
       l.position.y = -0.38;
@@ -38,7 +40,7 @@ export default {
     }
     // a soft warm light in the middle of the string, on at dusk and night
     const light = new THREE.PointLight('#ffb36b', 0, 7, 2);
-    light.position.set(2, 1.9, 0.6);
+    light.position.set(2, 1.9, aw.z + 0.46);
     ctx.root.add(light);
 
     ctx.onFrame((dt, t, d) => {

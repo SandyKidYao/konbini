@@ -3,7 +3,7 @@
 import { defineMod } from '../../engine/mod';
 import { R, pickR } from '../../engine/kit/rng';
 import type { ShopService, BackyardService, BannerService } from '../site/konbini/api';
-import { citizen, clerk, streetEnds, rushHour, staffDress, type ClerkService } from './people';
+import { citizen, clerk, streetEnds, rushHour, staffDress, shopAround, type ClerkService } from './people';
 
 const PI = Math.PI;
 
@@ -39,29 +39,10 @@ export const customerMod = defineMod({
         return inside > 4 ? 0 : (0.75 + 0.25 * d.daylight) * (1 - 0.35 * d.thunder) * (rushHour(ctx.states.conditions) ? 1.3 : 1);
       },
       run({ drivers: d, board }) {
-        const shop = ctx.services.require<ShopService>('shop');
         const ends = streetEnds(ctx);
         const fig = citizen(ctx, d);
         const a = ctx.director.spawn(fig, { at: pickR(ends).id, label: '顾客', tags: ['customer'] });
-        const aisle = pickR(shop.aisles);
-        a.then(
-          S.go(shop.nodes.doorIn),
-          S.run(() => clerk(ctx)?.bow()),                     // いらっしゃいませ
-          S.go(aisle.front),
-          S.walk([[aisle.x, R(-8.6, -5.2)]]), S.face(pickR(aisle.faces)), S.pose('browse', R(2, 4)), S.wait(R(0.4, 1.2)),
-        );
-        if (Math.random() < 0.5) a.then(S.go(aisle.back), S.face(PI), S.pose('browse', R(1.5, 3)));
-        a.then(
-          S.go('shop.register.queue'),
-          S.until(() => !board.registerBusy),
-          S.run(() => { board.registerBusy = true; }),
-          S.go(shop.nodes.register), S.face(-PI / 2),
-          S.run(() => clerk(ctx)?.bow()),
-          S.pose('pay', 2.4),
-          S.run(() => { fig.hold('bag'); board.registerBusy = false; clerk(ctx)?.bow(); }),
-          S.wait(0.4),
-          S.go(pickR(ends).id),
-        );
+        a.then(shopAround(ctx, fig, board), S.wait(0.4), S.go(pickR(ends).id));
         return a;
       },
     });

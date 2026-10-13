@@ -4,5 +4,6 @@ import streets from './streets';
 import furniture from './furniture';
 import neighborhood from './neighborhood';
 import nature from './nature';
+import roads from './roads';
 
-export const worldMods = [plinth, streets, furniture, neighborhood, nature];
+export const worldMods = [plinth, streets, furniture, neighborhood, nature, roads];

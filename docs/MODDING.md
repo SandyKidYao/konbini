@@ -36,7 +36,7 @@ export default defineMod({
 | `ctx.surfaces` | `addWalk` 可行走面、`addRoof` 屋顶（雨在这里停）、`addShelter` 遮雨区 |
 | `ctx.nav` | 步行网络：`addNode` / `addEdge`（`width` 车道宽、`gate` 闸门、`onEnter` 开门钩子）/ `route` |
 | `ctx.prefabs` | `define(name, factory)` 注册素材；`create('figure', {...})` 生成 |
-| `ctx.director` | `define(event)` 注册随机事件；`spawn(walker, { at: 'node.id' })` 生成角色 |
+| `ctx.director` | `define(event)` 注册随机事件；`spawn(walker, { at: 'node.id' })` 生成角色；`avoid((actor, x, z) => 是否让一让)` 让行人走路时给某些东西让路（道路模组用它让人给开着的车让路） |
 | `ctx.steps` | 角色脚本：`go` `walk` `wait` `until` `face` `pose` `sit` `stand` `place` `run` `leave` |
 | `ctx.services` | `provide(name, impl)` / `get(name)`：模组之间按名字协作，不互相 import |
 | `ctx.bus` | 松散的消息：`emit` / `on` |
@@ -49,14 +49,14 @@ export default defineMod({
 
 ```ts
 ctx.director.define({
-  id: 'delivery-truck',
+  id: 'flyers',
   max: 1,
   needs: { services: ['shop'] },                     // 当前主体没有这个服务就不会触发
   weight: ({ drivers }) => 0.2 * drivers.daylight,   // 白天才来
   run({ drivers, board }) {
     const S = ctx.steps;
     const fig = ctx.prefabs.create('figure', { shirt: '#3d78d6' });
-    const a = ctx.director.spawn(fig, { at: 'street.a.west', label: '送货员' });
+    const a = ctx.director.spawn(fig, { at: 'street.a.west', label: '发传单的人' });
     a.then(S.go('shop.door.in'), S.pose('pay', 2), S.go('street.a2.east'));
     return a;                                        // 返回角色，调度器据此判断事件何时结束
   },
@@ -64,6 +64,34 @@ ctx.director.define({
 ```
 
 事件的 `weight` 和 `run` 还会收到 `day`（今天的日期，见下文），比如 `weight: ({ drivers, day }) => day.dayOff ? 0.6 : 0.3` 让周末和节假日更热闹。
+
+## 车辆与道路
+
+车和人一样是按脚本行动的角色，引擎部分在 `src/engine/agents/vehicle.ts`：
+
+- 路径：`path(x, z, 朝向).speed(8).line(x, z).curve(x, z, 朝向)` 画出车走的线（朝向 0 = +z，π/2 = +x），弯道会自动限速
+- 脚本步骤：`drive(path, { reverse, speed, gates, through })`、`wait`、`until`、`run`、`engine(on)`、`choose(fn)`（走到这里再决定接下来做什么）
+- 行驶中自动做的事：在路径终点和关着的闸门（`Gate`：红灯、停车让行、人行横道上有人）前停下；跟车；给挡在路上的车和人让路；拐弯前打转向灯；刹车灯、倒车灯；天暗、下雨、起雾时开大灯
+- 人也会让车：走路时看前方一步，正在开或马上要开的车（车身外加上它一秒内要开到的地方）挡着就先停一下；车如果正是在等这个人，那人先走
+- 世界模组 `konbini.world.roads` 提供服务 `world.roads`（类型见 `src/content/world/roads.ts`）：
+  - `spawn(body, 'west' | 'east' | 'south')`：在道路尽头（模型外）放一辆车
+  - `through(from, to)`：穿过路口开走，遵守信号灯；能直行，也能左转、右转进出 B 路
+  - `arrive(from, pose, onward, { enter, balk })`：沿 A 路开来、拐进路边某处（比如停车场出入口），再慢慢开过 `onward`；拐弯前问 `enter` 有没有空位，没有就直接开过去（`balk`）。`onward` / `via` 里的点写 `[x, z]` 是直线开过去，写 `{ x, z, heading }` 是转弯过去
+  - `depart(pose, 'east' | 'west', { via })`：先慢慢开过 `via` 这些点（比如沿停车场车道开到出入口），在人行道前等空当，再汇入 A 路开走
+  - `clip`：车身要用的裁切平面，开出模型边缘时被切掉
+- 车身素材：`car`（形状见 `CAR_MODELS`：kei、hatch、sedan、minivan、taxi）、`truck`（`kei` 小货车、`box` 箱式送货车）、`bus`；都实现 `VehicleBody`，也可以自己做车身
+
+```js
+// 每隔一会儿开过一辆粉色的移动售货车
+const roads = ctx.services.get('world.roads');
+let wait = 30;
+ctx.onFrame((dt) => {
+  if ((wait -= dt) > 0 || !roads.free('west')) return;
+  wait = 120;
+  const body = ctx.prefabs.create('car', { color: '#f6c6d8', len: 4.7, width: 1.74, bodyH: 0.72, cabinLen: 3.5, cabinH: 0.82, cabinX: -0.45, clip: roads.clip });
+  roads.spawn(body, 'west', { label: '移动售货车' }).then(roads.through('west', 'east', { speed: 5 }));
+});
+```
 
 ## 日期、季节与状态
 
@@ -119,7 +147,15 @@ ctx.states.show(kadomatsu, (c) => c.has('shogatsu'));
 
 ## 换一个主体
 
-主体模组都带 `site: 'xxx'`，只有 `?site=xxx` 选中的那一组会加载。世界通过服务 `world.plot` 给出地块范围和临街入口节点；主体在地块上搭建，并提供事件依赖的服务和节点名。便利店提供的约定写在 `src/content/site/konbini/api.ts`（`shop`、`shop.backyard`、`shop.banners` 以及 `shop.door.in`、`shop.register` 等节点）。新主体只要提供同样的约定，顾客、店员等事件就能直接复用。
+主体模组都带 `site: 'xxx'`，只有 `?site=xxx` 选中的那一组会加载。世界通过服务 `world.plot` 给出地块范围和临街入口节点；主体在地块上搭建，并提供事件依赖的服务和节点名。便利店提供的约定写在 `src/content/site/konbini/api.ts`：
+- `shop`：店门、货架通道、收银台等节点，以及 `awning`（雨棚前沿的位置，外部模组挂提灯、风铃时从这里取，不要写死坐标）
+- `shop.backyard`、`shop.banners`
+- `shop.parking`：门口停车场——车位、两端的出入口（`driveways`，各自写明允许从哪边拐进来、往哪边开出去）、车道（`aisle`）、同一时间只让一辆车在车道里进出的锁；车怎么进出由停车事件按这些数据规划
+- 节点 `shop.photo.model` / `shop.photo.camera`：游客拍照的位置（有这两个节点，拍照事件才会出现）
+
+新主体只要提供同样的约定，顾客、店员、开车来的顾客等事件就能直接复用。
+
+便利店门前的布局是人车分流的：车只在停车场里（两端的出入口进出，车位前有 6 米多深的车道，倒车不会扫到旁边的车）；行人从西侧的小广场或东侧的步道走到店门前的檐下，用栏杆和停车场隔开，从车上下来的人沿车位之间的空隙直接走上檐下。往门前加东西时，别放进车道和两条步行路线上。
 
 ## 外部模组的安全
 

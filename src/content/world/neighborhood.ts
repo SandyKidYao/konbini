@@ -6,7 +6,7 @@ import { mat, box, boxE, cyl, canvasTex, groundPlane, FONT_JP as JP, FONT_LATIN 
 import { materials, windowPane } from '../common/materials';
 import { sidingTex, aptTex, shutterTex, hedgeTex } from '../common/surfaces';
 import { shopSignTex } from '../common/signage';
-import { HOUSE, APARTMENT, SHOP_ROW } from './layout';
+import { HOUSE, APARTMENT, SHOP_ROW, PLOT } from './layout';
 
 export default defineMod({
   id: 'konbini.world.neighborhood',
@@ -118,8 +118,7 @@ export default defineMod({
         }
       }
       for (let u = 0; u <= units; u++) boxE(g, x0 + uw * u - 0.06, x0 + uw * u + 0.06, 0.08 + fh - 0.12, floors * fh + 0.2, z1, z1 + 1.0, am);
-      cyl(g, 1.0, 1.0, 1.6, mat('#ccd2d7', { roughness: 0.5 }), 6, floors * fh + 0.7, -20, 20);
-      boxE(g, x0, x1, 0.08, 1.4, z1 + 1.6, z1 + 1.75, M.block, { uv: 0.8 });
+      cyl(g, 1.0, 1.0, 1.6, mat('#ccd2d7', { roughness: 0.5 }), 6, floors * fh + 0.7, (z0 + z1) / 2, 20);
       root.add(g);
     }
 
@@ -172,8 +171,8 @@ export default defineMod({
     // --- block walls and the far-side hedge ---
     boxE(root, -28, -19.6, 0.08, 1.1, 6.9, 7.1, M.block, { uv: 0.8 });
     boxE(root, -17.6, -14.1, 0.08, 1.1, 6.9, 7.1, M.block, { uv: 0.8 });
-    boxE(root, -14.1, -13.9, 0.08, 1.1, -14, 7.1, M.block, { uv: 0.8 });
-    boxE(root, -14, 11.5, 0.08, 1.6, -14.2, -14, M.block, { uv: 0.8 });
+    boxE(root, -14.1, -13.9, 0.08, 1.1, PLOT.z0, 7.1, M.block, { uv: 0.8 });
+    boxE(root, -14, 11.5, 0.08, 1.6, PLOT.z0 - 0.2, PLOT.z0, M.block, { uv: 0.8 });
     boxE(root, -28, 28, 0.06, 0.55, 19.3, 19.5, M.block, { uv: 0.8 });
     {
       const hm = mat('#ffffff', { map: hedgeTex, roughness: 1 });

@@ -30,6 +30,8 @@ export interface AgentEnv {
   /** current scene time, for gates */
   time: () => number;
   onWave?: () => void;
+  /** things walkers give way to: true = don't step to (x, z) yet (see Director.avoid) */
+  blockers?: ((a: Actor, x: number, z: number) => boolean)[];
 }
 
 export interface Step {
@@ -66,6 +68,8 @@ export class Actor {
   readonly followers: ((a: Actor, dt: number, t: number) => void)[] = [];
   onDispose?: () => void;
   done = false;
+  /** how long they have been standing aside, giving way */
+  waited = 0;
   private queue: Step[] = [];
 
   constructor(readonly walker: Walker, readonly env: AgentEnv, o: ActorOptions = {}) {
@@ -135,6 +139,14 @@ export function walk(points: readonly (readonly [number, number])[], o: { speed?
         const dist = tmp.length();
         if (dist < 0.05) { i++; continue; }
         a.heading += wrap(Math.atan2(tmp.x, tmp.z) - a.heading) * Math.min(1, dt * 8);
+        // look a stride ahead and give way (to a car coming, say) — but not forever
+        const B = a.env.blockers;
+        if (B?.length && a.waited < 10) {
+          const lx = p.x + (tmp.x / dist) * 0.6, lz = p.z + (tmp.z / dist) * 0.6;
+          if (B.some((b) => b(a, lx, lz))) { a.waited += dt; a.walker.moving = false; return false; }
+        }
+        a.waited = 0;
+        a.walker.moving = true;
         const len = Math.min(dist, (o.speed ?? a.speed) * dt);
         p.x += (tmp.x / dist) * len;
         p.z += (tmp.z / dist) * len;

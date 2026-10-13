@@ -80,6 +80,36 @@ export const roadTomareTex = canvasTex(512, 512, (g, w, h) => {
   g.font = `800 150px ${JP}`; g.fillText('止まれ', 0, 0); g.restore();
 });
 
+/** 徐行 ("go slow"), painted where a car park's driveway meets the aisle */
+export const roadJokoTex = canvasTex(512, 256, (g, w, h) => {
+  g.fillStyle = 'rgba(255,255,255,0.92)'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.save(); g.translate(w / 2, h / 2); g.scale(1, 1.6);
+  g.font = `800 120px ${JP}`; g.fillText('徐行', 0, 0); g.restore();
+});
+
+/** a car park bay number, painted at the aisle end of the bay */
+export const bayNumberTex = (n: number) => canvasTex(128, 128, (g, w, h) => {
+  g.fillStyle = 'rgba(255,255,255,0.92)'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = `800 96px ${LATIN}`; g.fillText(String(n), w / 2, h / 2 + 4);
+});
+
+/** a straight arrow painted on the ground, pointing up the texture */
+export const roadArrowTex = canvasTex(128, 256, (g, w) => {
+  g.fillStyle = 'rgba(255,255,255,0.92)';
+  g.beginPath();
+  g.moveTo(w / 2, 8); g.lineTo(w - 10, 96); g.lineTo(w / 2 + 18, 96); g.lineTo(w / 2 + 18, 248);
+  g.lineTo(w / 2 - 18, 248); g.lineTo(w / 2 - 18, 96); g.lineTo(10, 96); g.closePath(); g.fill();
+});
+
+/** the little "P 出入口" sign beside a car park driveway */
+export const parkingSignTex = canvasTex(128, 176, (g, w, h) => {
+  g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h);
+  g.fillStyle = '#2756b0'; g.fillRect(6, 6, w - 12, 112);
+  g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = `800 92px ${LATIN}`; g.fillText('P', w / 2, 64);
+  g.fillStyle = '#2756b0'; g.font = `700 30px ${JP}`; g.fillText('出入口', w / 2, 148);
+});
+
 export const coolerTex = canvasTex(1024, 256, (g, w, h) => {
   g.fillStyle = '#2a3038'; g.fillRect(0, 0, w, h);
   g.fillStyle = '#f2f6ff'; g.fillRect(0, 0, w, 18);

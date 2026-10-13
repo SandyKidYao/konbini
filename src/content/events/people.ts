@@ -1,9 +1,12 @@
 // Small helpers shared by the built-in events.
 import type { ModContext } from '../../engine/mod';
+import type { Steps } from '../../engine/agents/actor';
+import type { ShopService } from '../site/konbini/api';
+import type { Figure, HeldProp } from '../library/figure';
 import type { Drivers } from '../../engine/atmosphere';
 import type { Conditions } from '../../engine/states';
 import { COATS, YUKATA, type FigureOptions } from '../library/figure';
-import { pickR } from '../../engine/kit/rng';
+import { R, pickR } from '../../engine/kit/rng';
 
 const chance = (p: number) => Math.random() < p;
 
@@ -55,3 +58,28 @@ export function twoEnds(ctx: ModContext) {
 /** The resident clerk, if the clerk mod is loaded. */
 export interface ClerkService { bow(): void }
 export const clerk = (ctx: ModContext) => ctx.services.get<ClerkService>('shop.clerk');
+
+/**
+ * Inside the shop: in at the door (the clerk greets them), browse an aisle or two, queue, pay and take
+ * what they bought. Ends at the register; the caller decides where they go next.
+ */
+export function shopAround(ctx: ModContext, fig: Figure, board: Record<string, unknown>, o: { buy?: HeldProp; browse?: boolean } = {}): Steps[] {
+  const S = ctx.steps, PI = Math.PI;
+  const shop = ctx.services.require<ShopService>('shop');
+  const aisle = pickR(shop.aisles);
+  const steps: Steps[] = [S.go(shop.nodes.doorIn), S.run(() => clerk(ctx)?.bow())];   // いらっしゃいませ
+  if (o.browse ?? true) {
+    steps.push(S.go(aisle.front), S.walk([[aisle.x, R(-8.6, -5.2)]]), S.face(pickR(aisle.faces)), S.pose('browse', R(2, 4)), S.wait(R(0.4, 1.2)));
+    if (Math.random() < 0.5) steps.push(S.go(aisle.back), S.face(PI), S.pose('browse', R(1.5, 3)));
+  }
+  steps.push(
+    S.go('shop.register.queue'),
+    S.until(() => !board.registerBusy),
+    S.run(() => { board.registerBusy = true; }),
+    S.go(shop.nodes.register), S.face(-PI / 2),
+    S.run(() => clerk(ctx)?.bow()),
+    S.pose('pay', 2.4),
+    S.run(() => { fig.hold(o.buy === undefined ? 'bag' : o.buy); board.registerBusy = false; clerk(ctx)?.bow(); }),
+  );
+  return steps;
+}
