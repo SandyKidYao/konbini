@@ -402,6 +402,7 @@ export class Atmosphere {
 }
 
 export function formatHour(h: number) {
-  const hh = Math.floor(h) % 24, mm = Math.floor((h - Math.floor(h)) * 60);
+  const m = Math.floor(h * 60 + 1e-6);   // 17.8333… is 17:50, not 17:49
+  const hh = Math.floor(m / 60) % 24, mm = m % 60;
   return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
 }

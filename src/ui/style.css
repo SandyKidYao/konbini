@@ -164,7 +164,7 @@ button { font: inherit; color: inherit; }
 }
 .tip.show { opacity: 1; }
 
-@media (max-width: 1240px) {
+@media (max-width: 1380px) {
   /* not enough room beside the dock: the label moves to the top-left corner */
   .label { top: 24px; bottom: auto; left: 24px; }
 }
@@ -185,7 +185,7 @@ button { font: inherit; color: inherit; }
   .mods { top: 66px; right: 14px; width: calc(100% - 28px); }
   .dock { bottom: 14px; width: calc(100% - 28px); gap: 8px; padding: 8px; }
   .keys { grid-template-columns: repeat(4, 1fr); }
-  .hint { bottom: 168px; white-space: normal; width: calc(100% - 40px); text-align: center; }
+  .hint { bottom: 222px; white-space: normal; width: calc(100% - 40px); text-align: center; }
 }
 
 @media (prefers-reduced-motion: reduce) {

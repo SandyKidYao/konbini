@@ -68,7 +68,8 @@ export function initHud(app: App, live: LiveSync) {
     const msg = s.message ?? (s.state === 'live' ? updated : '');
     labelStatus.hidden = !on || !msg;
     labelStatus.textContent = msg;
-    liveText = on && s.report ? `${s.report.description} <span class="temp">${Math.round(s.report.temperature)}°</span>` : '';
+    liveText = !on ? '' : s.report ? `${s.report.description} <span class="temp">${Math.round(s.report.temperature)}°</span>`
+      : s.state === 'error' ? '<span class="temp">未知</span>' : '';
     lastWeather = '';
   });
 

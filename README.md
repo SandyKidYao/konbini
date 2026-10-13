@@ -11,6 +11,7 @@ npm install
 npm run dev        # 开发：http://localhost:5173 ，改代码即时刷新
 npm run build      # 类型检查 + 打包成单个 dist/index.html（可双击打开）
 npm run preview    # 用本地服务器预览打包结果（加载外部模组需要用这种方式）
+npm run shots      # 用本机 Chrome 无头截图一组场景到 tmp/shots/，页面报错时失败（先 build）
 ```
 
 ## 操作

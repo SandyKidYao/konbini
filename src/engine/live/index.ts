@@ -11,6 +11,7 @@ export type LiveState = 'off' | 'locating' | 'fetching' | 'live' | 'error';
 export interface LiveStatus { state: LiveState; place?: Place; report?: LiveReport; message?: string }
 
 const REFRESH_MS = 10 * 60 * 1000;
+const RETRY_MS = 60 * 1000;
 const CACHE_KEY = 'konbini.live.cache';
 const PREF_KEY = 'konbini.live';
 
@@ -78,7 +79,15 @@ export class LiveSync {
     } catch (e) {
       if (run !== this.run) return;
       console.warn('[konbini] live weather failed', e);
-      this.set({ ...this.status, state: this.status.report ? 'live' : 'error', place, message: '暂时无法获取天气，会稍后重试' });
+      const last = this.status.report;
+      if (last) {
+        const at = new Date(last.fetchedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+        this.set({ ...this.status, state: 'live', place, message: `天气更新失败，显示的是 ${at} 的天气` });
+      } else {
+        // nothing to show yet: try again soon rather than at the next 10-minute refresh
+        this.set({ ...this.status, state: 'error', place, message: '暂时获取不到天气，先只跟随当地时间，稍后自动重试' });
+        setTimeout(() => { if (run === this.run && !this.status.report) void this.refresh(place, run); }, RETRY_MS);
+      }
     }
   }
 
