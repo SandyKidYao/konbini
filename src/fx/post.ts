@@ -39,7 +39,10 @@ const gradeShader = {
       vec4 c = texture2D(tDiffuse, vUv);
       float l = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
       vec3 col = mix(vec3(l), c.rgb, uSat) * uTint;
-      col = max(vec3(0.0), (col - 0.18 * c.a) * uContrast + 0.18 * c.a);   // pivot scaled by alpha: premultiplied
+      // pivot scaled by coverage (premultiplied colour). Opaque pages carry alpha ≥ 1 here (stock bloom adds to it),
+      // so clamp: there it stays exactly 0.18
+      float a = clamp(c.a, 0.0, 1.0);
+      col = max(vec3(0.0), (col - 0.18 * a) * uContrast + 0.18 * a);
       gl_FragColor = vec4(col, c.a);
     }`,
 };
