@@ -1,0 +1,159 @@
+/* Quiet paper-label UI: the model is the hero, the interface is the card placed beside it. */
+:root {
+  --font: "LXGW WenKai", "Kaiti SC", "STKaiti", "KaiTi", serif;
+  --green: #14a05a;
+  --orange: #ff8a1e;
+  --blue: #2a6fd6;
+  --radius-card: 18px;
+  --radius-key: 13px;
+  --ease: cubic-bezier(0.22, 0.8, 0.24, 1);
+}
+body[data-mode="day"] {
+  --paper: rgba(251, 253, 251, 0.8);
+  --ink: #22302d;
+  --muted: rgba(34, 48, 45, 0.56);
+  --line: rgba(34, 48, 45, 0.1);
+  --well: rgba(34, 48, 45, 0.055);
+  --key: rgba(255, 255, 255, 0.92);
+  --shadow: 0 10px 30px rgba(54, 92, 84, 0.16);
+  --bg: #d4e6df;
+}
+body[data-mode="overcast"] {
+  --paper: rgba(247, 247, 250, 0.8);
+  --ink: #262a33;
+  --muted: rgba(38, 42, 51, 0.55);
+  --line: rgba(38, 42, 51, 0.1);
+  --well: rgba(38, 42, 51, 0.055);
+  --key: rgba(255, 255, 255, 0.9);
+  --shadow: 0 10px 30px rgba(70, 70, 92, 0.16);
+  --bg: #d3d2da;
+}
+body[data-mode="night"] {
+  --paper: rgba(22, 29, 48, 0.68);
+  --ink: #e9eef7;
+  --muted: rgba(233, 238, 247, 0.58);
+  --line: rgba(255, 255, 255, 0.1);
+  --well: rgba(0, 0, 0, 0.22);
+  --key: rgba(255, 255, 255, 0.09);
+  --shadow: 0 10px 34px rgba(0, 0, 0, 0.35);
+  --bg: #121a2e;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  transition: background 1.2s var(--ease), color 0.8s var(--ease);
+}
+#stage, #stage canvas { position: fixed; inset: 0; display: block; }
+button { font: inherit; color: inherit; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+:focus-visible { outline: 2px solid var(--orange); outline-offset: 3px; }
+
+/* --- loading veil --- */
+.veil {
+  position: fixed; inset: 0; z-index: 20; display: grid; place-items: center;
+  background: var(--bg); transition: opacity 1.1s var(--ease);
+}
+.veil p { margin: 0; font-size: 15px; letter-spacing: 0.3em; color: var(--muted); }
+.veil.done { opacity: 0; pointer-events: none; }
+
+/* --- exhibit label --- */
+.label {
+  position: fixed; left: 28px; bottom: 28px; display: flex; width: 236px;
+  background: var(--paper); border-radius: var(--radius-card); box-shadow: var(--shadow);
+  backdrop-filter: blur(14px) saturate(1.2); -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  overflow: hidden; transition: background 1s var(--ease);
+}
+.label-stripe { display: flex; flex: none; }
+.label-stripe i { width: 5px; }
+.label-stripe i:nth-child(1) { background: var(--green); }
+.label-stripe i:nth-child(2) { background: var(--orange); }
+.label-stripe i:nth-child(3) { background: var(--blue); }
+.label-body { padding: 18px 20px 16px 18px; flex: 1; }
+.label h1 { margin: 0; font-size: 24px; line-height: 1.15; font-weight: 700; letter-spacing: 0.06em; }
+.label-sub { margin: 4px 0 14px; font-size: 14px; color: var(--muted); letter-spacing: 0.08em; }
+.label dl { margin: 0; padding-top: 12px; border-top: 1px dashed var(--line); display: grid; gap: 6px; }
+.label dl div { display: flex; justify-content: space-between; align-items: baseline; font-size: 14px; }
+.label dt { color: var(--muted); }
+.label dd { margin: 0; font-variant-numeric: tabular-nums; }
+
+/* --- scene selector: vending-machine keys --- */
+.selector {
+  position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
+  display: flex; gap: 8px; padding: 8px; border-radius: 22px;
+  background: var(--paper); box-shadow: var(--shadow);
+  backdrop-filter: blur(14px) saturate(1.2); -webkit-backdrop-filter: blur(14px) saturate(1.2);
+}
+.selector button {
+  position: relative; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 8px;
+  min-width: 132px; padding: 14px 18px 14px 14px; border: 0; border-radius: var(--radius-key);
+  background: var(--well); cursor: pointer;
+  transition: background 0.4s var(--ease), transform 0.12s var(--ease), box-shadow 0.4s var(--ease);
+}
+.selector button:hover { background: var(--key); }
+.selector button:active { transform: translateY(1.5px) scale(0.985); }
+.selector button[aria-pressed="true"] {
+  background: var(--key);
+  box-shadow: inset 0 -2px 0 var(--line), 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+.selector svg {
+  width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7;
+  stroke-linecap: round; stroke-linejoin: round; opacity: 0.75;
+}
+.selector .name { font-size: 15px; letter-spacing: 0.04em; text-align: left; white-space: nowrap; }
+/* the little "on sale" lamp above each key */
+.selector .lamp {
+  position: absolute; top: 7px; right: 9px; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--line); transition: background 0.4s, box-shadow 0.4s;
+}
+.selector button[aria-pressed="true"] .lamp { background: var(--green); box-shadow: 0 0 0 3px rgba(20, 160, 90, 0.16), 0 0 10px rgba(20, 160, 90, 0.7); }
+
+/* --- tools --- */
+.tools { position: fixed; top: 24px; right: 24px; display: flex; gap: 10px; }
+.tools button {
+  width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 50%;
+  background: var(--paper); box-shadow: var(--shadow); cursor: pointer;
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  transition: transform 0.12s var(--ease), background 0.4s;
+}
+.tools button:active { transform: scale(0.94); }
+.tools svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; opacity: 0.45; transition: opacity 0.3s; }
+.tools button[aria-pressed="true"] svg { opacity: 0.95; }
+#soundBtn .on { display: none; }
+#soundBtn[aria-pressed="true"] .on { display: block; }
+#soundBtn[aria-pressed="true"] .off { display: none; }
+
+/* --- hint + hover tip --- */
+.hint {
+  position: fixed; left: 50%; bottom: 112px; transform: translateX(-50%); margin: 0;
+  font-size: 14px; color: var(--muted); letter-spacing: 0.05em; white-space: nowrap;
+  pointer-events: none; transition: opacity 1.2s var(--ease);
+}
+.hint.gone { opacity: 0; }
+.tip {
+  position: fixed; left: 0; top: 0; z-index: 5; padding: 5px 11px; border-radius: 10px;
+  background: var(--paper); box-shadow: var(--shadow); font-size: 13px; pointer-events: none;
+  opacity: 0; transform: translate(-50%, -140%); transition: opacity 0.2s;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+.tip.show { opacity: 1; }
+
+@media (max-width: 760px) {
+  .label { left: 14px; top: 14px; bottom: auto; width: auto; }
+  .label dl, .label-sub { display: none; }
+  .label-body { padding: 10px 14px; }
+  .label h1 { font-size: 18px; }
+  .tools { top: 14px; right: 14px; }
+  .selector { bottom: 16px; gap: 6px; padding: 6px; width: calc(100% - 28px); }
+  .selector button { min-width: 0; flex: 1; grid-template-columns: 1fr; justify-items: center; padding: 12px 6px 10px; gap: 4px; }
+  .selector .name { font-size: 13px; text-align: center; }
+  .hint { bottom: 102px; white-space: normal; width: calc(100% - 40px); text-align: center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0.01s !important; }
+}
