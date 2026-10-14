@@ -14,6 +14,7 @@ import { Audio } from './audio';
 import { Interact } from './interact';
 import { GlowRegistry } from './glow';
 import { States } from './states';
+import { Batcher } from './batch';
 import { orderMods, loadExternalMod, type ModContext, type ModDefinition } from './mod';
 import { Fx } from '../fx';
 
@@ -46,6 +47,7 @@ export class App {
   readonly bus = new Bus();
   readonly audio = new Audio();
   readonly glow = new GlowRegistry();
+  readonly batcher = new Batcher();
   readonly states: States;
   readonly interact: Interact;
   readonly fx: Fx;
@@ -62,9 +64,12 @@ export class App {
   private clock = new THREE.Clock();
   private frame = 0;
   private baseCtx: ModContext;
-  private slow = { time: 0, frames: 0, strikes: 0 };
+  private quality = { time: 0, frames: 0, drops: 0, slow: 0, calm: 0, window: 0, max: 1, blocked: new Map<number, number>(), failures: new Map<number, number>() };
+  private resizePending = false;
   private owed = 0;
   private onFirstFrame: (() => void) | null = null;
+  /** objects popped in and out by states.show: never batched (they scale and hide) */
+  private shown = new WeakSet<THREE.Object3D>();
 
   constructor(private config: AppConfig) {
     this.stage = new Stage(config.container, config.camera, { transparent: config.transparent, lowPower: config.lowPower });
@@ -77,12 +82,15 @@ export class App {
       time: () => this.elapsed, onWave: () => this.audio.play('tick'),
     }, this.nav, this.services, () => this.atmosphere.day);
     this.baseCtx = this.contextFor('engine', this.stage.world);
+    this.quality.max = this.stage.renderer.getPixelRatio();
     // lightning: a bolt on screen now, thunder later (further away = longer delay, quieter)
     this.atmosphere.onStrike((distance) => {
       this.fx.strike(distance);
       setTimeout(() => this.audio.play(distance < 0.4 ? 'thunder' : 'thunder-far'), 400 + distance * 2600);
     });
-    addEventListener('resize', () => this.resize());
+    // applied just before the next render: resizing clears the canvas, and a cleared canvas that gets shown
+    // before it is drawn again flashes the page background
+    addEventListener('resize', () => { this.resizePending = true; });
   }
 
   private contextFor(id: string, root: THREE.Group): ModContext {
@@ -105,11 +113,12 @@ export class App {
         addSheen: (rect, y) => fx.wet.addSheen(rect, y),
         addPass: (pass, order) => fx.post.addPass(pass, order),
         skyChanged: () => fx.skyChanged(),
+        warm: (o) => fx.warm(o),
       },
       states: {
         conditions: this.states.conditions,
         track: (spec) => this.states.track(spec),
-        show: (o, when, opts) => this.states.show(o, when, opts),
+        show: (o, when, opts) => { this.shown.add(o); return this.states.show(o, when, opts); },
       },
       interact: { clickable: (o, fn, label) => this.interact.clickable(o, fn, label) },
       onFrame: (fn) => {
@@ -137,12 +146,14 @@ export class App {
       this.loaded.push({ id: k.id, layer: m?.layer ?? '?', external: extIds.has(k.id), error: k.reason });
     }
 
+    const roots: THREE.Object3D[] = [];
     for (const m of ordered) {
       const root = new THREE.Group();
       root.name = m.id;
       this.stage.world.add(root);
       try {
         await m.setup(this.contextFor(m.id, root));
+        roots.push(root);
         this.loaded.push({ id: m.id, layer: m.layer, external: extIds.has(m.id) });
       } catch (e) {
         console.error(`[konbini] mod "${m.id}" failed`, e);
@@ -150,6 +161,7 @@ export class App {
         this.loaded.push({ id: m.id, layer: m.layer, external: extIds.has(m.id), error: String(e) });
       }
     }
+    this.batcher.freeze(this.stage.world, roots, (o) => !!o.userData.skyIgnore || this.shown.has(o));
     this.fx.finalize(this.surfaces);
   }
 
@@ -184,8 +196,10 @@ export class App {
       this.audio.update(this.atmosphere.drivers, this.elapsed);
       this.stage.update(dt);
       for (const f of this.uiFns) f();
-      this.fx.render();
       if (this.frame > 60) this.adaptQuality(dt);
+      if (this.resizePending) this.resize();
+      this.batcher.update();
+      this.fx.render();
       this.frame++;
       if (this.frame === 3) this.onFirstFrame?.();
       requestAnimationFrame(tick);
@@ -193,23 +207,44 @@ export class App {
     tick();
   }
 
-  // if the GPU can't keep up, step the pixel ratio down instead of stuttering
+  /**
+   * Dynamic resolution, aiming for a smooth 60: below ~50 fps the pixel ratio steps down (at retina sizes the GPU
+   * is what runs out), and after a while at full frame rate it tries a step back up — but not to a size it had to
+   * leave recently: 2 minutes after the first time, then 4, 8… Every change reallocates the render targets (a
+   * visible hitch), so it settles instead of probing. At a pixel ratio of 1, ambient occlusion goes last. Under a frame cap (desktop pet) only falling well short of the cap counts, and it never
+   * steps up.
+   */
   private adaptQuality(dt: number) {
-    const s = this.slow;
+    const s = this.quality;
     s.time += dt; s.frames++;
+    if (dt > 0.025) s.drops++;   // a missed display frame at 60 Hz
     if (s.time < 2) return;
-    const avg = s.time / s.frames;
-    s.time = 0; s.frames = 0;
-    s.strikes = avg > Math.max(1 / 40, 1.25 / (this.maxFps || 60)) ? s.strikes + 1 : 0;   // a frame cap is not slowness
-    const pr = this.stage.renderer.getPixelRatio();
-    if (s.strikes >= 2 && pr > 1) {
-      this.stage.renderer.setPixelRatio(Math.max(1, pr - 0.25));
-      this.resize();
-      s.strikes = 0;
+    const avg = s.time / s.frames, drops = s.drops / s.frames;
+    s.time = 0; s.frames = 0; s.drops = 0;
+    s.window++;   // 2 s each
+    // an even 60 matters more than the average: a size that keeps missing frames judders even at ~55 fps
+    const capped = !!this.maxFps;
+    s.slow = avg > Math.max(1 / 50, 1.25 / (this.maxFps || 60)) || (!capped && drops > 0.1) ? s.slow + 1 : 0;
+    s.calm = !capped && avg < 1 / 57 && drops < 0.02 ? s.calm + 1 : 0;
+    const r = this.stage.renderer, pr = r.getPixelRatio();
+    if (s.slow >= 2) {
+      s.slow = s.calm = 0;
+      if (pr > 1) {
+        const n = (s.failures.get(pr) ?? 0) + 1;
+        s.failures.set(pr, n);
+        s.blocked.set(pr, s.window + 60 * 2 ** (n - 1));
+        r.setPixelRatio(Math.max(1, pr - 0.25));
+        this.resizePending = true;
+      } else this.fx.post.gtao.enabled = false;
+    } else if (s.calm >= 3 && pr + 0.25 <= s.max && (s.blocked.get(pr + 0.25) ?? 0) <= s.window) {
+      s.calm = 0;
+      r.setPixelRatio(pr + 0.25);
+      this.resizePending = true;
     }
   }
 
   private resize() {
+    this.resizePending = false;
     this.stage.resize();
     this.fx.resize();
   }

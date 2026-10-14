@@ -9,6 +9,7 @@ import { Post } from './post';
 import { Rain } from './weather';
 import { Snowfall, SnowCover } from './snow';
 import { Wet } from './wet';
+import { skipUnlitLights } from './lights';
 
 export class Fx {
   readonly hemi = new THREE.HemisphereLight('#ffffff', '#888888', 1);
@@ -27,11 +28,16 @@ export class Fx {
   private backdropMat: THREE.ShaderMaterial;
   private backdrop: THREE.Mesh;
   private envDirty = 40;
+  private envFace = 0;
+  private warming: THREE.Object3D[] = [];
+  private warmed: THREE.Object3D[] = [];
+  private warmTarget: THREE.WebGLRenderTarget | null = null;
   private frame = 0;
 
   /** transparent: no backdrop or distant lightning on screen — only the model, over whatever is behind the window */
   constructor(private stage: Stage, private bounds: Rect, private transparent = false) {
     const { scene, renderer, camera } = stage;
+    skipUnlitLights();
     scene.add(this.hemi);
     const s = this.sun;
     s.castShadow = true;
@@ -41,8 +47,15 @@ export class Fx {
     s.shadow.normalBias = 0.03;
     scene.add(s, s.target);
 
+    // the shadow map and the world matrices are updated once per frame (see render), not again by every extra
+    // render of the scene (reflections, the env cube) — each of those would redraw ~1000 shadow casters
+    renderer.shadowMap.autoUpdate = false;
+    scene.matrixWorldAutoUpdate = false;
+
     this.cubeCam = new THREE.CubeCamera(0.2, 300, this.envRT);
     this.cubeCam.position.set(2, 0.45, 4.5);
+    this.cubeCam.coordinateSystem = renderer.coordinateSystem;
+    this.cubeCam.updateCoordinateSystem();
     scene.add(this.cubeCam);
 
     // seamless studio backdrop: wall gradient that bends into a floor colour
@@ -91,6 +104,7 @@ export class Fx {
     this.rain = new Rain(this.stage.scene, surfaces, this.bounds, pr);
     this.snowfall = new Snowfall(this.stage.scene, surfaces, this.bounds, pr);
     this.snowCover.patchTree(this.stage.world);
+    this.stage.scene.updateMatrixWorld();
     this.snowCover.bake(this.stage.scene, this.stage.world);
   }
 
@@ -107,6 +121,35 @@ export class Fx {
     this.bolt.geometry.dispose();
     this.bolt.geometry = new THREE.BufferGeometry().setFromPoints(pts);
     this.boltLife = 0.22;
+  }
+
+  /** Compile an object's shaders ahead of its first appearance (see FxApi.warm). Done at the next frame. */
+  warm(object: THREE.Object3D) {
+    this.warming.push(object);
+  }
+
+  /**
+   * Draw the waiting objects once, with the whole scene (a shader depends on the lights it is drawn with), into a
+   * tiny target nobody sees, shadow map included. They are kept afterwards: a shader is freed with its last user.
+   */
+  private warmUp() {
+    const { scene, camera, controls, renderer: r } = this.stage;
+    const group = new THREE.Group();
+    group.position.copy(controls.target);
+    for (const o of this.warming.splice(0)) {
+      o.traverse((c) => { c.visible = true; c.frustumCulled = false; });   // lamps that only light up at night too
+      group.add(o);
+    }
+    scene.add(group);
+    group.updateMatrixWorld(true);
+    this.warmTarget ??= new THREE.WebGLRenderTarget(16, 16, { type: THREE.HalfFloatType });
+    const prev = r.getRenderTarget();
+    r.shadowMap.needsUpdate = true;
+    r.setRenderTarget(this.warmTarget);
+    r.render(scene, camera);
+    r.setRenderTarget(prev);
+    scene.remove(group);
+    this.warmed.push(group);
   }
 
   /** Cube map shared by glass, car paint, mirrors and wet surfaces. */
@@ -145,7 +188,11 @@ export class Fx {
     if (atm.isAnimating) this.envDirty = Math.max(this.envDirty, 6);
   }
 
-  private captureEnv() {
+  /**
+   * Re-render some faces of the env cube. One face a frame spreads the cost out — all six at once is six full
+   * scene renders in one frame, a visible hitch. The blurred copy materials read is rebuilt after the last face.
+   */
+  private captureEnv(faces = 1) {
     const hidden: THREE.Object3D[] = [this.wet.group, this.wet.reflector];
     if (this.rain) hidden.push(this.rain.lines, this.rain.splashes);
     if (this.snowfall) hidden.push(this.snowfall.points);
@@ -153,18 +200,30 @@ export class Fx {
     const vis = hidden.map((o) => o.visible);
     hidden.forEach((o) => (o.visible = false));
     this.backdrop.visible = true;
-    const r = this.stage.renderer;
-    r.shadowMap.autoUpdate = false;
-    this.cubeCam.update(r, this.stage.scene);
-    r.shadowMap.autoUpdate = true;
+    const r = this.stage.renderer, prev = r.getRenderTarget();
+    for (let i = 0; i < faces; i++) {
+      const face = this.envFace;
+      this.envFace = (face + 1) % 6;
+      r.setRenderTarget(this.envRT, face);
+      r.render(this.stage.scene, this.cubeCam.children[face] as THREE.Camera);
+      if (face === 5) this.envRT.texture.needsPMREMUpdate = true;
+    }
+    r.setRenderTarget(prev);
     hidden.forEach((o, i) => (o.visible = vis[i]));
     this.backdrop.visible = !this.transparent;
   }
 
   render() {
+    // world matrices once per frame — otherwise every render of the scene (reflection, env cube, the frame) redoes them
+    this.stage.scene.updateMatrixWorld();
     if (this.skyDirty) { this.skyDirty = false; this.snowCover.bake(this.stage.scene, this.stage.world); }
-    if (this.envDirty > 0 ? this.frame % 6 === 0 : this.frame % 45 === 0) this.captureEnv();
+    // the whole cube up front (the first frame shows reflections), then a face a frame while the light changes,
+    // and otherwise one every 12 frames (the whole cube in about a second) — a face is a full scene render
+    if (this.frame === 0) this.captureEnv(6);
+    else if (this.envDirty > 0 || this.frame % 12 === 0) this.captureEnv();
     if (this.envDirty > 0) this.envDirty--;
+    if (this.warming.length) this.warmUp();
+    this.stage.renderer.shadowMap.needsUpdate = true;
     this.post.render();
     this.frame++;
   }

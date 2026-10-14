@@ -57,6 +57,12 @@ export interface FxApi {
   addPass(pass: Pass, order?: number): void;
   /** Something that blocks the sky moved or appeared: re-check where snow can settle (cheap, batched). */
   skyChanged(): void;
+  /**
+   * Compile the shaders of something that will only appear later (a kind of vehicle that drives in at some
+   * point), so its first appearance doesn't stall a frame. Pass a throwaway instance; it is drawn once off
+   * screen, every part shown, then kept (unattached) so its shaders stay compiled.
+   */
+  warm(object: THREE.Object3D): void;
 }
 
 export interface StatesApi {

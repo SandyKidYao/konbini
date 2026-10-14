@@ -99,6 +99,9 @@ export const trafficMod = defineMod({
     const roads = ctx.services.get<RoadService>('world.roads');
     if (!roads) return;
     const C = ctx.states.conditions;
+    // every kind compiles its shaders now, behind the loading screen, instead of stalling a frame when the
+    // first one of its kind drives in (parking and deliveries use the same bodies)
+    for (const kind of Object.keys(LABEL) as VehicleKind[]) ctx.fx.warm(makeVehicle(ctx, roads, kind).body.root);
 
     function send(kind: VehicleKind, a: RoadEnd, b: RoadEnd) {
       const m = makeVehicle(ctx, roads!, kind);

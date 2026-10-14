@@ -1,13 +1,15 @@
 // Post stack: ambient occlusion → bloom → [mod passes] → tilt-shift (miniature depth of field) → colour grade → output.
 // Colours stay premultiplied by alpha all the way through, so the same stack works over a transparent window.
+// Only the scene render is multisampled: every later pass is a full-screen quad, and at retina sizes writing
+// and resolving 4× samples for each of them cost more than all the passes themselves.
 import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+import { CopyShader } from 'three/addons/shaders/CopyShader.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import type { Pass } from 'three/addons/postprocessing/Pass.js';
+import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import type { Look } from '../engine/atmosphere';
 
 const FULLSCREEN_VS = `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
@@ -21,6 +23,7 @@ const tiltShader = {
     uniform sampler2D tDiffuse; uniform vec2 uDir; uniform float uAmount, uFocus, uBand; varying vec2 vUv;
     void main() {
       float d = smoothstep(0.0, 0.5, max(0.0, abs(vUv.y - uFocus) - uBand));
+      if (d * uAmount < 0.05) { gl_FragColor = texture2D(tDiffuse, vUv); return; }   // in focus: no blur to do
       vec2 o = uDir * d * uAmount;
       vec4 sum = vec4(0.0); float tw = 0.0;
       for (int i = -6; i <= 6; i++) {
@@ -49,8 +52,50 @@ const gradeShader = {
     }`,
 };
 
+/**
+ * The scene, drawn once into its own multisampled target, then ambient occlusion over it. The AO reads that
+ * render's depth (normals rebuilt from it) instead of drawing the whole scene a second time for a normal buffer —
+ * which was as many draw calls as the scene itself. The result lands in the composer's plain buffer.
+ */
+class SceneAoPass extends Pass {
+  readonly target: THREE.WebGLRenderTarget;
+  private copy = new FullScreenQuad(new THREE.ShaderMaterial({
+    ...CopyShader, uniforms: THREE.UniformsUtils.clone(CopyShader.uniforms), blending: THREE.NoBlending, depthTest: false, depthWrite: false,
+  }));
+
+  constructor(private scene: THREE.Scene, private camera: THREE.Camera, readonly ao: GTAOPass, w: number, h: number) {
+    super();
+    this.needsSwap = false;
+    this.target = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, samples: 4, depthTexture: new THREE.DepthTexture(w, h) });
+    ao.setGBuffer(this.target.depthTexture!);
+  }
+
+  override render(renderer: THREE.WebGLRenderer, _write: THREE.WebGLRenderTarget, read: THREE.WebGLRenderTarget) {
+    const autoClear = renderer.autoClear;
+    renderer.autoClear = false;
+    renderer.setRenderTarget(this.target);
+    renderer.clear();
+    renderer.render(this.scene, this.camera);
+    renderer.autoClear = autoClear;
+    if (this.ao.enabled && this.ao.blendIntensity > 0.001) this.ao.render(renderer, read, this.target, 0, false);
+    else {
+      (this.copy.material as THREE.ShaderMaterial).uniforms.tDiffuse.value = this.target.texture;
+      renderer.setRenderTarget(read);
+      this.copy.render(renderer);
+    }
+  }
+
+  override setSize(w: number, h: number) {
+    this.target.setSize(w, h);
+    // AO is soft and low-frequency: half resolution looks the same and costs a quarter (at full retina size
+    // it was the most expensive thing in the frame)
+    this.ao.setSize(Math.ceil(w / 2), Math.ceil(h / 2));
+  }
+}
+
 export class Post {
   readonly composer: EffectComposer;
+  /** ambient occlusion; set `enabled = false` to skip it (desktop pet, slow machines) */
   readonly gtao: GTAOPass;
   readonly bloom: UnrealBloomPass;
   private tilt: { pass: ShaderPass; axis: 'h' | 'v' }[] = [];
@@ -60,12 +105,12 @@ export class Post {
 
   constructor(private renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera, transparent = false) {
     const s = renderer.getDrawingBufferSize(new THREE.Vector2());
-    this.composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(s.x, s.y, { type: THREE.HalfFloatType, samples: 4 }));
-    this.composer.setSize(innerWidth, innerHeight);
-    this.composer.addPass(new RenderPass(scene, camera));
+    this.composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(s.x, s.y, { type: THREE.HalfFloatType }));
     this.gtao = new GTAOPass(scene, camera, s.x, s.y);
     this.gtao.output = GTAOPass.OUTPUT.Default;
     this.gtao.updateGtaoMaterial({ radius: 0.9, distanceExponent: 1.6, thickness: 1.4, scale: 1.0, samples: 16, distanceFallOff: 1.0 });
+    this.composer.addPass(new SceneAoPass(scene, camera, this.gtao, s.x, s.y));
+    this.composer.setSize(innerWidth, innerHeight);
     this.bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.2, 0.4, 0.9);
     if (transparent) { carryBloomAlpha(this.bloom); unpremultiplyOutput(this.output); }
     for (let i = 0; i < 2; i++) for (const axis of ['h', 'v'] as const) this.tilt.push({ pass: new ShaderPass(tiltShader), axis });
@@ -86,7 +131,6 @@ export class Post {
     const keep = c.passes[0];
     c.passes.length = 0;
     c.addPass(keep);
-    c.addPass(this.gtao);
     c.addPass(this.bloom);
     for (const p of this.custom) c.addPass(p.pass);
     for (const p of this.tilt) c.addPass(p.pass);

@@ -1,6 +1,7 @@
 // Click (without dragging) on things to get a reaction; hovering one turns the cursor into a pointer.
 // The label is kept for whoever needs a name (no text is shown on screen).
 import * as THREE from 'three';
+import { BATCHED_LAYER } from './batch';
 
 interface Clickable { object: THREE.Object3D; onClick: () => void; label: string }
 
@@ -9,7 +10,9 @@ export class Interact {
   private ray = new THREE.Raycaster();
   private ndc = new THREE.Vector2();
 
-  constructor(private camera: THREE.Camera, private dom: HTMLElement, private root: THREE.Object3D) {}
+  constructor(private camera: THREE.Camera, private dom: HTMLElement, private root: THREE.Object3D) {
+    this.ray.layers.enable(BATCHED_LAYER);   // batched originals are only hidden from cameras; picking still hits them
+  }
 
   clickable(object: THREE.Object3D, onClick: () => void, label: string) {
     this.items.push({ object, onClick, label });

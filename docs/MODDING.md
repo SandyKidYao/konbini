@@ -40,7 +40,7 @@ export default defineMod({
 | `ctx.steps` | 角色脚本：`go` `walk` `wait` `until` `face` `pose` `sit` `stand` `place` `run` `leave` |
 | `ctx.services` | `provide(name, impl)` / `get(name)`：模组之间按名字协作，不互相 import |
 | `ctx.bus` | 松散的消息：`emit` / `on` |
-| `ctx.fx` | `envMap`、`transparent`（桌宠：只画模型，周围没有摄影棚地面和背景）、`wetable(mat)`、`addPuddle`、`addSheen`、`addPass`（自定义后期）、`skyChanged()`（挡雪的东西变了） |
+| `ctx.fx` | `envMap`、`transparent`（桌宠：只画模型，周围没有摄影棚地面和背景）、`wetable(mat)`、`addPuddle`、`addSheen`、`addPass`（自定义后期）、`skyChanged()`（挡雪的东西变了）、`warm(obj)`（预先编译着色器，见下） |
 | `ctx.audio` | `define(name, recipe)` 定义音效、`play(name)` |
 | `ctx.interact.clickable(obj, fn, '名字')` | 可点击（悬停时光标变成手形；名字不显示在画面上） |
 | `ctx.onFrame(fn)` | 每帧回调 `(dt, t, drivers)` |
@@ -144,6 +144,20 @@ ctx.states.show(kadomatsu, (c) => c.has('shogatsu'));
 - 积雪是自动的：模型里朝上、头顶没有遮挡的表面会积雪。会移动的东西（比如车）设 `object.userData.skyIgnore = true`，不想积雪的设 `userData.noSnow = true`
 - 闪电：`ctx.atmosphere.onStrike((distance) => …)`
 - 换天气数据源：实现 `WeatherProvider`（`src/engine/live/openmeteo.ts`），返回 `LiveReport`，传给 `new LiveSync(atmosphere, provider)`
+
+## 静态合并（自动，不用声明）
+
+所有模组 `setup` 结束后，引擎会把共用同一个材质的静态网格合并成一个网格来画，这样绘制次数能从上千次降到几百次。模组不需要做任何事，但了解规则能避免意外：
+
+- 原来的网格还留在原处：引用、父子关系、`userData`、点击都照常。它们只是被移到第 31 层（`BATCHED_LAYER`），不再被相机绘制。如果你自己用 `Raycaster` 做检测，记得 `raycaster.layers.enable(31)`
+- 引擎每帧检查这些原网格。哪个被移动、旋转、缩放、隐藏、移出场景，或者换了材质、改了几何体，它就自动退出合并，回到单独绘制（这一次要重建它所在的批次，之后就没有额外开销了）。所以 `onFrame` 里做动画、开门、点击后弹一下都照常工作
+- 改材质的属性（颜色、发光强度、贴图）不影响合并，因为合并后的网格用的就是同一个材质对象
+- 不参与合并的：透明材质、多材质数组、`ShaderMaterial`、交给 `ctx.states.show` 的物体、带 `userData.skyIgnore` 的物体（会移动的东西本来就该设这个），以及 `setup` 之后才加进场景的东西
+- 一出场就一直在动的东西设 `userData.skyIgnore = true`，可以省掉第一帧的那次重建
+
+## 运行中才出场的东西：预先编译着色器
+
+一种新的材质组合第一次被画出来时，浏览器要现编着色器，画面会卡几十毫秒。加载时就在场景里的东西没有这个问题（编译发生在加载画面后面），运行中才生成的东西才有，比如第一次开进来的巴士。在 `setup` 里给每种会出场的东西造一个样品交给 `ctx.fx.warm(obj)`，引擎会在下一帧把它离屏画一次（所有部件都显示，夜里才亮的灯也算），之后保留它，让编好的着色器不被回收。样品不用加进场景，也不要再用。街上的车就是这样做的（`events/traffic.ts`）
 
 ## 换一个主体
 

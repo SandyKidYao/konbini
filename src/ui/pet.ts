@@ -33,7 +33,7 @@ interface DesktopBridge {
   onAction(fn: (a: PetAction) => void): void;
 }
 
-// Most of a frame's cost is three.js walking ~1400 separate meshes (CPU, not GPU), so the frame rate is the lever.
+// In a window this small the GPU has little to do; what's left is three.js's per-mesh cost, so the frame rate is the lever.
 const IDLE_FPS = 20;     // the street keeps living, gently
 const SAVER_FPS = 10;    // 省电: still moving, about a quarter less energy
 const ACTIVE_FPS = 60;   // while the pointer is on the model
@@ -44,7 +44,7 @@ export function initPet(app: App, live: LiveSync, hud: HudActions) {
   const atm = app.atmosphere, controls = app.stage.controls;
   document.body.classList.add('pet');
   controls.enablePan = false;            // the right button opens the menu instead
-  app.fx.post.gtao.enabled = false;      // ambient occlusion costs the most and barely shows at this size
+  app.fx.post.gtao.enabled = false;      // ambient occlusion barely shows at this size
   const SAVER_KEY = 'konbini.pet.saver';
   let saver = false;
   try { saver = localStorage.getItem(SAVER_KEY) === '1'; } catch { /* storage unavailable */ }

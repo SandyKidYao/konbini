@@ -17,7 +17,7 @@ export class Stage {
 
   constructor(container: HTMLElement, pose: CameraPose, opts: StageOptions = {}) {
     const r = this.renderer = new THREE.WebGLRenderer({
-      antialias: true, alpha: !!opts.transparent, powerPreference: opts.lowPower ? 'low-power' : 'high-performance',
+      antialias: false, alpha: !!opts.transparent, powerPreference: opts.lowPower ? 'low-power' : 'high-performance',
     });
     if (opts.transparent) r.setClearColor(0x000000, 0);
     r.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
