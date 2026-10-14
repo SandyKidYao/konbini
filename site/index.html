@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Konbini</title>
+  <meta name="description" content="希望这家小便利店，能治愈你一天的疲惫。">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.7.0/lxgwwenkai-regular.css">
+  <link rel="stylesheet" href="common.css">
+  <style>
+    /* the line hangs down the left edge like the shop's vertical sign */
+    .sign {
+      position: fixed; left: clamp(20px, 4vw, 56px); top: clamp(24px, 6vh, 64px); z-index: 2;
+      display: flex; gap: 14px; align-items: flex-start;
+      writing-mode: vertical-rl; pointer-events: none;
+    }
+    .sign h1 {
+      margin: 0; font-weight: 400; font-size: clamp(22px, 2.6vw, 34px); line-height: 1.6; letter-spacing: 0.22em;
+      text-shadow: 0 0 18px var(--halo), 0 0 3px var(--halo);
+      opacity: 0; animation: hang 1.6s 0.6s var(--ease) forwards;
+    }
+    .sign h1 span { display: block; }
+    .sign .stripes { writing-mode: horizontal-tb; flex-direction: column; gap: 3px; margin-top: 0.35em; }
+    .sign .stripes i { width: 1.4em; height: 4px; font-size: clamp(22px, 2.6vw, 34px); }
+    @keyframes hang { from { opacity: 0; transform: translateY(-14px); } to { opacity: 1; transform: none; } }
+
+    .top {
+      position: fixed; right: clamp(20px, 4vw, 56px); top: clamp(22px, 5vh, 48px); z-index: 2;
+      display: flex; align-items: baseline; gap: 28px;
+    }
+    .name { font-size: 15px; color: var(--muted); letter-spacing: 0.04em; }
+
+    @media (max-width: 640px) {
+      .sign h1 { font-size: 20px; }
+      .top .name { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <iframe class="scene" id="scene" src="app/?warp=40" title="便利店场景" allow="geolocation; autoplay"></iframe>
+
+  <div class="sign">
+    <span class="stripes" aria-hidden="true"><i></i><i></i><i></i></span>
+    <h1><span>希望这家小便利店，</span><span>能治愈你一天的疲惫。</span></h1>
+  </div>
+
+  <header class="top">
+    <span class="name">Konbini</span>
+    <nav class="links" aria-label="链接">
+      <a href="https://github.com/SandyKidYao/konbini">源代码</a>
+    </nav>
+  </header>
+
+  <script type="module">
+    import { mountScene } from './common.js';
+    mountScene(document.getElementById('scene'));
+  </script>
+</body>
+</html>

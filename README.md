@@ -25,6 +25,8 @@ npm run dev     # 打开 http://localhost:5173
 npm run pet     # 桌宠（macOS）
 ```
 
+## 参考
+
 想给场景加点东西？参见 [模组扩展](docs/MODDING.md)。
 
 ## 隐私

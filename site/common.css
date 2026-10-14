@@ -1,0 +1,49 @@
+/* Shared by the homepage: the scene's own palette and type, and colours that follow its day and night. */
+:root {
+  --font: "LXGW WenKai", "Kaiti SC", "STKaiti", "KaiTi", serif;
+  --green: #14a05a;
+  --orange: #ff8a1e;
+  --blue: #2a6fd6;
+  --ease: cubic-bezier(0.22, 0.8, 0.24, 1);
+  --bg: #d4e6df;
+  --ink: #22302d;
+  --muted: rgba(34, 48, 45, 0.6);
+  --halo: rgba(212, 230, 223, 0.85);
+}
+/* set from the scene: it goes dark when daylight fades */
+:root[data-scene="dark"] {
+  --bg: #161d30;
+  --ink: #e9eef7;
+  --muted: rgba(233, 238, 247, 0.62);
+  --halo: rgba(14, 19, 34, 0.75);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  transition: background 1s var(--ease), color 1s var(--ease);
+}
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--orange); outline-offset: 3px; border-radius: 4px; }
+
+/* the scene fills the window behind everything */
+.scene { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; display: block; background: transparent; }
+
+/* the brand's three stripes */
+.stripes { display: inline-flex; gap: 3px; }
+.stripes i { width: 4px; height: 1em; border-radius: 2px; }
+.stripes i:nth-child(1) { background: var(--green); }
+.stripes i:nth-child(2) { background: var(--orange); }
+.stripes i:nth-child(3) { background: var(--blue); }
+
+.links { display: flex; gap: 18px; font-size: 15px; }
+.links a { text-decoration: none; color: var(--muted); transition: color 0.3s var(--ease); }
+.links a:hover { color: var(--ink); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
