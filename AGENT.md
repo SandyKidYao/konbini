@@ -1,0 +1,144 @@
+# AGENT.md
+
+给在这个仓库里工作的 AI 助手和开发者看的说明：项目怎么搭的、写代码时守哪些规矩、怎么验证、怎么提交和发布。面向用户的介绍在 [README.md](README.md)，模组接口的完整说明在 [docs/MODDING.md](docs/MODDING.md)。
+
+## 这是什么
+
+一个放在桌边的街角便利店场景模型（ひかりマート · 桜坂二丁目店），Three.js + TypeScript，浏览器里运行。时间、天气、日期会改变场景，街上的人和车按脚本生活。另有一个 Electron 桌宠外壳（macOS，试验中）。
+
+产品的基调是「治愈」：画面安静、不打扰，界面平时隐藏，模型就是整个页面。新增内容和界面时请守住这个基调。
+
+## 常用命令
+
+```bash
+npm install
+npm run dev          # 开发服务器 http://localhost:5173
+npm run build        # 类型检查 + 打包成单个 dist/index.html（双击可开）
+npm run typecheck    # 只做类型检查
+npm run shots        # 无头 Chrome 截图一组场景到 tmp/shots/，页面报错即失败（先 build）
+npm run shots -- door winter   # 只截名字含这些词的场景
+npm run site         # 打包 Pages 站点到 _site/（首页 + app/）
+npm run site:preview # 本地预览 _site/
+npm run pet          # 打包后打开桌宠；pet:dev 让桌宠加载开发服务器
+```
+
+调试常用网址参数：`?weather=snow&time=2200`、`?date=12-24`、`?season=summer`、`?view=facade`、`?warp=60`、`?live=1&place=35.68,139.69,東京`、`?mods=mods/furin.js`、`?pet=1`。完整列表见 `src/main.ts` 开头的注释。
+
+需要 Node.js 20.19+（Vite 7）。从 VS Code 扩展里开的终端可能带着 `ELECTRON_RUN_AS_NODE=1`，跑桌宠前先 `unset ELECTRON_RUN_AS_NODE`。
+
+## 目录
+
+```
+src/
+  engine/     与内容无关的运行时：模组加载、时间天气、日历、状态、步行网络、角色与车辆、服务总线、拾取、音效
+  fx/         渲染层：光照、反射、雨雪、积雪、闪电、湿地面、后期（AO、辉光、移轴、调色）
+  content/    所有内容，全部是模组
+    library/    素材库（人偶、车、贩卖机…）
+    world/      世界：底座、道路与交通规则、邻里、自然
+    site/konbini/  主体：店铺、门前、后院；api.ts 是它对事件提供的约定
+    events/     事件：顾客、店员、路人、车流、停车、送货
+    common/     内置内容共用的色板、贴图、材质
+  ui/         界面：hud.ts 工具栏与托盘、views.ts 视角预设、date-picker.ts、pet.ts 桌宠模式
+  main.ts     入口：读网址参数、建 App、接界面
+desktop/      Electron 桌宠外壳（main.js 窗口与菜单，preload.cjs 页面与外壳的接口）
+public/mods/  外部模组示例（运行时加载）
+site/         GitHub Pages 首页（静态页，iframe 嵌入 app/）
+scripts/shots.mjs  无头截图检查
+docs/         MODDING.md 与 README 用图
+tmp/          本地草稿：截图、开发记录 PROGRESS.md（不入库）
+```
+
+## 架构
+
+### 一切都是模组
+
+- 引擎（`engine/`、`fx/`）不认识任何具体内容，**永远不 import `content/`**。内容通过 `defineMod({ id, layer, requires, site?, setup(ctx) })` 接入
+- 加载顺序按层：`library → world → site → events → extra`，同层按 `requires` 排序。缺依赖或 `setup` 抛错的模组被跳过、在模组面板标红，其余照常运行。新代码也要保持这种失败隔离：一个模组坏了，不能拖垮整个场景
+- 内置模组和外部模组用同一套接口。外部模组是不 import 任何东西的 `.js`，所有能力（`THREE`、`kit`、`steps`…）从 `ctx` 拿。给内置模组加能力时，优先放进 `ctx`，这样外部模组也能用
+- 新的内置模组要加进 `src/content/index.ts` 的 `builtinMods`
+
+### 模组之间怎么协作
+
+- 用 `ctx.services.provide/get` 按名字提供和获取能力，用 `ctx.bus` 发松散消息。**模组之间不互相 import 实现**；只允许 `import type` 拿类型（例如 `events/` 引用 `world/roads.ts` 的 `RoadService` 类型）
+- 主体（site）通过约定接入：便利店的约定写在 `site/konbini/api.ts`（`shop`、`shop.parking`、节点名…）。事件只依赖约定，所以换一个主体（拉面店、书店）时事件可以复用。往约定里加东西要同时更新 `api.ts` 和 MODDING.md
+- 位置从服务里取，不要写死坐标（例如外部模组挂提灯用 `shop.awning`）
+
+### 时间、天气、日期、状态
+
+- `Atmosphere` 把「时刻 × 天气参数」算成连续的驱动量 `drivers`（daylight、rain、snow、fog、wind、wet、snowCover…），内容每帧读它
+- `calendar.ts` 给出 `day`：季节（南半球翻转）、星期、日本节假日、节日。店在日本，所以节假日按日本日历
+- 连续变化（亮度、强度）用发光通道 `ctx.glow` 和 `onFrame`；离散的「该显示哪个版本」用 `ctx.states.track / show`。会出现的东西在 `setup` 里就建好，交给 `show` 隐藏，这样积雪遮挡才算得对
+- 实况（`engine/live/`）只在用户打开时联网，换数据源实现 `WeatherProvider` 即可
+
+### 角色与车辆
+
+- 行人是 `Actor` 加脚本步骤（`go` `walk` `wait` `pose`…），在 `nav` 步行网络上寻路；事件由 `Director` 按 `weight` 调度
+- 车辆是 `Vehicle` 加路径与 `drive` 步骤，自带闸门（红灯、让行、人行横道）、跟车、让人
+- 门前是人车分流的：车只在停车场里走，行人走西侧小广场和东侧步道。往门前加东西时别放进车道和两条步行路线
+
+### 渲染与性能
+
+- 一帧的主要开销在 three.js 逐个遍历约 1400 个网格（CPU），不在 GPU。降帧率比关后期更省电
+- **场景里的灯光数量不能变**（会触发着色器重新编译）：车灯用固定数量的灯池
+- 短命的东西（路人、车辆）用完要 `dispose`，几何体数量应该随时间保持稳定
+- 会动的物体设 `userData.skyIgnore = true`，不想积雪的设 `userData.noSnow = true`
+- 尊重「减少动态效果」：状态切换此时一律立即完成
+
+### 界面
+
+- 模型就是页面。界面平时隐藏，指针移动时浮出，几秒后淡出
+- 界面上不放文字，用图标；每个按钮必须有 `aria-label`（中文）给读屏用
+- 主题跟随日照：`body[data-theme]` 在 `light` / `dark` 之间切换。Pages 首页靠这个属性同步文字颜色，不要改名或去掉
+
+### 打包与首页
+
+- `vite-plugin-singlefile` 把所有东西内联成一个 `index.html`，`base: './'`，从 `file://` 双击打开也要能用（此时实况退回到 IP 和时区估计）
+- Pages 站点：`npm run site` 把应用打包到 `_site/app/`，再把 `site/` 的静态首页复制过去。首页用同源 iframe 嵌入 `app/`，读取 iframe 里的 `data-theme` 来跟随昼夜
+- 桌宠用 `?pet=1`：透明背景、不显示界面、低功耗。外壳和页面之间只通过 `preload.cjs` 暴露的 `window.konbiniDesktop` 通信，页面在没有外壳时也必须正常运行
+
+## 开发原则
+
+- **小而完整**：一次改动只做一件事，做完、验证完再做下一件
+- **先读后写**：改之前先看相关模组、`api.ts` 和 MODDING.md 里的约定，新代码要像周围的代码
+- **注释写「为什么」**：代码注释用英文，简短、具体，说清楚意图和约束（参考现有文件开头的注释）。不写复述代码的注释
+- **类型严格**：`strict` 打开，`npm run build` 必须零错误；不要用 `any` 绕过，跨模组用 `import type`
+- **确定性**：布局用 `ctx.mod.random`（按模组 id 播种），每次打开看到的街景一致
+- **依赖克制**：只有 `three` 一个运行时依赖，版本精确锁定（不用 `^`）。加依赖前先想想能不能用 `kit` 做到，单文件打包的体积也要考虑
+- **隐私**：不加任何统计和追踪。应用只会访问 Open-Meteo（天气）、BigDataCloud（地名）、geojs（IP 定位），并且只在打开实况时访问；字体来自 jsdelivr。定位结果只缓存在用户自己的浏览器里。新增外部请求要在 README 的隐私一节说明
+- **外部模组的安全**：默认只加载同源相对路径；远程地址必须显式加 `&allowRemoteMods`，不要放宽这个默认值
+- **语言**：README、MODDING.md、界面文字（`aria-label`）、提交给用户看的文档都用中文；代码、注释、提交信息用英文
+- **文档同步**：改了模组接口或 `ctx` 要更新 MODDING.md；改了用户能感知的功能，看看 README 是否需要更新。README 保持简洁，技术细节放 MODDING.md
+
+## 验证
+
+提交前至少：
+
+1. `npm run build` 通过（类型检查 + 打包）
+2. `npm run shots` 全部通过，并**亲眼看一遍相关截图**：脚本只能发现报错，发现不了画面问题
+3. 改了界面：浅色和深色主题、窄屏（截图里有 `narrow`、`ui-picker-narrow`）都要看
+4. 加了用户看得见的新内容：在 `scripts/shots.mjs` 里加一个截图场景
+5. 改了交通、行人或停车：用 `?warp=` 快进，模拟多个时段（早高峰、雨天傍晚、深夜、节日），检查车辆有没有重叠、卡死，行人有没有穿过停车场
+6. 改了 `site/` 或打包配置：`npm run site && npm run site:preview` 看一遍首页
+
+`tmp/` 不入库，截图和开发记录（`tmp/PROGRESS.md`，含待办清单）都放在这里。
+
+## 提交
+
+- 主分支是 `main`。小改动直接提交在 `main`；较大的功能（例如交通系统、桌宠）开分支，做完合并回 `main`
+- 提交信息用英文，一行标题写清楚改了什么、对用户意味着什么，形式是「范围: 说明」或一句完整的话，例如：
+  - `Tilt-shift: raise the focus band so the shop sits in it again`
+  - `Living traffic and a shop front where people and cars each have their own way`
+- 不用 `feat:` / `fix:` 这类前缀。需要时在正文里补充原因
+- 由 AI 助手完成的提交，在末尾加 `Co-Authored-By` 署名
+- 提交前看一眼 `git status`，不要把 `dist/`、`_site/`、`tmp/`、截图、`.env` 之类提交进去（`.gitignore` 已覆盖）
+
+## 发布
+
+- **网页**：推送到 `main` 后，GitHub Actions（`.github/workflows/pages.yml`）自动执行 `npm run site` 并发布到 https://sandykidyao.github.io/konbini/ 。推送后用 `gh run list --workflow pages.yml` 确认部署成功，再打开线上地址看一眼
+- **桌宠**：目前只能从源码运行（`npm run pet`）。打包成 `.app`、签名公证、开机启动都还没做
+- 版本号在 `package.json`（目前 0.3.0），还没有打 tag 和写更新日志的流程；开始正式发版时再补
+
+## 仓库
+
+- GitHub：https://github.com/SandyKidYao/konbini ，公开，MIT 协议
+- 灵感来源与致谢见 README
