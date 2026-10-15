@@ -9,6 +9,9 @@
   --ink: #22302d;
   --muted: rgba(34, 48, 45, 0.6);
   --halo: rgba(212, 230, 223, 0.85);
+  --line: rgba(34, 48, 45, 0.14);
+  --chip: rgba(251, 253, 251, 0.62);
+  --chip-hover: rgba(251, 253, 251, 0.9);
 }
 /* set from the scene: it goes dark when daylight fades */
 :root[data-scene="dark"] {
@@ -16,6 +19,9 @@
   --ink: #e9eef7;
   --muted: rgba(233, 238, 247, 0.62);
   --halo: rgba(14, 19, 34, 0.75);
+  --line: rgba(255, 255, 255, 0.14);
+  --chip: rgba(22, 29, 48, 0.5);
+  --chip-hover: rgba(22, 29, 48, 0.78);
 }
 
 * { box-sizing: border-box; }

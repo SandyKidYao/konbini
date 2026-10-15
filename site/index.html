@@ -9,46 +9,59 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.7.0/lxgwwenkai-regular.css">
   <link rel="stylesheet" href="common.css">
   <style>
-    /* the line hangs down the left edge like the shop's vertical sign */
+    /* the name sits in the top-left corner; the line hangs down the left edge under it, like the shop's vertical sign */
+    .brand {
+      position: fixed; left: clamp(20px, 4vw, 56px); top: clamp(20px, 4.5vh, 44px); z-index: 2;
+      display: flex; align-items: center; gap: 12px; margin: 0;
+      font-weight: 400; font-size: 22px; line-height: 1; letter-spacing: 0.06em;
+      text-shadow: 0 0 14px var(--halo), 0 0 3px var(--halo);
+    }
+    .brand .stripes { font-size: 20px; }
     .sign {
-      position: fixed; left: clamp(20px, 4vw, 56px); top: clamp(24px, 6vh, 64px); z-index: 2;
-      display: flex; gap: 14px; align-items: flex-start;
-      writing-mode: vertical-rl; pointer-events: none;
-    }
-    .sign h1 {
-      margin: 0; font-weight: 400; font-size: clamp(22px, 2.6vw, 34px); line-height: 1.6; letter-spacing: 0.22em;
+      position: fixed; left: clamp(20px, 4vw, 56px); top: calc(clamp(20px, 4.5vh, 44px) + 52px); z-index: 2;
+      margin: 0; writing-mode: vertical-rl; pointer-events: none;
+      font-size: clamp(22px, 2.6vw, 34px); line-height: 1.6; letter-spacing: 0.22em;
       text-shadow: 0 0 18px var(--halo), 0 0 3px var(--halo);
-      opacity: 0; animation: hang 1.6s 0.6s var(--ease) forwards;
+      animation: hang 1.6s 0.6s var(--ease) both;   /* (both: hidden during the delay, and plainly shown when motion is reduced) */
     }
-    .sign h1 span { display: block; }
-    .sign .stripes { writing-mode: horizontal-tb; flex-direction: column; gap: 3px; margin-top: 0.35em; }
-    .sign .stripes i { width: 1.4em; height: 4px; font-size: clamp(22px, 2.6vw, 34px); }
+    .sign span { display: block; }
     @keyframes hang { from { opacity: 0; transform: translateY(-14px); } to { opacity: 1; transform: none; } }
 
     .top {
-      position: fixed; right: clamp(20px, 4vw, 56px); top: clamp(22px, 5vh, 48px); z-index: 2;
-      display: flex; align-items: baseline; gap: 28px;
+      position: fixed; right: clamp(20px, 4vw, 56px); top: clamp(20px, 4.5vh, 44px); z-index: 2;
+      height: 22px; display: flex; align-items: center;
     }
-    .name { font-size: 15px; color: var(--muted); letter-spacing: 0.04em; }
+    .links { align-items: center; text-shadow: 0 0 12px var(--halo); }
+    /* the desktop app: a quiet pill, so it reads as something to take home */
+    .links .get {
+      display: inline-flex; align-items: center; gap: 6px; padding: 6px 13px 6px 11px; border-radius: 999px;
+      color: var(--ink); background: var(--chip); box-shadow: inset 0 0 0 1px var(--line);
+      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); text-shadow: none;
+      transition: background 0.3s var(--ease), box-shadow 0.3s var(--ease);
+    }
+    .links .get:hover { background: var(--chip-hover); }
+    .links .get svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
     @media (max-width: 640px) {
-      .sign h1 { font-size: 20px; }
-      .top .name { display: none; }
+      .sign { font-size: 20px; }
+      .links { gap: 12px; }
+      .links .get .long { display: none; }
     }
   </style>
 </head>
 <body>
   <iframe class="scene" id="scene" src="app/?warp=40" title="便利店场景" allow="geolocation; autoplay"></iframe>
 
-  <div class="sign">
-    <span class="stripes" aria-hidden="true"><i></i><i></i><i></i></span>
-    <h1><span>希望这家小便利店，</span><span>能治愈你一天的疲惫。</span></h1>
-  </div>
+  <h1 class="brand"><span class="stripes" aria-hidden="true"><i></i><i></i><i></i></span>Konbini</h1>
+  <p class="sign"><span>希望这家小便利店，</span><span>能治愈你一天的疲惫。</span></p>
 
   <header class="top">
-    <span class="name">Konbini</span>
     <nav class="links" aria-label="链接">
-      <a href="https://github.com/SandyKidYao/konbini">源代码</a>
+      <a href="https://github.com/SandyKidYao/konbini">GitHub</a>
+      <a class="get" href="https://github.com/SandyKidYao/konbini/releases/latest" title="macOS · Apple 芯片">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14"/></svg>
+        <span>下载<span class="long">桌面版</span></span>
+      </a>
     </nav>
   </header>
 
