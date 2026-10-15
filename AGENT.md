@@ -154,7 +154,7 @@ gh run list --limit 4    # Pages 与 Desktop 两个 workflow 都应成功
 ```
 
 - **版本号**：以 Release 的 tag 为准（`v0.4.0` → 0.4.0），桌面版打包时由 CI 写进 App。`package.json` 的 version 在发版前改成同一个，保持仓库与发布一致
-- **网页**：`.github/workflows/pages.yml` 在 Release 发布时执行 `npm run site`，发布到 https://sandykidyao.github.io/konbini/ 。推送到 `main` 不再更新线上；需要时可在 Actions 里手动运行。发布后打开线上地址看一眼
+- **网页**：`.github/workflows/pages.yml` 在 Release 发布时执行 `npm run site`，发布到 https://sandykidyao.github.io/konbini/ 。推送到 `main` 不再更新线上；需要时可在 Actions 里手动运行。发布后打开线上地址看一眼。仓库的 `github-pages` 环境只允许 `main` 和 `v*` tag 部署，tag 换了命名方式要同步改这条规则
 - **桌宠**：`.github/workflows/desktop.yml` 在 macOS（Apple 芯片）上执行 `npm run pet:pack`，把 `Konbini-<版本>-arm64.dmg` 上传到这个 Release；手动运行时填 tag 可重新打包已有的 Release。本地打包同样用 `npm run pet:pack`，产物在 `release/`
 - 打包配置在 `electron-builder.yml`：只装 `desktop/` 的外壳文件和 `dist/`（页面是单文件，不带 `node_modules`）。`LSUIElement` 让 App 启动时不进程序坞，「显示图标」里的偏好仍可把它请回来
 - 还没有 Developer ID：App 只做了 ad-hoc 签名、没有公证，首次打开要在「隐私与安全性」里点「仍要打开」（README 有说明）。以后接入签名时，把证书放进 Secrets，并去掉 `identity: "-"` 与 `hardenedRuntime: false`
