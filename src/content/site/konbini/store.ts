@@ -289,15 +289,16 @@ export default defineMod({
 
     // ---------------------------------------------------------------- on the map
     // the roof and the canopy over the apron and the side terrace; light spills out of the shop at night. On the
-    // roof, the brand's three stripes — the one thing that says "konbini" at the size of a stamp
+    // roof's back corner (the map shows the customers inside, so the middle stays clear), the brand's three stripes —
+    // the one thing that says "konbini" at the size of a stamp
     ctx.plan.add({ kind: 'site', rect: { x0: -7.2, x1: 10.95, z0: SZ1, z1: -4.3 }, h: 2.7, color: '#f3f3ef', glow: 'interior' });
     ctx.plan.add({ kind: 'site', rect: { x0: SX1, x1: 10.95, z0: -10.8, z1: SZ1 }, h: 2.7, color: '#f3f3ef', glow: 'interior' });
     ctx.plan.add({ kind: 'site', rect: { x0: SX0 - 0.1, x1: SX1 + 0.1, z0: SZ0 - 0.1, z1: SZ1 + 0.1 }, h: SH, color: '#ecebe6' });
     ctx.plan.add({ kind: 'site', rect: { x0: -7.2, x1: 10.95, z0: -4.75, z1: -4.3 }, color: BRAND.green });
     ctx.plan.add({ kind: 'site', rect: { x0: -7.2, x1: 10.95, z0: -5.0, z1: -4.75 }, color: BRAND.orange, glow: 'sign' });
     [BRAND.green, BRAND.orange, BRAND.blue].forEach((color, i) => {
-      const x = (SX0 + SX1) / 2 - 2.1 + i * 1.5;
-      ctx.plan.add({ kind: 'site', rect: { x0: x, x1: x + 1.1, z0: -13.6, z1: -9.4 }, color });
+      const x = SX0 + 0.9 + i * 1.6;
+      ctx.plan.add({ kind: 'site', rect: { x0: x, x1: x + 0.9, z0: SZ0 + 0.9, z1: SZ0 + 4.2 }, color });
     });
 
     // ---------------------------------------------------------------- walkable inside

@@ -130,6 +130,16 @@ const SCENES = [
     await p.mouse.move(190, 300); await p.mouse.move(195, 310); await p.waitForTimeout(400); } },
   { name: 'pet-plan-tray', q: 'pet=1&view=plan&size=small&weather=rain&time=1300&date=2026-10-14&warp=90', viewport: { width: 380, height: 470 }, act: async (p) => {
     await p.mouse.move(190, 330); await p.mouse.move(195, 340); await p.waitForTimeout(400); await p.click('#trayBtn'); } },
+  { name: 'pet-plan-tiny', q: 'pet=1&view=plan&size=small&weather=clear&time=1215&date=2026-10-14&warp=150', viewport: { width: 380, height: 470 } },
+  // on the desk every view is the whole model, and zooming in stops before anything is cut off
+  { name: 'pet-view-facade', q: 'pet=1&weather=clear&time=1600', viewport: { width: 560, height: 460 }, act: async (p) => {
+    await p.mouse.move(270, 250); await p.mouse.move(280, 240); await p.waitForTimeout(400); await p.click('#trayBtn');
+    await p.click('[data-view="facade"]'); await p.keyboard.press('Escape'); await p.waitForTimeout(500); } },
+  { name: 'pet-view-bird', q: 'pet=1&weather=partly&time=1600', viewport: { width: 400, height: 330 }, act: async (p) => {
+    await p.mouse.move(190, 160); await p.mouse.move(200, 150); await p.waitForTimeout(400); await p.click('#trayBtn');
+    await p.click('[data-view="bird"]'); await p.keyboard.press('Escape'); await p.waitForTimeout(500); } },
+  { name: 'pet-zoom', q: 'pet=1&weather=clear&time=1000', viewport: { width: 560, height: 460 }, wait: 3000, act: async (p) => {
+    await p.mouse.move(280, 230); for (let i = 0; i < 12; i++) { await p.mouse.wheel(0, -400); await p.waitForTimeout(60); } } },
   { name: 'pet-picker-small', q: 'pet=1&weather=clear&time=2000', viewport: { width: 400, height: 330 }, act: async (p) => {
     await p.mouse.move(190, 200); await p.mouse.move(200, 190); await p.waitForTimeout(400); await p.click('#trayBtn'); await p.click('#dateBtn'); } },
 ];

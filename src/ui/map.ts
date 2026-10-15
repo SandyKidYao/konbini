@@ -12,11 +12,14 @@ import type { Rect } from '../engine/surfaces';
 
 type RGB = [number, number, number];
 
-/** at most this many pixels across (about two per metre on this block): low enough to read as pixel art */
-const ART_W = 112;
+/** at most this many pixels across (a little over one per metre on this block): coarse on purpose — a tile the size
+ *  of a stamp still reads, because what moves is drawn larger than life (below) */
+const ART_W = 70;
 /** rows of walnut under the tile (the plinth's edge), and the pixels cut from each row at a corner */
 const EDGE = 3;
-const CORNER = [4, 2, 1, 1];
+const CORNER = [3, 1, 1];
+/** cars and people are drawn bigger than they are, so a glance at a tiny tile shows who's coming and going */
+const CAR_GROW = 1.3, CAR_MIN_W = 2;
 
 /** each kind's colour by day (a shape can bring its own) */
 const KIND: Record<PlanKind, string> = {
@@ -86,7 +89,7 @@ export function initMap(app: App, bounds: Rect): MapView {
     const dpr = devicePixelRatio || 1;
     // a whole number of device pixels per art pixel (at least two, so it reads as pixels), as many art pixels as fit
     const k = Math.max(2, Math.ceil((r.width * dpr) / ART_W));
-    N = Math.max(42, Math.floor((r.width * dpr) / k / 7) * 7);
+    N = Math.max(35, Math.floor((r.width * dpr) / k / 7) * 7);
     M = (N / 7) * 6;
     ppm = N / W;
     for (const c of [canvas, base]) { c.width = N; c.height = M + EDGE; }
@@ -222,7 +225,7 @@ export function initMap(app: App, bounds: Rect): MapView {
 
   // ---------------------------------------------------------------- weather: particles live in tile coordinates (0–1)
   const rand = Math.random;
-  const drops = Array.from({ length: 70 }, () => ({ x: rand(), y: rand(), s: 0.7 + rand() * 0.6 }));
+  const drops = Array.from({ length: 50 }, () => ({ x: rand(), y: rand(), s: 0.7 + rand() * 0.6 }));
   const flakes = Array.from({ length: 60 }, () => ({ x: rand(), y: rand(), s: 0.5 + rand() * 0.8, p: rand() * 6 }));
   const clouds = Array.from({ length: 4 }, (_, i) => ({ x: rand(), y: (i + rand()) / 4, r: 0.2 + rand() * 0.14, sprite: null as HTMLCanvasElement | null }));
   /** each cloud's shadow: a dithered blob, made once per size */
@@ -245,8 +248,9 @@ export function initMap(app: App, bounds: Rect): MapView {
   // ---------------------------------------------------------------- one frame
   let last = performance.now();
   const shown = () => document.body.dataset.form === 'plan';
+  // under a roof people can't be seen — except in the shop (the site): the map looks in, so you can count the customers
   const underRoof = (x: number, z: number) => plan.shapes.some((s) => {
-    if (!s.rect || (s.h ?? 0) < 2) return false;
+    if (!s.rect || (s.h ?? 0) < 2 || s.kind === 'site') return false;
     const r = s.rect;
     return x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1;
   });
@@ -255,15 +259,15 @@ export function initMap(app: App, bounds: Rect): MapView {
   /** A vehicle, rasterised pixel by pixel from its heading: body, a darker roof, the windscreen, brake lights. */
   const vehicle = (cx: number, cz: number, heading: number, len: number, wid: number, body: RGB, braking: boolean) => {
     const fx = Math.sin(heading), fz = Math.cos(heading);
-    const L = (len * ppm) / 2, Wd = Math.max(0.75, (wid * ppm) / 2), R = Math.ceil(Math.hypot(L, Wd)) + 1;
+    const L = (len * CAR_GROW * ppm) / 2, Wd = Math.max(CAR_MIN_W / 2, (wid * CAR_GROW * ppm) / 2), R = Math.ceil(Math.hypot(L, Wd)) + 1;
     const roof = css(mix(body, [30, 36, 50], 0.2)), glass = css(tint([46, 58, 78], 'road')), main = css(body);
     for (let y = Math.floor(cz - R); y <= cz + R; y++) {
       for (let x = Math.floor(cx - R); x <= cx + R; x++) {
         const dx = x + 0.5 - cx, dz = y + 0.5 - cz;
         const f = dx * fx + dz * fz, s = dx * fz - dz * fx;
         if (Math.abs(f) > L || Math.abs(s) > Wd) continue;
-        const inner = Math.abs(s) < Wd * 0.6 && L > 2;
-        g.fillStyle = braking && f < -L + 0.9 ? '#ff4a3a' : inner && f > L * 0.2 && f < L * 0.55 ? glass : inner && f > -L * 0.5 && f <= L * 0.2 ? roof : main;
+        const inner = Math.abs(s) < Wd * 0.6 && L > 1.5;
+        g.fillStyle = braking && f < -L + 1 ? '#ff4a3a' : inner && f > L * 0.2 && f < L * 0.55 ? glass : inner && f > -L * 0.5 && f <= L * 0.2 ? roof : main;
         g.fillRect(x, y, 1, 1);
       }
     }
@@ -271,12 +275,12 @@ export function initMap(app: App, bounds: Rect): MapView {
   /** Headlights: a short fan of light ahead, in three steps of brightness. */
   const beam = (cx: number, cz: number, heading: number, len: number, wid: number, k: number) => {
     const fx = Math.sin(heading), fz = Math.cos(heading);
-    const L = (len * ppm) / 2, reach = 5 * ppm, R = Math.ceil(L + reach) + 1;
+    const L = (len * CAR_GROW * ppm) / 2, reach = 5 * ppm, R = Math.ceil(L + reach) + 1;
     for (let y = Math.floor(cz - R); y <= cz + R; y++) {
       for (let x = Math.floor(cx - R); x <= cx + R; x++) {
         const dx = x + 0.5 - cx, dz = y + 0.5 - cz;
         const f = dx * fx + dz * fz - L, s = Math.abs(dx * fz - dz * fx);
-        if (f < 0 || f > reach || s > (wid * ppm) / 2 + f * 0.45) continue;
+        if (f < 0 || f > reach || s > Math.max(CAR_MIN_W / 2, (wid * CAR_GROW * ppm) / 2) + f * 0.45) continue;
         const step = f < reach / 3 ? 0.3 : f < (reach * 2) / 3 ? 0.17 : 0.08;
         g.fillStyle = `rgba(255, 226, 168, ${step * k})`;
         g.fillRect(x, y, 1, 1);
@@ -310,9 +314,13 @@ export function initMap(app: App, bounds: Rect): MapView {
     }
     for (const m of moving) {
       if (m.kind !== 'person' || underRoof(m.x, m.z)) continue;
-      // one pixel each, brighter than the ground so they read at night too
-      g.fillStyle = css(mix(tint(hex(m.color ?? '#5a6270'), 'building'), [255, 250, 240], look.night * 0.45));
-      dot(X(m.x), Z(m.z));
+      // two by two pixels — a dark head over their clothes' colour, brighter at night so they still read
+      const x = Math.round(X(m.x) - 1), y = Math.round(Z(m.z) - 1);
+      const body = mix(tint(hex(m.color ?? '#5a6270'), 'building'), [255, 250, 240], look.night * 0.45);
+      g.fillStyle = css(body);
+      g.fillRect(x, y, 2, 2);
+      g.fillStyle = css(mix(body, [30, 26, 24], 0.55));
+      g.fillRect(x, y, 1, 1);
     }
 
     // signals: a pixel of colour, with a cross of glow at night

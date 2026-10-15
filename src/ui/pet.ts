@@ -3,13 +3,15 @@
 // on it (drag the button to move the window, or ⌥-drag anywhere on the model; the map moves with a plain drag).
 // The native menu (right-click, or the menu-bar icon) keeps what belongs to the window: form, size, floating,
 // icons, power saving. Everywhere the model, the map and the controls aren't, clicks fall through to the desktop.
+import { Vector3 } from 'three';
 import type { App } from '../engine/app';
 import type { Form, HudActions } from './hud';
 import type { MapView } from './map';
+import { wholeDistance } from './views';
 
 export type PetSize = 'small' | 'medium' | 'large';
 /** the map's width (px) at each of the shell's sizes */
-const MAP_SIZE: Record<PetSize, number> = { small: 150, medium: 200, large: 260 };
+const MAP_SIZE: Record<PetSize, number> = { small: 120, medium: 160, large: 220 };
 
 /** What the shell's menu shows: the page's own settings. */
 export interface PetState {
@@ -41,7 +43,9 @@ const DRAG_SLOP = 4;     // px the settings button must travel before a press be
 export function initPet(app: App, hud: HudActions, map: MapView) {
   const bridge = (window as unknown as { konbiniDesktop?: DesktopBridge }).konbiniDesktop;
   document.body.classList.add('pet');
-  app.stage.controls.enablePan = false;  // the right button opens the menu instead
+  const controls = app.stage.controls, camera = app.stage.camera;
+  controls.enablePan = false;            // the right button opens the menu instead (and the model stays centred)
+  controls.maxPolarAngle = 1.25;         // a thing on the desk, seen from above: not from down at street level
   app.fx.post.gtao.enabled = false;      // ambient occlusion barely shows at this size
   const SAVER_KEY = 'konbini.pet.saver';
   let saver = false;
@@ -146,6 +150,19 @@ export function initPet(app: App, hud: HudActions, map: MapView) {
         if (!active) app.maxFps = idleFps();
         break;
     }
+  });
+
+  // the window is the model's frame: however it is turned, the camera can't come closer than the whole model fits
+  const dir = new Vector3();
+  let fitKey = '';
+  app.onFrameUI(() => {
+    if (hud.form !== 'model') return;
+    dir.copy(camera.position).sub(controls.target).normalize();
+    const aspect = innerWidth / innerHeight;
+    const key = `${dir.x.toFixed(2)} ${dir.y.toFixed(2)} ${dir.z.toFixed(2)} ${aspect.toFixed(3)} ${camera.fov.toFixed(1)}`;
+    if (key === fitKey) return;
+    fitKey = key;
+    controls.minDistance = wholeDistance(dir, aspect, camera.fov);
   });
 
   // keep the shell's copy of the state current, so the menu opens instantly with the right checks
