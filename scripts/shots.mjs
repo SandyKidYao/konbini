@@ -56,7 +56,7 @@ const SCENES = [
     outfits.forEach((o, i) => {
       const f = konbini.prefabs.create('figure', o);
       f.root.position.set(-5.2 + i * 1.2, 0.15, 8.6);
-      f.root.scale.setScalar(1);
+      f.visibleScale = 1; f.update(0, 0, konbini.atmosphere.drivers);   // fully there (they fade in otherwise)
       konbini.stage.world.add(f.root);
     });` },
   // every vehicle body, lined up on road A, lamps on (brake, indicators) to check them by eye

@@ -15,7 +15,7 @@ export interface Walker {
   sitting: boolean;
   sheltered: boolean;
   leaving: boolean;
-  /** 0→1 while appearing, 1→0 while leaving */
+  /** 0→1 while appearing, 1→0 while leaving (the library's figures fade in and out by it) */
   visibleScale: number;
   update(dt: number, t: number, d: Drivers): void;
   play(gesture: string, seconds: number): void;

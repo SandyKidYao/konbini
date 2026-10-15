@@ -136,3 +136,66 @@ export const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(
 export const clamp01 = (t: number) => Math.min(1, Math.max(0, t));
 export const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 export const smoothstep = (e0: number, e1: number, x: number) => smooth01(clamp01((x - e0) / (e1 - e0)));
+
+// ---------------------------------------------------------------- fading a whole object in and out
+
+export interface Fader {
+  /** how much of it shows, 0 (gone) … 1 */
+  set(presence: number): void;
+  /** free the materials it cloned (call when the object goes) */
+  dispose(): void;
+}
+
+/**
+ * Fade a whole object in and out — people appearing, vehicles at the edge of the model — without transparency. Its
+ * materials draw by alpha-to-coverage over the multisampled scene, one alpha for all of it: every surface covers the
+ * same samples, so it never shows its inside, and nothing has to be sorted. Faded more than halfway it casts no
+ * shadow (the shadow pass can't fade).
+ *
+ * Materials are switched over now (so their shaders compile with the rest, not mid-fade), and anything added later
+ * (an umbrella, a bag) when the fade next changes. With `own`, the materials belong to this object alone and are
+ * changed in place; otherwise each one is cloned for it once.
+ */
+export function fader(root: THREE.Object3D, o: { own?: boolean } = {}): Fader {
+  const presence = { value: 1 };
+  const clones = new Map<THREE.Material, THREE.Material>();
+  const mine = new Set<THREE.Material>();
+  const adopt = (m: THREE.Material) => {
+    if (mine.has(m)) return m;
+    let f = clones.get(m);
+    if (!f) {
+      f = o.own ? m : m.clone();
+      f.alphaToCoverage = true;
+      f.onBeforeCompile = (shader) => {
+        shader.uniforms.fadePresence = presence;
+        shader.fragmentShader = `uniform float fadePresence;\n${shader.fragmentShader}`
+          .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\n  if ( fadePresence < 0.02 ) discard;')
+          .replace('vec4 diffuseColor = vec4( diffuse, opacity );', 'vec4 diffuseColor = vec4( diffuse, opacity * fadePresence );');
+      };
+      f.customProgramCacheKey = () => 'kit-fader';
+      f.needsUpdate = true;
+      clones.set(m, f);
+      mine.add(f);
+    }
+    return f;
+  };
+  const sweep = () => root.traverse((x) => {
+    if (!(x instanceof THREE.Mesh)) return;
+    x.material = Array.isArray(x.material) ? x.material.map(adopt) : adopt(x.material);
+  });
+  const shadows = (on: boolean) => root.traverse((x) => {
+    if (!(x instanceof THREE.Mesh)) return;
+    x.userData.casts ??= x.castShadow;
+    x.castShadow = on && x.userData.casts;
+  });
+  sweep();
+  return {
+    set(k) {
+      if (k === presence.value) return;
+      sweep();
+      if ((k > 0.4) !== (presence.value > 0.4)) shadows(k > 0.4);
+      presence.value = k;
+    },
+    dispose() { if (!o.own) for (const m of mine) m.dispose(); },
+  };
+}

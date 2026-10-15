@@ -5,43 +5,25 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import type { ModContext } from '../../engine/mod';
 import type { VehicleBody, Lamps } from '../../engine/agents/vehicle';
-import { mat, canvasTex, FONT_LATIN, FONT_JP } from '../../engine/kit/build';
+import { mat, canvasTex, fader, FONT_LATIN, FONT_JP } from '../../engine/kit/build';
 
 export interface Car extends VehicleBody { root: THREE.Group; wheels: THREE.Group[] }
 
 interface Shell {
   g: THREE.Group;
-  /** how much of a body made to drive in and out of the model shows (null: a body that stays put) */
-  presence: { value: number } | null;
+  /** made to drive in and out of the model (clipped at its edge) */
+  clip: boolean;
   cm(c: string, p?: THREE.MeshStandardMaterialParameters): THREE.MeshStandardMaterial;
   add(geo: THREE.BufferGeometry, m: THREE.Material, x: number, y: number, z: number): THREE.Mesh;
 }
 
-/**
- * A vehicle fades out as it nears the edge of the model and in after it (see Vehicle.presence), so it is never seen
- * cut in two — a hollow body, a truck bed with its tailgate gone. It stays opaque and fades by alpha-to-coverage:
- * the scene is drawn with 4× multisampling, and its alpha decides how many of each pixel's samples it covers. Every
- * surface of it covers the same samples, so you can't see inside, and nothing has to be sorted.
- */
-function fading(m: THREE.MeshStandardMaterial, presence: { value: number }) {
-  m.alphaToCoverage = true;
-  m.onBeforeCompile = (shader) => {
-    shader.uniforms.vehiclePresence = presence;
-    shader.fragmentShader = `uniform float vehiclePresence;\n${shader.fragmentShader}`.replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
-  if ( vehiclePresence < 0.02 ) discard;`).replace('vec4 diffuseColor = vec4( diffuse, opacity );', 'vec4 diffuseColor = vec4( diffuse, opacity * vehiclePresence );');
-  };
-  m.customProgramCacheKey = () => 'vehicle-fading';
-  return m;
-}
-
 function shell(clip?: THREE.Plane[]): Shell {
   const g = new THREE.Group();
-  const presence = { value: 1 };
   return {
     g,
-    presence: clip ? presence : null,
+    clip: !!clip,
     // clip the shadow too: a car still outside the model must not cast one onto it (or the floor)
-    cm: (c, p = {}) => (clip ? fading(mat(c, { clippingPlanes: clip, clipShadows: true, ...p }), presence) : mat(c, p)),
+    cm: (c, p = {}) => mat(c, clip ? { clippingPlanes: clip, clipShadows: true, ...p } : p),
     add(geo, m, x, y, z) {
       const ob = new THREE.Mesh(geo, m); ob.position.set(x, y, z); ob.castShadow = ob.receiveShadow = true; g.add(ob); return ob;
     },
@@ -93,16 +75,14 @@ function fitWheels(s: Shell, xs: number[], width: number, r = 0.34) {
 }
 
 function finish(s: Shell, len: number, width: number, lamps: (l: Lamps, t: number) => void, wheels: ReturnType<typeof fitWheels>, extra?: (l: Lamps, t: number) => void): Car {
+  // a body that drives in and out of the model fades out before its edge and in after it (see Vehicle.presence), so it
+  // is never seen cut in two — a hollow body, a truck bed with its tailgate gone. Its materials are its own.
+  const fade = s.clip ? fader(s.g, { own: true }) : null;
   return {
     root: s.g, wheels: wheels.wheels, len, width,
     spin: wheels.spin,
     lamps(l, t) { lamps(l, t); extra?.(l, t); },
-    fade(k) {
-      if (!s.presence || k === s.presence.value) return;
-      // faded more than half away, it stops casting a shadow (the shadow pass doesn't drop pixels)
-      if ((k > 0.4) !== (s.presence.value > 0.4)) s.g.traverse((o) => { if (o instanceof THREE.Mesh) { o.userData.casts ??= o.castShadow; o.castShadow = k > 0.4 && o.userData.casts; } });
-      s.presence.value = k;
-    },
+    ...(fade ? { fade: (k: number) => fade.set(k) } : {}),
     dispose() {
       // geometry and materials are this vehicle's own; textures are shared and stay
       s.g.traverse((o) => {

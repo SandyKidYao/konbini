@@ -37,7 +37,7 @@ export const passersbyMod = defineMod({
         leash.geometry.setFromPoints([hand, collar]);
         leash.visible = x.walker.visibleScale > 0.5;
       });
-      a.onDispose = () => { ctx.root.remove(dog.root, leash); leash.geometry.dispose(); };
+      a.onDispose = () => { ctx.root.remove(dog.root, leash); leash.geometry.dispose(); dog.dispose(); };
     }
 
     const C = ctx.states.conditions;

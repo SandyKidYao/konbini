@@ -5,7 +5,7 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import type { ModContext } from '../../engine/mod';
 import type { Walker } from '../../engine/agents/actor';
 import type { Drivers } from '../../engine/atmosphere';
-import { mat, canvasTex } from '../../engine/kit/build';
+import { mat, canvasTex, fader, type Fader } from '../../engine/kit/build';
 import { pickR } from '../../engine/kit/rng';
 import { BRAND } from '../common/palette';
 import type { Nobori, NoboriDesign } from './props';
@@ -171,6 +171,8 @@ export class Figure implements Walker {
   private hat: THREE.Group | null = null;
   /** step length; short steps in a yukata and geta */
   private stride = 1;
+  /** people fade in when they appear and out when they go, like vehicles at the edge of the model */
+  private fade: Fader;
 
   constructor(private ctx: ModContext, o: FigureOptions = {}) {
     this.kind = o.kind ?? 'normal';
@@ -232,7 +234,8 @@ export class Figure implements Walker {
     }
     if (o.umbrella) this.giveUmbrella();
     if (o.hat) this.setHat(o.hat);
-    root.scale.setScalar(0.001);
+    this.fade = fader(root);
+    this.fade.set(0);
   }
 
   /** Put a hat on (or take it off with null). */
@@ -287,7 +290,7 @@ export class Figure implements Walker {
 
   update(dt: number, t: number, d: Drivers) {
     this.visibleScale += ((this.leaving ? 0 : 1) - this.visibleScale) * Math.min(1, dt * 5);
-    this.root.scale.setScalar(Math.max(0.001, this.visibleScale));
+    this.fade.set(this.visibleScale > 0.995 ? 1 : this.visibleScale);
 
     const T = { hipL: 0, hipR: 0, kneeL: 0, kneeR: 0, armR: 0.04, armL: 0.04, armRz: -0.06, armLz: 0.06, waist: 0, head: 0 };
     let bob = 0;
@@ -356,6 +359,7 @@ export class Figure implements Walker {
   dispose() {
     this.hold(null);
     this.root.parent?.remove(this.root);
+    this.fade.dispose();
   }
 }
 
@@ -366,6 +370,7 @@ export class Dog {
   private legs: THREE.Group[];
   private tail: THREE.Mesh;
   private phase = 0;
+  private fade: Fader;
 
   constructor() {
     const root = this.root;
@@ -384,11 +389,15 @@ export class Dog {
       mesh(new THREE.CylinderGeometry(0.03, 0.025, 0.24, 8).translate(0, -0.12, 0), fur, p);
       return p;
     });
-    root.scale.setScalar(0.001);
+    this.fade = fader(root);
+    this.fade.set(0);
   }
 
-  update(dt: number, t: number, moving: boolean, speed: number, scale: number) {
-    this.root.scale.setScalar(Math.max(0.001, scale));
+  dispose() { this.fade.dispose(); }
+
+  /** presence: its walker's (it fades in and out with them) */
+  update(dt: number, t: number, moving: boolean, speed: number, presence: number) {
+    this.fade.set(presence > 0.995 ? 1 : presence);
     if (moving) this.phase += dt * speed * 9;
     const sw = moving ? Math.sin(this.phase) * 0.6 : 0;
     this.legs[0].rotation.x = sw; this.legs[3].rotation.x = sw;

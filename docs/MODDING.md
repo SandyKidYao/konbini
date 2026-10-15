@@ -27,7 +27,7 @@ export default defineMod({
 
 | 成员 | 用途 |
 |---|---|
-| `ctx.THREE`、`ctx.kit` | three.js 和建模工具（`box`、`cyl`、`rod`、`mat`、`canvasTex`、随机数…） |
+| `ctx.THREE`、`ctx.kit` | three.js 和建模工具（`box`、`cyl`、`rod`、`mat`、`canvasTex`、随机数…）；`fader(root)` 让一整个物体淡入淡出（`set(0–1)`，行人出现和离开、车辆在边缘都用它） |
 | `ctx.root`、`ctx.scene` | 本模组的根节点；整个场景（摄影棚级的东西放这里） |
 | `ctx.mod.random` | 按模组 id 播种的随机数，布局每次一致 |
 | `ctx.atmosphere` | `drivers`（hour、daylight、golden、cloud、rain、snow、fog、wind、thunder、temperature、wet、snowCover、flash）、`day`（今天的日期、季节、节日）、`look`、`channel(name)`、`defineChannel`、`onStrike`、`onDayChange` |
@@ -79,7 +79,7 @@ ctx.director.define({
   - `through(from, to)`：穿过路口开走，遵守信号灯；能直行，也能左转、右转进出 B 路
   - `arrive(from, pose, onward, { enter, balk })`：沿 A 路开来、拐进路边某处（比如停车场出入口），再慢慢开过 `onward`；拐弯前问 `enter` 有没有空位，没有就直接开过去（`balk`）。`onward` / `via` 里的点写 `[x, z]` 是直线开过去，写 `{ x, z, heading }` 是转弯过去
   - `depart(pose, 'east' | 'west', { via })`：先慢慢开过 `via` 这些点（比如沿停车场车道开到出入口），在人行道前等空当，再汇入 A 路开走
-  - `clip`：车身要用的裁切平面。用素材库造的车身带上它，还会在离模型边缘最后几米里整体淡出（开进来时淡入），到边缘时已经完全消失，不会露出被切开的截面。自己写车身时，实现 `VehicleBody.fade(presence)` 就能得到同样的效果，`presence` 由引擎每帧给出（0–1）
+  - `clip`：车身要用的裁切平面。用素材库造的车身带上它，还会在离模型边缘最后几米里整体淡出（开进来时淡入），到边缘时已经完全消失，不会露出被切开的截面。自己写车身时，实现 `VehicleBody.fade(presence)` 就能得到同样的效果，`presence` 由引擎每帧给出（0–1），交给 `ctx.kit.fader(root).set` 即可
 - 车身素材：`car`（形状见 `CAR_MODELS`：kei、hatch、sedan、minivan、taxi）、`truck`（`kei` 小货车、`box` 箱式送货车）、`bus`；都实现 `VehicleBody`，也可以自己做车身
 
 ```js
