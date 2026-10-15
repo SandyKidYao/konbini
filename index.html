@@ -15,17 +15,16 @@
 
   <!-- Everything below stays out of sight until the pointer moves; the model is the page. -->
 
-  <!-- the bar: view presets | the weather & time tray -->
-  <nav class="bar panel chrome" aria-label="视角">
-    <div class="views" id="views" role="group" aria-label="视角"></div>
-    <span class="sep" aria-hidden="true"></span>
-    <button type="button" class="ico" id="trayBtn" aria-expanded="false" aria-controls="tray" aria-label="天气与时间">
+  <!-- the bar: one button that opens the settings tray -->
+  <nav class="bar panel chrome" aria-label="设置">
+    <button type="button" class="ico" id="trayBtn" aria-expanded="false" aria-controls="tray" aria-label="设置">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
     </button>
   </nav>
 
-  <!-- the tray: weather, time of day, date, real time; turntable, sound, mods -->
-  <section class="tray panel chrome" id="tray" aria-label="天气与时间" hidden>
+  <!-- the tray: views; weather, time of day, date, real time; turntable, sound, mods -->
+  <section class="tray panel chrome" id="tray" aria-label="设置" hidden>
+    <div class="views" id="views" role="group" aria-label="视角"></div>
     <div class="keys" id="weatherKeys" role="group" aria-label="天气"></div>
     <div class="time">
       <div class="track">
@@ -57,15 +56,15 @@
         <span class="num" id="dateBtnText">10/13</span>
         <i class="dot" id="dateBtnDot" hidden></i>
       </button>
-      <button type="button" class="ico live-btn" id="liveBtn" aria-pressed="false" aria-label="实况">
+      <button type="button" class="ico live-btn" id="liveBtn" aria-pressed="false" aria-label="实况" aria-keyshortcuts="L">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>
         <i class="dot"></i>
       </button>
       <span class="grow"></span>
-      <button type="button" class="ico" id="spinBtn" aria-pressed="false" aria-label="转台">
+      <button type="button" class="ico" id="spinBtn" aria-pressed="false" aria-label="转台" aria-keyshortcuts="R">
         <svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="15.5" rx="8.5" ry="3.2"/><path d="M12 12.3V5"/><path d="M17.5 7.8 20 10.2l-3.1.6"/><path d="M20 10.2c-1.4-2.6-4.4-4.2-8-4.2"/></svg>
       </button>
-      <button type="button" class="ico" id="soundBtn" aria-pressed="false" aria-label="声音">
+      <button type="button" class="ico" id="soundBtn" aria-pressed="false" aria-label="声音" aria-keyshortcuts="M">
         <svg class="on" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.2L12 5.5v13l-4.8-4H4z"/><path d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a7.8 7.8 0 0 1 0 11"/></svg>
         <svg class="off" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.2L12 5.5v13l-4.8-4H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></svg>
       </button>
@@ -97,6 +96,9 @@
   <div class="mods panel chrome" id="modsPanel" aria-label="模组" hidden>
     <ul id="modsList"></ul>
   </div>
+
+  <!-- a button's name, shown while the pointer rests on it -->
+  <div class="tip" id="tip" aria-hidden="true"></div>
 
   <script type="module" src="/src/main.ts"></script>
 </body>

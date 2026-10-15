@@ -1,11 +1,13 @@
-// DOM controls. The page is the model: everything else hides until the pointer moves, and speaks in glyphs.
-//   bar:  view presets | tray toggle
-//   tray: weather keys, time-of-day track, date, live mode, turntable, sound, mods list
+// DOM controls. The page is the model: everything else hides until the pointer moves, and speaks in glyphs
+// (resting the pointer on one shows its name).
+//   bar:  the settings button
+//   tray: view presets, weather keys, time-of-day track, date, live mode, turntable, sound, mods list
 import type { App } from '../engine/app';
 import { formatHour, WEATHER_KINDS, WEATHER_LABEL, type WeatherKind } from '../engine/atmosphere';
 import type { LiveSync, LiveStatus } from '../engine/live';
 import { initDatePicker } from './date-picker';
-import { VIEWS, findView, fitView, type ViewPreset } from './views';
+import { initTips } from './tips';
+import { VIEWS, findView, viewPose, type ViewPreset } from './views';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -24,21 +26,23 @@ const ICONS: Record<WeatherKind, string> = {
 /** ms without pointer movement before the controls fade away */
 const IDLE = 2600;
 const FLIGHT = 1.8;
+/** px between stacked panels, and kept clear at the window's edge */
+const GAP = 10, EDGE = 8;
 
-/** What the controls can do, for other front ends (the desktop pet's native menu). */
-export interface HudActions {
-  setWeather(w: WeatherKind): void;
-  setTime(hour: number): void;
-  setDate(month: number, date: number): void;
-  clearDate(): void;
-  toggleLive(): void;
-  setSpin(on: boolean): void;
-  readonly spin: boolean;
-  toggleSound(): void;
-  setView(id: string, instant?: boolean): void;
+export interface HudOptions {
+  /** desktop pet: the pet decides when the controls come out (only over the model), and frames its own overview */
+  pet?: boolean;
 }
 
-export function initHud(app: App, live: LiveSync, initialView: string | null): HudActions {
+/** What the desktop pet needs from the controls. */
+export interface HudActions {
+  /** bring the controls out (they fade again once the pointer rests, unless a panel is open) */
+  showChrome(): void;
+  /** open the settings tray (from the shell's menu) */
+  openTray(): void;
+}
+
+export function initHud(app: App, live: LiveSync, initialView: string | null, opts: HudOptions = {}): HudActions {
   const atm = app.atmosphere, stage = app.stage, controls = stage.controls, audio = app.audio;
   const body = document.body;
   const tick = () => audio.play('tick');
@@ -48,18 +52,39 @@ export function initHud(app: App, live: LiveSync, initialView: string | null): H
   // anything chosen by hand takes the scene out of live mode
   const takeControl = () => { if (live.active) live.stop(); };
 
+  const tips = initTips('.chrome');
+
   // ---------------------------------------------------------------- panels (tray, calendar, mods)
+  const bar = document.querySelector<HTMLElement>('.bar')!;
   const trayBtn = $('trayBtn'), tray = $('tray');
   const modsBtn = $('modsBtn'), modsPanel = $('modsPanel');
   const calPanel = $('calPanel');
   const anyOpen = () => !tray.hidden || !calPanel.hidden || !modsPanel.hidden;
 
-  /** Stack a panel centred above another. */
-  const placeAbove = (panel: HTMLElement, under: HTMLElement) => {
+  /**
+   * Centre a panel above another. Where the window is too short for that (a small desktop pet, a phone on its
+   * side), a card opened from the tray is laid over the tray instead, and anything still too tall scrolls.
+   * Returns whether the panel covers the one under it.
+   */
+  const place = (panel: HTMLElement, under: HTMLElement, canCover: boolean) => {
     const u = under.getBoundingClientRect();
-    const w = panel.offsetWidth;
-    panel.style.bottom = `${innerHeight - u.top + 10}px`;
+    panel.style.maxHeight = '';
+    const w = panel.offsetWidth, h = panel.offsetHeight;
+    const cover = canCover && h > u.top - GAP - EDGE;
+    const bottom = cover ? u.bottom : u.top - GAP;
+    panel.style.bottom = `${innerHeight - bottom}px`;
     panel.style.left = `${Math.max(12, Math.min(innerWidth - w - 12, u.left + u.width / 2 - w / 2))}px`;
+    if (h > bottom - EDGE) panel.style.maxHeight = `${bottom - EDGE}px`;
+    return cover;
+  };
+  /** Lay out whatever is open: the tray above the bar, the calendar or mods card above (or over) the tray. */
+  const layout = () => {
+    tray.classList.remove('covered');
+    if (tray.hidden) return;
+    place(tray, bar, false);
+    const card = !calPanel.hidden ? calPanel : !modsPanel.hidden ? modsPanel : null;
+    if (card) tray.classList.toggle('covered', place(card, tray, true));
+    tips.refresh();
   };
 
   const setMods = (open: boolean) => {
@@ -69,27 +94,28 @@ export function initHud(app: App, live: LiveSync, initialView: string | null): H
     if (open) {
       $('modsList').innerHTML = app.loaded.map((m) =>
         `<li class="${m.error ? 'failed' : ''}"><span>${m.id}</span><span class="layer">${m.error ? '✕' : m.external ? `${m.layer} ↗` : m.layer}</span></li>`).join('');
-      placeAbove(modsPanel, tray);
     }
+    layout();
   };
-  // Escape closes one layer at a time (registered before the calendar's own handler, so it sees the calendar still open)
-  addEventListener('keydown', (e) => { if (e.key === 'Escape') { setMods(false); if (calPanel.hidden) setTray(false); } });
-  const cal = initDatePicker(atm, { takeControl, syncUrl, tick, place: (p) => placeAbove(p, tray) });
+  /** Close the top layer: the calendar or mods card first, then the tray. */
+  const closeOne = () => {
+    if (!calPanel.hidden || !modsPanel.hidden) { cal.setOpen(false); setMods(false); } else setTray(false);
+  };
+  // Escape closes one layer at a time
+  addEventListener('keydown', (e) => { if (e.key === 'Escape' && anyOpen()) closeOne(); });
+  const cal = initDatePicker(atm, { takeControl, syncUrl, tick, layout });
   const setTray = (open: boolean) => {
     if (open === !tray.hidden) return;
     tray.hidden = !open;
     trayBtn.setAttribute('aria-expanded', String(open));
     if (!open) { cal.setOpen(false); setMods(false); }
-    else placeTray();
+    layout();
   };
-  const placeTray = () => placeAbove(tray, document.querySelector<HTMLElement>('.bar')!);
-  trayBtn.addEventListener('click', () => { tick(); setTray(tray.hidden); });
+  // the button opens the tray, and steps back out of it one layer at a time, like Escape
+  trayBtn.addEventListener('click', () => { tick(); if (tray.hidden) setTray(true); else closeOne(); });
   modsBtn.addEventListener('click', () => { tick(); cal.setOpen(false); setMods(modsPanel.hidden); });
   $('dateBtn').addEventListener('click', () => setMods(false));
-  addEventListener('resize', () => {
-    if (!tray.hidden) placeTray();
-    if (!modsPanel.hidden) placeAbove(modsPanel, tray);
-  });
+  addEventListener('resize', layout);
 
   // ---------------------------------------------------------------- chrome: out of sight until the pointer moves
   let hideTimer = 0, hovering = false;
@@ -102,8 +128,9 @@ export function initHud(app: App, live: LiveSync, initialView: string | null): H
     }, IDLE);
   };
   const showChrome = () => { body.classList.add('chrome-on'); hideSoon(); };
-  const hideChrome = () => { clearTimeout(hideTimer); setTray(false); body.classList.remove('chrome-on'); };
-  addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse' && !e.buttons) showChrome(); });
+  const hideChrome = () => { clearTimeout(hideTimer); setTray(false); body.classList.remove('chrome-on'); tips.hide(); };
+  // (the pet only shows them while the pointer is on the model: it calls showChrome itself)
+  if (!opts.pet) addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse' && !e.buttons) showChrome(); });
   // hidden controls can't take focus: Tab brings them out first
   addEventListener('keydown', (e) => { if (e.key === 'Tab') showChrome(); }, { capture: true });
   for (const c of chrome) {
@@ -125,8 +152,8 @@ export function initHud(app: App, live: LiveSync, initialView: string | null): H
 
   // ---------------------------------------------------------------- view presets
   const viewBox = $('views');
-  viewBox.innerHTML = VIEWS.map((v, i) => `
-    <button type="button" class="ico" data-view="${v.id}" aria-pressed="false" aria-label="${v.name}（V ${i + 1}）">
+  viewBox.innerHTML = VIEWS.map((v) => `
+    <button type="button" class="ico" data-view="${v.id}" aria-pressed="false" aria-label="${v.name}">
       <svg viewBox="0 0 24 24" aria-hidden="true">${v.icon}</svg>
     </button>`).join('');
   const viewBtns = [...viewBox.querySelectorAll<HTMLButtonElement>('button')];
@@ -136,14 +163,14 @@ export function initHud(app: App, live: LiveSync, initialView: string | null): H
     const v = findView(id);
     if (!v) return;
     view = v;
-    stage.flyTo(fitView(v, innerWidth / innerHeight), instant || app.reducedMotion ? 0 : FLIGHT);
+    stage.flyTo(viewPose(v, innerWidth / innerHeight, opts.pet), instant || app.reducedMotion ? 0 : FLIGHT);
     markView();
     syncUrl();
   };
   viewBtns.forEach((b) => b.addEventListener('click', () => { tick(); setView(b.dataset.view!); }));
   // hand-turning the model leaves the preset
   controls.addEventListener('start', () => { if (view) { view = null; markView(); } });
-  addEventListener('resize', () => { if (view && !stage.flying) stage.flyTo(fitView(view, innerWidth / innerHeight), 0); });
+  addEventListener('resize', () => { if (view && !stage.flying) stage.flyTo(viewPose(view, innerWidth / innerHeight, opts.pet), 0); });
   if (initialView && findView(initialView)) { view = findView(initialView)!; markView(); }
   const stepView = (n: number) => {
     const i = view ? VIEWS.indexOf(view) : -1;
@@ -153,7 +180,7 @@ export function initHud(app: App, live: LiveSync, initialView: string | null): H
   // ---------------------------------------------------------------- weather keys, built from the list of kinds
   const keyBox = $('weatherKeys');
   keyBox.innerHTML = WEATHER_KINDS.map((k, i) => `
-    <button type="button" data-weather="${k}" aria-pressed="false" aria-label="${WEATHER_LABEL[k]}（${i + 1}）">
+    <button type="button" data-weather="${k}" aria-pressed="false" aria-label="${WEATHER_LABEL[k]}" aria-keyshortcuts="${i + 1}">
       <svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[k]}</svg>
     </button>`).join('');
   const keys = [...keyBox.querySelectorAll<HTMLButtonElement>('button')];
@@ -196,6 +223,7 @@ export function initHud(app: App, live: LiveSync, initialView: string | null): H
     liveName = s.state !== 'off' && s.report ? `${s.report.description} ${Math.round(s.report.temperature)}°` : '';
     liveBtn.setAttribute('aria-label', ['实况', s.place?.name, s.message].filter(Boolean).join(' · '));
     lastWeather = '';
+    tips.refresh();
   });
 
   // ---------------------------------------------------------------- date: [ and ] step through days
@@ -257,15 +285,8 @@ export function initHud(app: App, live: LiveSync, initialView: string | null): H
   });
 
   return {
-    setWeather,
-    setTime: (hour) => { tick(); takeControl(); atm.setTime(hour); syncUrl(); },
-    setDate: (month, date) => { tick(); takeControl(); atm.setDate(month, date); syncUrl(); },
-    clearDate: () => { tick(); atm.clearDate(); syncUrl(); },
-    toggleLive,
-    setSpin,
-    get spin() { return spinOn; },
-    toggleSound,
-    setView,
+    showChrome,
+    openTray: () => { showChrome(); setTray(true); },
   };
 
   function syncUrl() {

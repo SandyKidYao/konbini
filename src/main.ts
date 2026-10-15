@@ -14,7 +14,7 @@ import { LiveSync, type Place } from './engine/live';
 import { builtinMods } from './content';
 import { initHud, revealStage } from './ui/hud';
 import { initPet } from './ui/pet';
-import { VIEWS, findView, fitView } from './ui/views';
+import { VIEWS, findView, viewPose } from './ui/views';
 
 const q = new URLSearchParams(location.search);
 const pet = q.get('pet') === '1';
@@ -22,12 +22,9 @@ const list = (k: string) => (q.get(k) ?? '').split(',').map((s) => s.trim()).fil
 // external mods: same-origin relative paths only, unless remote loading is asked for explicitly
 const external = list('mods').filter((u) => !/^[a-z]+:\/\//i.test(u) || q.has('allowRemoteMods'));
 
-// the pet's window is small and the model must fit whole while the turntable spins: stand further back.
-// Otherwise start on a preset (?view=…, the overview by default) or on a hand-placed ?cam
+// start on a preset (?view=…, the overview by default — the pet's stands further back) or on a hand-placed ?cam
 const preset = findView(q.get('view'));
-let camera: CameraPose = pet
-  ? { position: [74, 48, 92], target: [0, -3, 0] }
-  : fitView(preset ?? VIEWS[0], innerWidth / innerHeight);
+let camera: CameraPose = viewPose(preset ?? VIEWS[0], innerWidth / innerHeight, pet);
 const cam = q.get('cam')?.split(',').map(Number);
 const hasCam = (cam?.length === 6 || cam?.length === 7) && cam.every(Number.isFinite);
 if (cam && hasCam) camera = { position: [cam[0], cam[1], cam[2]], target: [cam[3], cam[4], cam[5]], fov: cam[6] };
@@ -65,8 +62,8 @@ const wantLive = q.get('live') === '1' || (q.get('live') !== '0' && !manual && L
 if (wantLive) void live.start();   // applies cached weather synchronously, refreshes in the background
 app.atmosphere.settle();
 
-const hud = initHud(app, live, pet || hasCam ? null : (preset ?? VIEWS[0]).id);
-const petUi = pet ? initPet(app, live, hud) : null;
+const hud = initHud(app, live, hasCam ? null : (preset ?? VIEWS[0]).id, { pet });
+const petUi = pet ? initPet(app, hud) : null;
 
 await app.load();
 app.warp(Number(q.get('warp')) || 0);

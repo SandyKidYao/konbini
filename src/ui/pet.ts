@@ -1,28 +1,17 @@
 // Desktop-pet mode (?pet=1, set by the Electron shell in desktop/): only the model, over a transparent window.
-// The label and dock give way to the native menu (right-click, or the menu-bar icon); a handle under the model
-// moves the window (or ⌥-drag anywhere on it); everywhere the model isn't, clicks fall through to the desktop.
+// The settings are the web page's own: the settings button comes out under the model while the pointer is on it
+// (drag the button to move the window, or ⌥-drag anywhere on the model). The native menu (right-click, or the
+// menu-bar icon) keeps what belongs to the window: size, floating, icons, power saving. Everywhere the model and
+// the controls aren't, clicks fall through to the desktop.
 import type { App } from '../engine/app';
-import { WEATHER_KINDS, type WeatherKind } from '../engine/atmosphere';
-import { SEASONS, SEASON_SAMPLE, type Season } from '../engine/calendar';
-import type { LiveSync } from '../engine/live';
 import type { HudActions } from './hud';
 
-/** What the shell's menu shows: the scene's current state. */
+/** What the shell's menu shows: the page's own settings. */
 export interface PetState {
-  weather: WeatherKind;
-  live: boolean;
-  spin: boolean;
-  sound: boolean;
-  season: Season;
-  pickedDate: boolean;
   saver: boolean;
 }
 
-export type PetAction =
-  | { type: 'weather'; value: WeatherKind }
-  | { type: 'time'; value: 'dawn' | 'noon' | 'dusk' | 'night' }
-  | { type: 'season'; value: Season }
-  | { type: 'today' | 'live' | 'spin' | 'sound' | 'saver' };
+export type PetAction = { type: 'settings' | 'saver' };
 
 /** Exposed by desktop/preload.cjs. */
 interface DesktopBridge {
@@ -36,14 +25,14 @@ interface DesktopBridge {
 // In a window this small the GPU has little to do; what's left is three.js's per-mesh cost, so the frame rate is the lever.
 const IDLE_FPS = 20;     // the street keeps living, gently
 const SAVER_FPS = 10;    // 省电: still moving, about a quarter less energy
-const ACTIVE_FPS = 60;   // while the pointer is on the model
-const LINGER = 1200;     // ms the handle stays after the pointer leaves the model
+const ACTIVE_FPS = 60;   // while the pointer is on the model or the controls
+const LINGER = 1200;     // ms at full frame rate after the pointer leaves
+const DRAG_SLOP = 4;     // px the settings button must travel before a press becomes a drag
 
-export function initPet(app: App, live: LiveSync, hud: HudActions) {
+export function initPet(app: App, hud: HudActions) {
   const bridge = (window as unknown as { konbiniDesktop?: DesktopBridge }).konbiniDesktop;
-  const atm = app.atmosphere, controls = app.stage.controls;
   document.body.classList.add('pet');
-  controls.enablePan = false;            // the right button opens the menu instead
+  app.stage.controls.enablePan = false;  // the right button opens the menu instead
   app.fx.post.gtao.enabled = false;      // ambient occlusion barely shows at this size
   const SAVER_KEY = 'konbini.pet.saver';
   let saver = false;
@@ -51,20 +40,17 @@ export function initPet(app: App, live: LiveSync, hud: HudActions) {
   const idleFps = () => (saver ? SAVER_FPS : IDLE_FPS);
   app.maxFps = idleFps();
 
-  const handle = document.createElement('div');
-  handle.className = 'pet-handle';
-  handle.title = '拖动移动（也可以按住 ⌥ 拖动模型）';
-  handle.innerHTML = '<i></i><i></i><i></i>';
-  document.body.append(handle);
+  const button = document.getElementById('trayBtn')!;
+  button.setAttribute('aria-label', '设置（拖动可移动）');
 
-  // --- hover: wake up (full frame rate, show the handle) while the pointer is on the model ---
+  // --- hover: wake up (full frame rate) while the pointer is on the model or the controls ---
   let over = false, active = false, sleep = 0, dragging = false;
   const setActive = (on: boolean) => {
     clearTimeout(sleep);
     if (on) {
-      if (!active) { active = true; app.maxFps = ACTIVE_FPS; document.body.classList.add('pet-hover'); }
+      if (!active) { active = true; app.maxFps = ACTIVE_FPS; }
     } else if (active) {
-      sleep = window.setTimeout(() => { active = false; app.maxFps = idleFps(); document.body.classList.remove('pet-hover'); }, LINGER);
+      sleep = window.setTimeout(() => { active = false; app.maxFps = idleFps(); }, LINGER);
     }
   };
   const setOver = (on: boolean) => {
@@ -84,16 +70,17 @@ export function initPet(app: App, live: LiveSync, hud: HudActions) {
       pending = false;
       if (!last) return;
       if (dragging || last.buttons) { setOver(true); return; }   // hold on to a drag that wanders off the model
-      const onHandle = active && !!(last.target as Element | null)?.closest?.('.pet-handle');
-      setOver(onHandle || app.interact.modelAt(last.clientX, last.clientY));
+      // hidden controls are invisible to the pointer, so any control under it is one that's showing
+      const onChrome = !!(last.target as Element | null)?.closest?.('.chrome');
+      const onModel = !onChrome && app.interact.modelAt(last.clientX, last.clientY);
+      if (onModel) hud.showChrome();
+      setOver(onChrome || onModel);
     }, 50);
   });
   document.documentElement.addEventListener('pointerleave', () => { last = null; if (!dragging) setOver(false); });
 
   // --- moving the window: the shell follows the cursor between drag(true) and drag(false) ---
   const startDrag = (e: PointerEvent, el: Element) => {
-    e.preventDefault();
-    e.stopPropagation();   // keep the orbit controls out of it
     el.setPointerCapture(e.pointerId);
     dragging = true;
     bridge?.drag(true);
@@ -106,27 +93,34 @@ export function initPet(app: App, live: LiveSync, hud: HudActions) {
     el.addEventListener('pointerup', end);
     el.addEventListener('pointercancel', end);
   };
-  handle.addEventListener('pointerdown', (e) => { if (e.button === 0) startDrag(e, handle); });
+  // the settings button: a click opens the settings, a drag moves the window (and isn't a click)
+  let press: { x: number; y: number; id: number } | null = null, dragged = false;
+  button.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    press = { x: e.clientX, y: e.clientY, id: e.pointerId };
+    dragged = false;
+  });
+  button.addEventListener('pointermove', (e) => {
+    if (!press || dragging || e.pointerId !== press.id || Math.hypot(e.clientX - press.x, e.clientY - press.y) < DRAG_SLOP) return;
+    dragged = true;
+    startDrag(e, button);
+  });
+  addEventListener('pointerup', () => { press = null; });
+  addEventListener('click', (e) => {
+    if (dragged && e.target instanceof Node && button.contains(e.target)) { e.stopImmediatePropagation(); dragged = false; }
+  }, { capture: true });
   addEventListener('pointerdown', (e) => {
-    if (e.button === 0 && e.altKey && e.target instanceof HTMLCanvasElement) startDrag(e, e.target);
+    if (e.button !== 0 || !e.altKey || !(e.target instanceof HTMLCanvasElement)) return;
+    e.preventDefault();
+    e.stopPropagation();   // keep the orbit controls out of it
+    startDrag(e, e.target);
   }, { capture: true });
 
   // --- the native menu ---
   addEventListener('contextmenu', (e) => { e.preventDefault(); bridge?.showMenu(); });
-
-  const solarHour = (v: 'dawn' | 'noon' | 'dusk' | 'night') => {
-    const [rise, set] = atm.solarDay;   // the same marks as the dock's time track
-    return v === 'dawn' ? rise + 0.4 : v === 'noon' ? 12 : v === 'dusk' ? set - 0.3 : 23.2;
-  };
   bridge?.onAction((a) => {
     switch (a.type) {
-      case 'weather': if (WEATHER_KINDS.includes(a.value)) hud.setWeather(a.value); break;
-      case 'time': hud.setTime(solarHour(a.value)); break;
-      case 'season': if (SEASONS.includes(a.value)) hud.setDate(SEASON_SAMPLE[a.value][0], SEASON_SAMPLE[a.value][1]); break;
-      case 'today': hud.clearDate(); break;
-      case 'live': hud.toggleLive(); break;
-      case 'spin': hud.setSpin(!hud.spin); break;
-      case 'sound': hud.toggleSound(); break;
+      case 'settings': hud.openTray(); break;
       case 'saver':
         saver = !saver;
         try { localStorage.setItem(SAVER_KEY, saver ? '1' : '0'); } catch { /* storage unavailable */ }
@@ -138,10 +132,7 @@ export function initPet(app: App, live: LiveSync, hud: HudActions) {
   // keep the shell's copy of the state current, so the menu opens instantly with the right checks
   let sent = '';
   app.onFrameUI(() => {
-    const state: PetState = {
-      weather: atm.weather, live: live.active, spin: hud.spin, sound: app.audio.enabled,
-      season: atm.day.season, pickedDate: !!atm.dateOverride, saver,
-    };
+    const state: PetState = { saver };
     const key = JSON.stringify(state);
     if (key !== sent) { sent = key; bridge?.setState(state); }
   });

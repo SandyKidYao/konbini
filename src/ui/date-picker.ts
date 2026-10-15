@@ -43,8 +43,8 @@ export interface DatePickerHooks {
   /** write the state into the address bar */
   syncUrl(): void;
   tick(): void;
-  /** position the open card */
-  place(panel: HTMLElement): void;
+  /** the card opened or closed: lay out the panels again */
+  layout(): void;
 }
 
 export function initDatePicker(atm: Atmosphere, hooks: DatePickerHooks) {
@@ -142,12 +142,10 @@ export function initDatePicker(atm: Atmosphere, hooks: DatePickerHooks) {
     if (open) {
       view = { year: atm.day.year, month: atm.day.month };
       render();
-      hooks.place(panel);
     }
+    hooks.layout();
   };
   btn.addEventListener('click', () => { hooks.tick(); setOpen(panel.hidden); });
-  addEventListener('resize', () => { if (!panel.hidden) hooks.place(panel); });
-  addEventListener('keydown', (e) => { if (e.key === 'Escape') setOpen(false); });
 
   atm.onDayChange(() => render());
   render();

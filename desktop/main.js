@@ -1,7 +1,8 @@
 // Desktop pet shell (macOS first): a transparent, frameless, floating window that shows only the model
 // (the web app with ?pet=1). Clicks fall through wherever the model isn't — the page reports when the pointer
-// is on it. Right-click on the model, the menu-bar icon or the Dock icon opens the native menu; whether the menu-bar
-// and Dock icons show is a preference (at least one of them stays).
+// is on it. The scene's settings are the page's own (a button under the model); right-click on the model, the menu-bar
+// icon or the Dock icon opens the native menu, which keeps the window's: size, floating, icons, power saving. Whether
+// the menu-bar and Dock icons show is a preference (at least one of them stays).
 //
 //   npm run pet                 build, then open dist/index.html
 //   npm run dev + npm run pet:dev   load the Vite dev server instead (live reload)
@@ -15,9 +16,6 @@ import { execFileSync } from 'node:child_process';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SIZES = { small: [400, 330], medium: [560, 460], large: [760, 625] };
 const SIZE_LABEL = { small: '小', medium: '中', large: '大' };
-const WEATHER = [['clear', '晴'], ['partly', '少云'], ['cloudy', '阴'], ['fog', '雾'], ['drizzle', '小雨'], ['rain', '雨'], ['storm', '雷雨'], ['snow', '雪']];
-const TIMES = [['dawn', '清晨'], ['noon', '正午'], ['dusk', '傍晚'], ['night', '深夜']];
-const SEASONS = [['spring', '春'], ['summer', '夏'], ['autumn', '秋'], ['winter', '冬']];
 
 const probe = process.argv.find((a) => a.startsWith('--probe'))?.split('=')[1] ?? (process.argv.includes('--probe') ? 'pet-probe.png' : null);
 
@@ -34,7 +32,7 @@ const savePrefs = () => {
 
 /** @type {BrowserWindow} */ let win;
 /** @type {Tray} */ let tray;
-let state = { weather: 'clear', live: false, spin: false, sound: false, season: 'autumn', pickedDate: false, saver: false };
+let state = { saver: false };
 let dragTimer = null;
 
 if (!app.requestSingleInstanceLock()) app.quit();
@@ -119,17 +117,9 @@ const send = (action) => win.webContents.send('pet:action', action);
 function buildMenu({ dock = false } = {}) {
   const s = state;
   return Menu.buildFromTemplate([
-    { label: '天气', submenu: WEATHER.map(([k, label]) => ({ label, type: 'radio', checked: !s.live && s.weather === k, click: () => send({ type: 'weather', value: k }) })) },
-    { label: '时刻', submenu: TIMES.map(([k, label]) => ({ label, click: () => send({ type: 'time', value: k }) })) },
-    { label: '季节', submenu: [
-      ...SEASONS.map(([k, label]) => ({ label, type: 'radio', checked: s.season === k, click: () => send({ type: 'season', value: k }) })),
-      { type: 'separator' },
-      { label: '回到今天', enabled: s.pickedDate, click: () => send({ type: 'today' }) },
-    ] },
-    { label: '实况（跟随当地天气）', type: 'checkbox', checked: s.live, click: () => send({ type: 'live' }) },
+    // weather, time, date, views… are in the page's own settings, the same as on the web
+    { label: '设置…', click: () => { win.showInactive(); send({ type: 'settings' }); } },
     { type: 'separator' },
-    { label: '转台', type: 'checkbox', checked: s.spin, click: () => send({ type: 'spin' }) },
-    { label: '声音', type: 'checkbox', checked: s.sound, click: () => send({ type: 'sound' }) },
     { label: '省电（降低帧率）', type: 'checkbox', checked: s.saver, click: () => send({ type: 'saver' }) },
     { type: 'separator' },
     { label: '大小', submenu: Object.keys(SIZES).map((k) => ({ label: SIZE_LABEL[k], type: 'radio', checked: prefs.size === k, click: () => setSize(k) })) },

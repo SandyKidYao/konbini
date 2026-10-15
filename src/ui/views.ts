@@ -1,9 +1,9 @@
-// Camera presets: a handful of composed views of the model, each with its own glyph in the bar.
+// Camera presets: a handful of composed views of the model, each with its own glyph in the settings tray.
 import type { CameraPose } from '../engine/stage';
 
 export interface ViewPreset {
   id: string;
-  /** for screen readers only — the bar shows the glyph */
+  /** the glyph's name: read by screen readers, and shown when the pointer rests on it */
   name: string;
   /** composed for a 16:10 window */
   pose: CameraPose;
@@ -60,4 +60,12 @@ export function fitView(v: ViewPreset, aspect: number): CameraPose {
   }
   const half = Math.atan(Math.tan((fov * Math.PI) / 360) * need);
   return { position: p, target: t, fov: Math.min(75, (half * 360) / Math.PI) };
+}
+
+/** The desktop pet's window is small and the whole model must fit while the turntable spins: its overview stands further back. */
+export const PET_OVERVIEW: CameraPose = { position: [74, 48, 92], target: [0, -3, 0] };
+
+/** Where a preset puts the camera in this window. */
+export function viewPose(v: ViewPreset, aspect: number, pet = false): CameraPose {
+  return pet && v.id === 'overview' ? PET_OVERVIEW : fitView(v, aspect);
 }

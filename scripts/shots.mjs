@@ -88,7 +88,7 @@ const SCENES = [
   { name: 'view-yard', q: 'weather=clear&time=2100&date=2026-10-14&warp=60&view=yard' },
   // the controls, driven like a person would: they only come out once the pointer moves
   { name: 'ui-bar', q: 'weather=clear&time=1100&date=2026-10-13', wait: 600, act: async (p) => { await reveal(p); } },
-  { name: 'ui-view-click', q: 'weather=clear&time=1100&date=2026-10-13', act: async (p) => { await reveal(p); await p.click('[data-view="facade"]'); } },
+  { name: 'ui-view-click', q: 'weather=clear&time=1100&date=2026-10-13', act: async (p) => { await openTray(p); await p.click('[data-view="facade"]'); } },
   { name: 'ui-tray', q: 'weather=clear&time=1100&date=2026-10-13', act: async (p) => { await reveal(p); await p.click('#trayBtn'); } },
   { name: 'ui-picker', q: 'weather=clear&time=1100&date=2026-10-13', act: async (p) => { await openTray(p); await p.click('#dateBtn'); } },
   { name: 'ui-picker-autumn', q: 'weather=clear&time=1100&date=2026-07-01', act: async (p) => {
@@ -102,9 +102,24 @@ const SCENES = [
     await openTray(p); await p.click('#dateBtn'); await p.click('[data-season="spring"]');
     await p.keyboard.press('Escape'); await p.keyboard.press('Escape'); } },
   { name: 'ui-time-hover', q: 'weather=clear&time=1430', act: async (p) => { await openTray(p); await p.hover('#timeKnob', { force: true }); } },
+  // resting on a glyph names it (and its key); at night the tip turns light on dark
+  { name: 'ui-tip', q: 'weather=rain&time=1100', wait: 900, act: async (p) => { await openTray(p); await p.hover('[data-weather="rain"]'); } },
+  { name: 'ui-tip-night', q: 'weather=clear&time=2200', wait: 900, act: async (p) => { await openTray(p); await p.hover('[data-view="bird"]'); } },
+  // a short window: the calendar lies over the tray instead of above it
+  { name: 'ui-picker-short', q: 'weather=clear&time=1100&date=2026-10-13', viewport: { width: 1280, height: 560 }, act: async (p) => {
+    await openTray(p); await p.click('#dateBtn'); } },
   { name: 'ui-picker-narrow', q: 'weather=partly&time=0900', viewport: { width: 390, height: 844 }, act: async (p) => {
     await p.tap('#stage canvas', { position: { x: 195, y: 300 } }); await p.click('#trayBtn'); await p.click('#dateBtn'); }, touch: true },
   { name: 'narrow', q: 'weather=partly&time=0900', viewport: { width: 390, height: 844 } },
+  // the desktop pet's page (no shell here): the settings button comes out over the model, and opens the same tray
+  { name: 'pet-hover', q: 'pet=1&weather=clear&time=1600', viewport: { width: 560, height: 460 }, wait: 900, act: async (p) => {
+    await p.mouse.move(270, 250); await p.mouse.move(280, 240); await p.waitForTimeout(400); } },
+  { name: 'pet-tray', q: 'pet=1&weather=clear&time=1600', viewport: { width: 560, height: 460 }, act: async (p) => {
+    await p.mouse.move(270, 250); await p.mouse.move(280, 240); await p.waitForTimeout(400); await p.click('#trayBtn'); } },
+  { name: 'pet-picker', q: 'pet=1&weather=clear&time=1600', viewport: { width: 560, height: 460 }, act: async (p) => {
+    await p.mouse.move(270, 250); await p.mouse.move(280, 240); await p.waitForTimeout(400); await p.click('#trayBtn'); await p.click('#dateBtn'); } },
+  { name: 'pet-picker-small', q: 'pet=1&weather=clear&time=2000', viewport: { width: 400, height: 330 }, act: async (p) => {
+    await p.mouse.move(190, 200); await p.mouse.move(200, 190); await p.waitForTimeout(400); await p.click('#trayBtn'); await p.click('#dateBtn'); } },
 ];
 
 // the controls stay hidden until the pointer moves over the page

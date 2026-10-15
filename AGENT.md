@@ -40,7 +40,7 @@ src/
     site/konbini/  主体：店铺、门前、后院；api.ts 是它对事件提供的约定
     events/     事件：顾客、店员、路人、车流、停车、送货
     common/     内置内容共用的色板、贴图、材质
-  ui/         界面：hud.ts 工具栏与托盘、views.ts 视角预设、date-picker.ts、pet.ts 桌宠模式
+  ui/         界面：hud.ts 设置按钮与托盘、views.ts 视角预设、date-picker.ts、tips.ts 悬停提示、pet.ts 桌宠模式
   main.ts     入口：读网址参数、建 App、接界面
 desktop/      Electron 桌宠外壳（main.js 窗口与菜单，preload.cjs 页面与外壳的接口，图标由 npm run icons 生成）
 public/mods/  外部模组示例（运行时加载）
@@ -96,7 +96,8 @@ tmp/          本地草稿：截图、开发记录 PROGRESS.md（不入库）
 ### 界面
 
 - 模型就是页面。界面平时隐藏，指针移动时浮出，几秒后淡出
-- 界面上不放文字，用图标；每个按钮必须有 `aria-label`（中文）给读屏用
+- 界面上不放文字，用图标；每个按钮必须有 `aria-label`（中文），读屏念它，指针停在按钮上时也作为提示显示出来（`tips.ts`）；有快捷键的再加 `aria-keyshortcuts`，提示里会一起显示
+- 网页和桌宠用同一套设置：底部一个设置按钮，打开托盘（视角、天气、时刻、日期、实况、转台、声音、模组）。窗口太矮时，从托盘打开的日历和模组卡片会盖在托盘上，再放不下就滚动
 - 主题跟随日照：`body[data-theme]` 在 `light` / `dark` 之间切换。Pages 首页靠这个属性同步文字颜色，不要改名或去掉
 
 ### 打包与首页
@@ -104,7 +105,7 @@ tmp/          本地草稿：截图、开发记录 PROGRESS.md（不入库）
 - `vite-plugin-singlefile` 把所有东西内联成一个 `index.html`，`base: './'`，从 `file://` 双击打开也要能用（此时实况退回到 IP 和时区估计）
 - Pages 站点：`npm run site` 把应用打包到 `_site/app/`，再把 `site/` 的静态首页复制过去。首页用同源 iframe 嵌入 `app/`，读取 iframe 里的 `data-theme` 来跟随昼夜
 - 图标只有一个源文件 `assets/icon.svg`：应用的 favicon 在打包时内联（`vite.config.ts` 的 `inlineIcon`），首页由 `npm run site` 复制过去；改了它要重跑 `npm run icons` 并提交新生成的 `desktop/` 图标
-- 桌宠用 `?pet=1`：透明背景、不显示界面、低功耗。外壳和页面之间只通过 `preload.cjs` 暴露的 `window.konbiniDesktop` 通信，页面在没有外壳时也必须正常运行
+- 桌宠用 `?pet=1`：透明背景、低功耗。指针停在模型上时，模型下方浮出和网页相同的设置按钮（拖动它可以移动窗口）；原生菜单只管窗口本身（大小、置顶、图标、省电、退出）和「设置…」。外壳和页面之间只通过 `preload.cjs` 暴露的 `window.konbiniDesktop` 通信，页面在没有外壳时也必须正常运行
 - 桌宠默认只在菜单栏放一个线框图标（`tray.svg`，模板图，系统按菜单栏深浅着色），不进程序坞；两者都可以在菜单「显示图标」里切换，记在 `pet.json`，至少保留一个
 
 ## 开发原则
