@@ -41,14 +41,18 @@ body {
 #stage, #stage canvas { position: fixed; inset: 0; display: block; }
 #stage { transition: opacity 0.5s var(--ease); }
 
-/* --- the map form: the street from straight above, a small tile with the plinth's walnut edge under it --- */
+/* --- the map form: the street from straight above, a small pixel-art tile (its walnut edge is drawn in it) --- */
 .plan {
   --map-w: min(560px, 84vw, calc((100vh - 150px) * 7 / 6));
   position: fixed; left: 50%; top: 50%; z-index: 1; translate: -50% -54%;
-  width: var(--map-w); aspect-ratio: 7 / 6; border-radius: calc(var(--map-w) * 0.06);
-  box-shadow: 0 calc(var(--map-w) * 0.022) 0 #5b3f2c, 0 calc(var(--map-w) * 0.05) calc(var(--map-w) * 0.09) rgba(30, 40, 62, 0.24);
+  width: var(--map-w); aspect-ratio: 7 / 6; display: grid; place-items: end center; pointer-events: none;
   opacity: 0; visibility: hidden; transform: scale(0.97);
   transition: opacity 0.5s var(--ease), transform 0.5s var(--ease), visibility 0s linear 0.5s;
+}
+/* whole device pixels per art pixel (set in map.ts), never smoothed; a hard shadow, as pixel art would draw it */
+.plan canvas {
+  display: block; pointer-events: auto; image-rendering: pixelated;
+  filter: drop-shadow(0 calc(var(--map-w) * 0.035) 0 rgba(30, 40, 62, 0.16));
 }
 body[data-form="plan"] .plan { opacity: 1; visibility: visible; transform: none; transition: opacity 0.5s var(--ease), transform 0.5s var(--ease), visibility 0s; }
 body[data-form="plan"] #stage { opacity: 0; pointer-events: none; }
