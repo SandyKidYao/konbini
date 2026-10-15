@@ -1,6 +1,7 @@
 // Desktop pet shell (macOS first): a transparent, frameless, floating window that shows only the model
 // (the web app with ?pet=1). Clicks fall through wherever the model isn't — the page reports when the pointer
-// is on it. Right-click on the model, or the menu-bar icon, opens the native menu.
+// is on it. Right-click on the model, the menu-bar icon or the Dock icon opens the native menu; whether the menu-bar
+// and Dock icons show is a preference (at least one of them stays).
 //
 //   npm run pet                 build, then open dist/index.html
 //   npm run dev + npm run pet:dev   load the Vite dev server instead (live reload)
@@ -22,10 +23,14 @@ const probe = process.argv.find((a) => a.startsWith('--probe'))?.split('=')[1] ?
 
 // --- preferences: size, floating, where the window was ---
 const prefsFile = path.join(app.getPath('userData'), 'pet.json');
-const prefs = { size: 'medium', onTop: true, x: null, y: null };
+const prefs = { size: 'medium', onTop: true, x: null, y: null, tray: true, dock: false };
 try { Object.assign(prefs, JSON.parse(fs.readFileSync(prefsFile, 'utf8'))); } catch { /* first run */ }
 if (!SIZES[prefs.size]) prefs.size = 'medium';
-const savePrefs = () => { try { fs.writeFileSync(prefsFile, JSON.stringify(prefs)); } catch { /* read-only */ } };
+if (!prefs.tray && !prefs.dock) prefs.tray = true;
+const savePrefs = () => {
+  try { fs.writeFileSync(prefsFile, JSON.stringify(prefs)); } catch { /* read-only */ }
+  refreshDockMenu();   // every preference shows in the menu; the Dock's copy is static, so rebuild it
+};
 
 /** @type {BrowserWindow} */ let win;
 /** @type {Tray} */ let tray;
@@ -36,12 +41,14 @@ if (!app.requestSingleInstanceLock()) app.quit();
 app.on('second-instance', () => win?.showInactive());
 
 app.whenReady().then(() => {
-  app.dock?.hide();   // lives in the menu bar, not the Dock or the app switcher
+  // with the Dock icon shown the app gets a menu bar of its own: keep it to the app menu (About, Hide, Quit)
+  Menu.setApplicationMenu(Menu.buildFromTemplate([{ role: 'appMenu' }]));
+  applyPresence();
   createWindow();
-  createTray();
   if (probe) void runProbe(probe);
 });
 app.on('window-all-closed', () => app.quit());
+app.on('activate', () => win?.show());   // a click on the Dock icon brings the model to the front
 
 function createWindow() {
   const [w, h] = SIZES[prefs.size];
@@ -93,7 +100,7 @@ function setSize(size) {
 
 // --- messages from the page (desktop/preload.cjs) ---
 ipcMain.on('pet:hit', (_e, over) => { if (!dragTimer) win.setIgnoreMouseEvents(!over, { forward: true }); });
-ipcMain.on('pet:state', (_e, s) => { state = s; });
+ipcMain.on('pet:state', (_e, s) => { state = s; refreshDockMenu(); });
 ipcMain.on('pet:menu', () => buildMenu().popup({ window: win }));
 ipcMain.on('pet:drag', (_e, on) => {
   clearInterval(dragTimer);
@@ -108,7 +115,8 @@ ipcMain.on('pet:drag', (_e, on) => {
 
 const send = (action) => win.webContents.send('pet:action', action);
 
-function buildMenu() {
+/** @param {{ dock?: boolean }} [opts] the Dock adds its own Quit */
+function buildMenu({ dock = false } = {}) {
   const s = state;
   return Menu.buildFromTemplate([
     { label: '天气', submenu: WEATHER.map(([k, label]) => ({ label, type: 'radio', checked: !s.live && s.weather === k, click: () => send({ type: 'weather', value: k }) })) },
@@ -126,14 +134,44 @@ function buildMenu() {
     { type: 'separator' },
     { label: '大小', submenu: Object.keys(SIZES).map((k) => ({ label: SIZE_LABEL[k], type: 'radio', checked: prefs.size === k, click: () => setSize(k) })) },
     { label: '浮在最上层', type: 'checkbox', checked: prefs.onTop, click: () => { prefs.onTop = !prefs.onTop; applyOnTop(); savePrefs(); } },
-    { type: 'separator' },
-    { label: '退出', accelerator: 'Command+Q', click: () => app.quit() },
+    // the last icon left can't be turned off: with neither, the model's right-click would be the only way in
+    { label: '显示图标', submenu: [
+      { label: '菜单栏', type: 'checkbox', checked: prefs.tray, enabled: !prefs.tray || prefs.dock, click: () => togglePresence('tray') },
+      { label: '程序坞', type: 'checkbox', checked: prefs.dock, enabled: !prefs.dock || prefs.tray, click: () => togglePresence('dock') },
+    ] },
+    ...(dock ? [] : [
+      { type: 'separator' },
+      { label: '退出', accelerator: 'Command+Q', click: () => app.quit() },
+    ]),
   ]);
 }
 
+/** Show or hide the menu-bar and Dock icons as the preferences say. */
+function applyPresence() {
+  if (prefs.tray && !tray) createTray();
+  if (!prefs.tray && tray) { tray.destroy(); tray = null; }
+  // coming back into the Dock resets the icon to the bundle's (Electron's own when run from source): set ours after
+  // it; the packaged .app carries icon.icns
+  if (prefs.dock) void app.dock?.show().then(() => { if (!app.isPackaged) app.dock?.setIcon(path.join(here, 'icon.png')); });
+  else app.dock?.hide();   // out of the Dock and the app switcher too
+  // showing or hiding the Dock icon changes the process type; put the window back on its level after it
+  if (win) applyOnTop();
+  refreshDockMenu();
+}
+
+function togglePresence(key) {
+  prefs[key] = !prefs[key];
+  savePrefs();
+  applyPresence();
+}
+
+function refreshDockMenu() {
+  if (prefs.dock) app.dock?.setMenu(buildMenu({ dock: true }));
+}
+
 function createTray() {
-  tray = new Tray(nativeImage.createEmpty());
-  tray.setTitle('🏪');
+  // a template image (the name ends in "Template"): macOS tints the silhouette to suit the menu bar; @2x is picked up
+  tray = new Tray(nativeImage.createFromPath(path.join(here, 'trayTemplate.png')));
   tray.setToolTip('ひかりマート');
   const open = () => tray.popUpContextMenu(buildMenu());
   tray.on('click', open);

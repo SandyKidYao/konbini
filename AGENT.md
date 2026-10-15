@@ -104,6 +104,7 @@ tmp/          本地草稿：截图、开发记录 PROGRESS.md（不入库）
 - Pages 站点：`npm run site` 把应用打包到 `_site/app/`，再把 `site/` 的静态首页复制过去。首页用同源 iframe 嵌入 `app/`，读取 iframe 里的 `data-theme` 来跟随昼夜
 - 图标只有一个源文件 `assets/icon.svg`：应用的 favicon 在打包时内联（`vite.config.ts` 的 `inlineIcon`），首页由 `npm run site` 复制过去；改了它要重跑 `npm run icons` 并提交新生成的 `desktop/` 图标
 - 桌宠用 `?pet=1`：透明背景、不显示界面、低功耗。外壳和页面之间只通过 `preload.cjs` 暴露的 `window.konbiniDesktop` 通信，页面在没有外壳时也必须正常运行
+- 桌宠默认只在菜单栏放一个线框图标（`tray.svg`，模板图，系统按菜单栏深浅着色），不进程序坞；两者都可以在菜单「显示图标」里切换，记在 `pet.json`，至少保留一个
 
 ## 开发原则
 
