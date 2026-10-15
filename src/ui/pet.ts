@@ -76,6 +76,15 @@ export function initPet(app: App, hud: HudActions, map: MapView) {
     setActive(on);
   };
 
+  // --- the cursor says when a drag would move the window: a grab hand over the model while ⌥ is held (over the map always,
+  // see style.css), a closed hand while it moves
+  let onShape = false, alt = false;
+  const showGrab = () => document.body.classList.toggle('pet-grab', alt && onShape && hud.form === 'model');
+  const onKey = (e: KeyboardEvent) => { if (e.key === 'Alt') { alt = e.type === 'keydown'; showGrab(); } };
+  addEventListener('keydown', onKey);
+  addEventListener('keyup', onKey);
+  addEventListener('blur', () => { alt = false; showGrab(); });
+
   // forwarded moves arrive even while the window lets clicks through; throttle the raycast
   let last: PointerEvent | null = null, pending = false;
   addEventListener('pointermove', (e) => {
@@ -90,6 +99,9 @@ export function initPet(app: App, hud: HudActions, map: MapView) {
       const onChrome = !!(last.target as Element | null)?.closest?.('.chrome');
       const onModel = !onChrome && (hud.form === 'plan' ? map.hit(last.clientX, last.clientY) : app.interact.modelAt(last.clientX, last.clientY));
       setOver(onChrome || onModel);
+      onShape = onModel;
+      alt = last.altKey;
+      showGrab();
     }, 50);
   });
   document.documentElement.addEventListener('pointerleave', () => { last = null; if (!dragging) setOver(false); });
@@ -98,9 +110,11 @@ export function initPet(app: App, hud: HudActions, map: MapView) {
   const startDrag = (e: PointerEvent, el: Element) => {
     el.setPointerCapture(e.pointerId);
     dragging = true;
+    document.body.classList.add('pet-grabbing');
     bridge?.drag(true);
     const end = () => {
       dragging = false;
+      document.body.classList.remove('pet-grabbing');
       bridge?.drag(false);
       el.removeEventListener('pointerup', end);
       el.removeEventListener('pointercancel', end);

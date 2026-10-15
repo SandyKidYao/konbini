@@ -253,6 +253,10 @@ body.pet, body.pet .veil { background: transparent; }
 body.pet .bar { left: 50%; top: -50px; bottom: auto; translate: -50% 0; visibility: hidden !important; pointer-events: none; }
 body.pet .chrome { transform: translateY(-4px); }
 body.pet.chrome-on .chrome { transform: none; }
+/* moving the window: a grab hand where a drag would move it, a closed hand while it does (the model's canvas
+   sets its own cursor for things you can click, so these win) */
+body.pet .plan canvas, body.pet-grab #stage canvas { cursor: grab !important; }
+body.pet-grabbing, body.pet-grabbing #stage canvas, body.pet-grabbing .plan canvas { cursor: grabbing !important; }
 body.pet .panel { box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1), inset 0 0 0 1px var(--line); }
 /* the map form, at the size chosen in the pet's menu, on the window's lower edge */
 body.pet .plan { --map-w: var(--pet-map, 160px); top: auto; bottom: 8px; translate: -50% 0; }
