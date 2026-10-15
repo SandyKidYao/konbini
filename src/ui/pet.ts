@@ -6,6 +6,7 @@
 import type { App } from '../engine/app';
 import type { Form, HudActions } from './hud';
 import type { MapView } from './map';
+import { PET_FADE } from './views';
 
 export type PetSize = 'small' | 'medium' | 'large';
 /** the map's width (px) at each of the shell's sizes */
@@ -37,13 +38,12 @@ const SAVER_FPS = 10;    // 省电: still moving, about a quarter less energy
 const ACTIVE_FPS = 60;   // while the pointer is on the model or the controls
 const LINGER = 1200;     // ms at full frame rate after the pointer leaves
 const DRAG_SLOP = 4;     // px the map must be dragged before the press moves the window
-/** the soft edge (style.css): its width as a share of the window's shorter side, and below what opacity a faded
- *  bit of the model no longer catches the pointer */
-const FADE = 0.16, FADE_HIT = 0.3;
+/** below this opacity a faded bit of the model (at the soft edge, style.css) no longer catches the pointer */
+const FADE_HIT = 0.3;
 
 /** How opaque the edge mask leaves this point: 0 at the window's edge, eased up to 1 a band's width in. */
 function edgeAlpha(x: number, y: number) {
-  const band = Math.min(innerWidth, innerHeight) * FADE;
+  const band = Math.min(innerWidth, innerHeight) * PET_FADE;
   const axis = (d: number) => (d >= band ? 1 : d < band / 2 ? (0.25 * d) / (band / 2) : 0.25 + (0.75 * (d - band / 2)) / (band / 2));
   return axis(Math.min(x, innerWidth - x)) * axis(Math.min(y, innerHeight - y));
 }

@@ -250,9 +250,9 @@ body.pet, body.pet .veil { background: transparent; }
 /* Where the model runs past the window's edge it fades into the desk instead of being cut off in a straight line.
    The band is around every edge, but an edge the model doesn't reach is empty anyway, so only cut sides show it.
    (The web keeps its sky behind the model, and a crop there looks natural.) pet.ts lets clicks through where the
-   fade is nearly clear — keep its FADE in step */
+   fade is nearly clear, and frames the overview inside it — keep views.ts's PET_FADE in step */
 body.pet #stage canvas {
-  --fade: calc(min(100vw, 100vh) * 0.16);
+  --fade: calc(min(100vw, 100vh) * 0.09);
   --edge: transparent 0, rgba(0, 0, 0, 0.25) calc(var(--fade) * 0.5), #000 var(--fade), #000 calc(100% - var(--fade)), rgba(0, 0, 0, 0.25) calc(100% - var(--fade) * 0.5), transparent 100%;
   mask-image: linear-gradient(to right, var(--edge)), linear-gradient(to bottom, var(--edge));
   mask-composite: intersect;

@@ -15,7 +15,7 @@ import { builtinMods } from './content';
 import { initHud, revealStage } from './ui/hud';
 import { initMap } from './ui/map';
 import { initPet } from './ui/pet';
-import { VIEWS, findView, fitView } from './ui/views';
+import { VIEWS, findView, viewPose } from './ui/views';
 
 const q = new URLSearchParams(location.search);
 const pet = q.get('pet') === '1';
@@ -23,9 +23,9 @@ const list = (k: string) => (q.get(k) ?? '').split(',').map((s) => s.trim()).fil
 // external mods: same-origin relative paths only, unless remote loading is asked for explicitly
 const external = list('mods').filter((u) => !/^[a-z]+:\/\//i.test(u) || q.has('allowRemoteMods'));
 
-// start on a preset (?view=…, the overview by default) or on a hand-placed ?cam
+// start on a preset (?view=…, the overview by default; on the desk it shows the whole model) or on a hand-placed ?cam
 const preset = findView(q.get('view'));
-let camera: CameraPose = fitView(preset ?? VIEWS[0], innerWidth / innerHeight);
+let camera: CameraPose = viewPose(preset ?? VIEWS[0], innerWidth, innerHeight, pet);
 const cam = q.get('cam')?.split(',').map(Number);
 const hasCam = (cam?.length === 6 || cam?.length === 7) && cam.every(Number.isFinite);
 if (cam && hasCam) camera = { position: [cam[0], cam[1], cam[2]], target: [cam[3], cam[4], cam[5]], fov: cam[6] };

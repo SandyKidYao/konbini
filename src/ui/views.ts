@@ -1,4 +1,5 @@
 // Camera presets: a handful of composed views of the model, each with its own glyph in the settings tray.
+import * as THREE from 'three';
 import type { CameraPose } from '../engine/stage';
 
 export interface ViewPreset {
@@ -62,3 +63,44 @@ export function fitView(v: ViewPreset, aspect: number): CameraPose {
   return { position: p, target: t, fov: Math.min(75, (half * 360) / Math.PI) };
 }
 
+
+// ---------------------------------------------------------------- the desk: the overview shows all of it
+
+/** The pet's soft edge (style.css): its width as a share of the window's shorter side. */
+export const PET_FADE = 0.09;
+
+/** The model as the overview must show it: plinth, buildings, and the clouds that are always out. */
+const MODEL = new THREE.Box3(new THREE.Vector3(-33.5, -3.6, -25.4), new THREE.Vector3(31, 19, 25.4));
+const CENTRE = MODEL.getCenter(new THREE.Vector3());
+const CORNERS = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => new THREE.Vector3(
+  i & 1 ? MODEL.max.x : MODEL.min.x, i & 2 ? MODEL.max.y : MODEL.min.y, i & 4 ? MODEL.max.z : MODEL.min.z));
+const probe = new THREE.PerspectiveCamera();
+const tmp = new THREE.Vector3();
+
+/**
+ * The overview on the desk: from the same side as on the web, but stepped back until the whole model sits in the
+ * window's clear middle, inside the soft edge — the pet opens on it, never on a half-faded model. Found by halving:
+ * does every corner of the model project inside?
+ */
+function wholeOverview(v: ViewPreset, width: number, height: number): CameraPose {
+  const fov = v.pose.fov ?? 30, band = Math.min(width, height) * PET_FADE * 1.15;
+  const mx = 1 - (2 * band) / width, my = 1 - (2 * band) / height;
+  probe.fov = fov; probe.aspect = width / height; probe.near = 0.5; probe.far = 3000;
+  probe.updateProjectionMatrix();
+  const dir = new THREE.Vector3(...v.pose.position).sub(new THREE.Vector3(...v.pose.target)).normalize();
+  const fits = (d: number) => {
+    probe.position.copy(CENTRE).addScaledVector(dir, d);
+    probe.lookAt(CENTRE);
+    probe.updateMatrixWorld(true);
+    return CORNERS.every((c) => { const p = tmp.copy(c).project(probe); return p.z < 1 && Math.abs(p.x) <= mx && Math.abs(p.y) <= my; });
+  };
+  let lo = 10, hi = 2000;
+  for (let i = 0; i < 24; i++) { const mid = (lo + hi) / 2; if (fits(mid)) hi = mid; else lo = mid; }
+  const p = CENTRE.clone().addScaledVector(dir, hi);
+  return { position: [p.x, p.y, p.z], target: [CENTRE.x, CENTRE.y, CENTRE.z], fov };
+}
+
+/** Where a preset puts the camera in this window: as on the web, except the pet's overview, which shows it all. */
+export function viewPose(v: ViewPreset, width: number, height: number, pet = false): CameraPose {
+  return pet && v.id === 'overview' ? wholeOverview(v, width, height) : fitView(v, width / height);
+}
