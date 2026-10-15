@@ -1,0 +1,31 @@
+# The desktop pet as Konbini.app in a .dmg (Apple silicon only).  npm run pet:pack  → release/
+# The name comes from productName in package.json, the version from its version (CI sets it from the release tag).
+appId: io.github.sandykidyao.konbini
+copyright: Copyright © 2026 SandyKid
+directories:
+  output: release
+# the page is already one self-contained file (three is bundled into it), so no node_modules ship with the app
+files:
+  - package.json
+  - desktop/main.js
+  - desktop/preload.cjs
+  - desktop/trayTemplate*.png
+  - dist/**
+  - "!node_modules/**"
+mac:
+  target:
+    - target: dmg
+      arch: arm64
+  icon: desktop/icon.icns
+  category: public.app-category.entertainment
+  # no Developer ID yet: sign ad hoc so it runs on Apple silicon (first launch needs "Open Anyway").
+  # Ad-hoc signing and hardened runtime reject Electron's own frameworks, so the runtime is off until then.
+  identity: "-"
+  hardenedRuntime: false
+  extendInfo:
+    # starts out of the Dock (it lives in the menu bar), so the Dock icon doesn't flash at launch;
+    # the "show in Dock" preference still brings it back
+    LSUIElement: true
+dmg:
+  artifactName: ${productName}-${version}-${arch}.${ext}
+publish: null

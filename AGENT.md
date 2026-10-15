@@ -20,6 +20,7 @@ npm run shots -- door winter   # 只截名字含这些词的场景
 npm run site         # 打包 Pages 站点到 _site/（首页 + app/）
 npm run site:preview # 本地预览 _site/
 npm run pet          # 打包后打开桌宠；pet:dev 让桌宠加载开发服务器
+npm run pet:pack     # 把桌宠打包成 release/Konbini-<版本>-arm64.dmg
 npm run icons        # 由 assets/ 里的 SVG 生成桌面版图标和菜单栏图标到 desktop/（需要 macOS）
 ```
 
@@ -144,9 +145,20 @@ tmp/          本地草稿：截图、开发记录 PROGRESS.md（不入库）
 
 ## 发布
 
-- **网页**：推送到 `main` 后，GitHub Actions（`.github/workflows/pages.yml`）自动执行 `npm run site` 并发布到 https://sandykidyao.github.io/konbini/ 。推送后用 `gh run list --workflow pages.yml` 确认部署成功，再打开线上地址看一眼
-- **桌宠**：目前只能从源码运行（`npm run pet`）。打包成 `.app`、签名公证、开机启动都还没做
-- 版本号在 `package.json`（目前 0.3.0），还没有打 tag 和写更新日志的流程；开始正式发版时再补
+发布一个 Release，网页和桌面版就一起发出去：
+
+```bash
+# 先把 package.json 的 version 改成新版本并提交、推送到 main
+gh release create v0.4.0 --target main --generate-notes
+gh run list --limit 4    # Pages 与 Desktop 两个 workflow 都应成功
+```
+
+- **版本号**：以 Release 的 tag 为准（`v0.4.0` → 0.4.0），桌面版打包时由 CI 写进 App。`package.json` 的 version 在发版前改成同一个，保持仓库与发布一致
+- **网页**：`.github/workflows/pages.yml` 在 Release 发布时执行 `npm run site`，发布到 https://sandykidyao.github.io/konbini/ 。推送到 `main` 不再更新线上；需要时可在 Actions 里手动运行。发布后打开线上地址看一眼
+- **桌宠**：`.github/workflows/desktop.yml` 在 macOS（Apple 芯片）上执行 `npm run pet:pack`，把 `Konbini-<版本>-arm64.dmg` 上传到这个 Release；手动运行时填 tag 可重新打包已有的 Release。本地打包同样用 `npm run pet:pack`，产物在 `release/`
+- 打包配置在 `electron-builder.yml`：只装 `desktop/` 的外壳文件和 `dist/`（页面是单文件，不带 `node_modules`）。`LSUIElement` 让 App 启动时不进程序坞，「显示图标」里的偏好仍可把它请回来
+- 还没有 Developer ID：App 只做了 ad-hoc 签名、没有公证，首次打开要在「隐私与安全性」里点「仍要打开」（README 有说明）。以后接入签名时，把证书放进 Secrets，并去掉 `identity: "-"` 与 `hardenedRuntime: false`
+- 只打 Apple 芯片版本；Intel 和自动更新都还没做
 
 ## 仓库
 

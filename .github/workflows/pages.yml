@@ -1,9 +1,10 @@
-# Build the homepage (site/) with the app under app/, and publish it to GitHub Pages on every push to main.
+# Build the homepage (site/) with the app under app/, and publish it to GitHub Pages when a release is published
+# (desktop.yml builds the desktop app from the same release). Run it by hand to republish from a branch or tag.
 name: Pages
 
 on:
-  push:
-    branches: [main]
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:

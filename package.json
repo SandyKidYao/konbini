@@ -14,6 +14,7 @@
     "icons": "node scripts/icons.mjs",
     "pet": "npm run build && electron .",
     "pet:dev": "KONBINI_DEV_URL=http://localhost:5173/ electron .",
+    "pet:pack": "npm run build && electron-builder --mac --publish never",
     "site": "npm run typecheck && vite build --outDir _site/app --emptyOutDir && cp -R site/. _site/ && cp assets/icon.svg _site/",
     "site:preview": "vite preview --outDir _site"
   },
@@ -23,6 +24,7 @@
   "devDependencies": {
     "@types/three": "0.170.0",
     "electron": "44.7.0",
+    "electron-builder": "26.15.3",
     "playwright-core": "1.62.1",
     "typescript": "5.8.3",
     "vite": "7.3.7",

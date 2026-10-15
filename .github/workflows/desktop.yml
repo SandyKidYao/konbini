@@ -1,0 +1,41 @@
+# Package the desktop pet (Konbini.app, Apple silicon) when a release is published, and attach the .dmg to it.
+# The app's version is the release tag (v0.4.0 → 0.4.0). Run it by hand with a tag to rebuild an existing release.
+name: Desktop
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to build and attach to (e.g. v0.4.0)
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-${{ github.event.release.tag_name || inputs.tag }}
+
+jobs:
+  mac:
+    runs-on: macos-15   # Apple silicon
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # electron-builder fetches its own Electron for the target, so skip the one npm would download
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      - run: npm version "${TAG#v}" --no-git-tag-version --allow-same-version
+      - run: npm run pet:pack
+      - run: gh release upload "$TAG" release/*.dmg --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}

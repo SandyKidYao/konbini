@@ -17,6 +17,14 @@
 | ![春天，樱花开了](docs/images/spring-bloom.jpg) | ![夏日祭的傍晚](docs/images/summer-festival.jpg) |
 | ![雨夜](docs/images/rain-night.jpg) | ![雪夜](docs/images/snow-night.jpg) |
 
+## 桌面版
+
+把便利店放在桌面一角，像一个小摆件。目前只支持 Apple 芯片的 Mac：在 [Releases](https://github.com/SandyKidYao/konbini/releases/latest) 下载 `Konbini-…-arm64.dmg`，把 Konbini 拖进「应用程序」。
+
+App 还没有经过 Apple 公证，第一次打开会被系统拦下：打开「系统设置 → 隐私与安全性」，在页面下方点「仍要打开」即可，之后就能正常打开。
+
+平时它只在菜单栏留一个小店图标，右键模型或点这个图标打开菜单；也可以在菜单「显示图标」里让它出现在程序坞。
+
 ## 本地运行
 
 ```bash
