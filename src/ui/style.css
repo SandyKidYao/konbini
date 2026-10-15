@@ -43,7 +43,8 @@ body {
 
 /* --- the map form: the street from straight above, a small pixel-art tile (its walnut edge is drawn in it) --- */
 .plan {
-  --map-w: min(560px, 84vw, calc((100vh - 150px) * 7 / 6));
+  /* not too big: the tile is a few dozen pixels across, and blown up further they turn into blocks */
+  --map-w: min(392px, 84vw, calc((100vh - 150px) * 7 / 6));
   position: fixed; left: 50%; top: 50%; z-index: 1; translate: -50% -54%;
   width: var(--map-w); aspect-ratio: 7 / 6; display: grid; place-items: end center; pointer-events: none;
   opacity: 0; visibility: hidden; transform: scale(0.97);
@@ -240,9 +241,17 @@ body[data-theme="dark"] .cal-grid .sat { color: #8fb4ff; }
 
 /* --- desktop pet (?pet=1): only the model on a transparent window; the settings button sits under it --- */
 body.pet, body.pet .veil { background: transparent; }
-body.pet .bar { bottom: 10px; }
-/* the map form sits on the settings button, at the size chosen in the pet's menu */
-body.pet .plan { --map-w: var(--pet-map, 200px); top: auto; bottom: 66px; translate: -50% 0; }
+/* the settings button: a small flat square in the top-right corner (on the map's corner in the map form, see pet.ts).
+   Nothing in the pet casts a wide shadow: the window's edge would cut it off */
+body.pet .bar { left: auto; right: 8px; top: 8px; bottom: auto; translate: none; padding: 0; border-radius: 10px; box-shadow: inset 0 0 0 1px var(--line); }
+body.pet .bar .ico { width: 30px; height: 30px; border-radius: 10px; }
+body.pet .bar .ico svg { width: 18px; height: 18px; }
+body.pet .bar .ico[aria-expanded="true"] { box-shadow: none; }
+body.pet .chrome { transform: translateY(-4px); }
+body.pet.chrome-on .chrome { transform: none; }
+body.pet .panel { box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1), inset 0 0 0 1px var(--line); }
+/* the map form, at the size chosen in the pet's menu, on the window's lower edge */
+body.pet .plan { --map-w: var(--pet-map, 160px); top: auto; bottom: 8px; translate: -50% 0; }
 /* its window is narrow, but it isn't a phone: the panels keep their size */
 body.pet .tray { width: 340px; }
 body.pet .cal, body.pet .mods { width: 300px; }

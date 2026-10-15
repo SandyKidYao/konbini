@@ -127,9 +127,9 @@ const SCENES = [
   { name: 'pet-picker', q: 'pet=1&weather=clear&time=1600', viewport: { width: 560, height: 460 }, act: async (p) => {
     await p.mouse.move(270, 250); await p.mouse.move(280, 240); await p.waitForTimeout(400); await p.click('#trayBtn'); await p.click('#dateBtn'); } },
   { name: 'pet-plan', q: 'pet=1&view=plan&size=medium&weather=clear&time=1900&date=2026-10-14&warp=90', viewport: { width: 380, height: 470 }, wait: 900, act: async (p) => {
-    await p.mouse.move(190, 300); await p.mouse.move(195, 310); await p.waitForTimeout(400); } },
+    await p.mouse.move(190, 400); await p.mouse.move(195, 405); await p.waitForTimeout(400); } },
   { name: 'pet-plan-tray', q: 'pet=1&view=plan&size=small&weather=rain&time=1300&date=2026-10-14&warp=90', viewport: { width: 380, height: 470 }, act: async (p) => {
-    await p.mouse.move(190, 330); await p.mouse.move(195, 340); await p.waitForTimeout(400); await p.click('#trayBtn'); } },
+    await p.mouse.move(190, 400); await p.mouse.move(195, 405); await p.waitForTimeout(400); await p.click('#trayBtn'); } },
   { name: 'pet-plan-tiny', q: 'pet=1&view=plan&size=small&weather=clear&time=1215&date=2026-10-14&warp=150', viewport: { width: 380, height: 470 } },
   // on the desk every view is the whole model, and zooming in stops before anything is cut off
   { name: 'pet-view-facade', q: 'pet=1&weather=clear&time=1600', viewport: { width: 560, height: 460 }, act: async (p) => {

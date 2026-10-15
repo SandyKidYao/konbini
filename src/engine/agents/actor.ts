@@ -17,8 +17,6 @@ export interface Walker {
   leaving: boolean;
   /** 0→1 while appearing, 1→0 while leaving */
   visibleScale: number;
-  /** the colour seen from above (the map form draws people as dots of it) */
-  color?: string;
   update(dt: number, t: number, d: Drivers): void;
   play(gesture: string, seconds: number): void;
   dispose(): void;

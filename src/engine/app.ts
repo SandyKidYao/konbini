@@ -91,7 +91,7 @@ export class App {
     }, this.nav, this.services, () => this.atmosphere.day);
     // people are the engine's own: on the map wherever they walk (fading in or out: not yet, or no longer)
     this.plan.for('engine').movers(() => this.director.actors.filter((a) => a.walker.visibleScale > 0.4).map((a) => ({
-      kind: 'person' as const, x: a.position.x, z: a.position.z, heading: a.heading, color: a.walker.color,
+      kind: 'person' as const, x: a.position.x, z: a.position.z, heading: a.heading,
     })));
     this.baseCtx = this.contextFor('engine', this.stage.world);
     this.quality.max = this.stage.renderer.getPixelRatio();

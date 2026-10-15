@@ -148,7 +148,7 @@ ctx.states.show(kadomatsu, (c) => c.has('shogatsu'));
 
 ## 俯视图
 
-俯视图是另一种形态：从正上方看下去的一块像素风小图，先画在六七十个像素宽的画布上，再按整数倍放大；车和人画得比实际大，很小的一块图也看得清。车和人、红绿灯、天气、昼夜都和模型同步，打开俯视图时模型不再绘制，所以很省电。图上有什么，由模组自己通过 `ctx.plan` 声明，和造模型时一一对应：
+俯视图是另一种形态：从正上方看下去的一块像素风小图，先画在约 50 个像素宽的画布上，再按整数倍放大；车和人画得比实际大，很小的一块图也看得清。车和人、红绿灯、天气、昼夜都和模型同步，打开俯视图时模型不再绘制，所以很省电。图上有什么，由模组自己通过 `ctx.plan` 声明，和造模型时一一对应：
 
 ```js
 // 地面、路面、屋顶：kind 决定默认颜色和叠放顺序（road → land → green → walk → lot → paint → tree → building → site）
@@ -156,15 +156,15 @@ ctx.plan.add({ kind: 'building', rect: { x0: -4, x1: 4, z0: -3, z1: 3 }, h: 6, c
 ctx.plan.add({ kind: 'tree', circle: { x: 2, z: 8, r: 1.5 }, h: 4, color: () => leaves.color.getStyle() });
 // 小灯：color(t) 每帧调用，返回 null 就是灭着；pool 是夜里地上那圈光的半径
 ctx.plan.marker({ x: 10, z: 9, r: 0.4, pool: 6, color: () => ctx.atmosphere.channel('lamp') > 0.05 ? '#ffe0a6' : null });
-// 会动的东西：每画一帧调用一次，返回当前的位置、朝向、尺寸、颜色
-ctx.plan.movers(() => robots.map((r) => ({ kind: 'vehicle', x: r.x, z: r.z, heading: r.heading, len: 0.6, width: 0.6, color: '#c33' })));
+// 会动的东西：每画一帧调用一次，返回当前的位置、朝向、尺寸
+ctx.plan.movers(() => robots.map((r) => ({ kind: 'vehicle', x: r.x, z: r.z, heading: r.heading, len: 0.6, width: 0.6 })));
 ```
 
 - 坐标和场景一样，单位是米；俯视图上 x 向右、z 向下（场景的正面，也就是道路 A，在下方）
 - `h` 是高度：有高度的形状会背着太阳投影，太阳越低影子越长；人走到高于 2 米的屋顶下面就看不见了
 - `color` 可以是函数，每帧读取（季节里变色的树）。不写就用这一类的默认颜色。夜晚、积雪、雨后路湿的效果由地图统一加上，形状只要给白天的颜色
 - `glow` 是一个发光通道名（`window`、`interior`、`sign`…）：通道亮起来时，形状在夜里泛暖光
-- 行人由引擎自动画上（颜色来自 `Walker.color`）；道路模组把 `traffic.vehicles` 报告给了 `movers`（颜色来自 `VehicleBody.color`）
+- 车和人在图上都画得比实际大，而且各用一种颜色（所有车一个颜色，所有人一个颜色），小图上一眼能分清。行人由引擎自动画上；道路模组把 `traffic.vehicles` 报告给了 `movers`
 - 模组 `setup` 失败时，它加到俯视图上的东西会一并撤掉
 
 ## 静态合并（自动，不用声明）

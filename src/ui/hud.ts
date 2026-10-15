@@ -47,6 +47,8 @@ export interface HudActions {
   showChrome(): void;
   /** open the settings tray (from the shell's menu) */
   openTray(): void;
+  /** the settings button moved: place the open panels again */
+  layout(): void;
 }
 
 export function initHud(app: App, live: LiveSync, initialView: string | null, opts: HudOptions = {}): HudActions {
@@ -69,22 +71,32 @@ export function initHud(app: App, live: LiveSync, initialView: string | null, op
   const anyOpen = () => !tray.hidden || !calPanel.hidden || !modsPanel.hidden;
 
   /**
-   * Centre a panel above another. Where the window is too short for that (a small desktop pet, a phone on its
-   * side), a card opened from the tray is laid over the tray instead, and anything still too tall scrolls.
-   * Returns whether the panel covers the one under it.
+   * Centre a panel next to another: above it, or below it when the settings button sits in the top half of the
+   * window (the desktop pet keeps it in a corner). Where the window is too short for that (a small desktop pet, a
+   * phone on its side), a card opened from the tray is laid over the tray instead, and anything still too tall
+   * scrolls. Returns whether the panel covers the one it was opened from.
    */
   const place = (panel: HTMLElement, under: HTMLElement, canCover: boolean) => {
-    const u = under.getBoundingClientRect();
+    const u = under.getBoundingClientRect(), b = bar.getBoundingClientRect();
+    const down = b.top + b.height / 2 < innerHeight / 2;
     panel.style.maxHeight = '';
     const w = panel.offsetWidth, h = panel.offsetHeight;
-    const cover = canCover && h > u.top - GAP - EDGE;
-    const bottom = cover ? u.bottom : u.top - GAP;
-    panel.style.bottom = `${innerHeight - bottom}px`;
+    const cover = canCover && h > (down ? innerHeight - u.bottom - GAP - EDGE : u.top - GAP - EDGE);
     panel.style.left = `${Math.max(12, Math.min(innerWidth - w - 12, u.left + u.width / 2 - w / 2))}px`;
-    if (h > bottom - EDGE) panel.style.maxHeight = `${bottom - EDGE}px`;
+    if (down) {
+      const top = cover ? u.top : u.bottom + GAP;
+      panel.style.top = `${top}px`;
+      panel.style.bottom = '';
+      if (h > innerHeight - top - EDGE) panel.style.maxHeight = `${innerHeight - top - EDGE}px`;
+    } else {
+      const bottom = cover ? u.bottom : u.top - GAP;
+      panel.style.bottom = `${innerHeight - bottom}px`;
+      panel.style.top = '';
+      if (h > bottom - EDGE) panel.style.maxHeight = `${bottom - EDGE}px`;
+    }
     return cover;
   };
-  /** Lay out whatever is open: the tray above the bar, the calendar or mods card above (or over) the tray. */
+  /** Lay out whatever is open: the tray next to the bar, the calendar or mods card beyond (or over) the tray. */
   const layout = () => {
     tray.classList.remove('covered');
     if (tray.hidden) return;
@@ -320,6 +332,7 @@ export function initHud(app: App, live: LiveSync, initialView: string | null, op
     onForm: (fn) => { formFns.push(fn); },
     showChrome,
     openTray: () => { showChrome(); setTray(true); },
+    layout,
   };
 
   function syncUrl() {

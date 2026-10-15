@@ -168,8 +168,6 @@ export interface VehicleBody {
   /** overall length and width, metres */
   len: number;
   width: number;
-  /** the colour seen from above (the map form draws vehicles as blocks of it) */
-  color?: string;
   /** roll the wheels by this distance */
   spin(distance: number): void;
   lamps?(l: Lamps, t: number): void;

@@ -12,14 +12,18 @@ import type { Rect } from '../engine/surfaces';
 
 type RGB = [number, number, number];
 
-/** at most this many pixels across (a little over one per metre on this block): coarse on purpose — a tile the size
- *  of a stamp still reads, because what moves is drawn larger than life (below) */
-const ART_W = 70;
+/** at most this many pixels across (under one per metre on this block): coarse on purpose — a tile the size of a
+ *  stamp still reads, because what moves is drawn larger than life, each kind in a single colour (below) */
+const ART_W = 49;
 /** rows of walnut under the tile (the plinth's edge), and the pixels cut from each row at a corner */
-const EDGE = 3;
-const CORNER = [3, 1, 1];
+const EDGE = 2;
+const CORNER = [2, 1];
 /** cars and people are drawn bigger than they are, so a glance at a tiny tile shows who's coming and going */
-const CAR_GROW = 1.3, CAR_MIN_W = 2;
+const CAR_GROW = 1.25, CAR_MIN_W = 2, CAR_MIN_L = 3;
+/** one colour for every vehicle, one for every person: by day dark ink and raspberry (nothing else on the map is that
+ *  colour — not the shop's orange band, not an autumn tree), at night light against the dark */
+const CAR_DAY: RGB = [44, 56, 98], CAR_NIGHT: RGB = [236, 238, 246];
+const PERSON_DAY: RGB = [226, 46, 104], PERSON_NIGHT: RGB = [255, 132, 172];
 
 /** each kind's colour by day (a shape can bring its own) */
 const KIND: Record<PlanKind, string> = {
@@ -34,7 +38,7 @@ const GOLDEN_MUL: RGB = [1.06, 0.94, 0.82];
 /** settled snow: kinds that keep it (roads are driven clear) */
 const SNOW_HOLD: Record<PlanKind, number> = { land: 0.9, green: 0.9, walk: 0.85, road: 0.3, lot: 0.45, paint: 0.3, tree: 0.6, building: 0.92, site: 0.92 };
 const GLOW: RGB = [255, 196, 122];
-const WALNUT: RGB[] = [[122, 84, 58], [96, 66, 46], [74, 51, 36]];
+const WALNUT: RGB[] = [[110, 76, 52], [78, 54, 38]];
 /** 4×4 ordered dither: soft light and cloud shadows become patterns of whole pixels */
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((v) => (v + 0.5) / 16);
 const dither = (x: number, y: number) => BAYER[(y & 3) * 4 + (x & 3)];
@@ -89,7 +93,7 @@ export function initMap(app: App, bounds: Rect): MapView {
     const dpr = devicePixelRatio || 1;
     // a whole number of device pixels per art pixel (at least two, so it reads as pixels), as many art pixels as fit
     const k = Math.max(2, Math.ceil((r.width * dpr) / ART_W));
-    N = Math.max(35, Math.floor((r.width * dpr) / k / 7) * 7);
+    N = Math.max(28, Math.floor((r.width * dpr) / k / 7) * 7);
     M = (N / 7) * 6;
     ppm = N / W;
     for (const c of [canvas, base]) { c.width = N; c.height = M + EDGE; }
@@ -225,8 +229,8 @@ export function initMap(app: App, bounds: Rect): MapView {
 
   // ---------------------------------------------------------------- weather: particles live in tile coordinates (0–1)
   const rand = Math.random;
-  const drops = Array.from({ length: 50 }, () => ({ x: rand(), y: rand(), s: 0.7 + rand() * 0.6 }));
-  const flakes = Array.from({ length: 60 }, () => ({ x: rand(), y: rand(), s: 0.5 + rand() * 0.8, p: rand() * 6 }));
+  const drops = Array.from({ length: 34 }, () => ({ x: rand(), y: rand(), s: 0.7 + rand() * 0.6 }));
+  const flakes = Array.from({ length: 40 }, () => ({ x: rand(), y: rand(), s: 0.5 + rand() * 0.8, p: rand() * 6 }));
   const clouds = Array.from({ length: 4 }, (_, i) => ({ x: rand(), y: (i + rand()) / 4, r: 0.2 + rand() * 0.14, sprite: null as HTMLCanvasElement | null }));
   /** each cloud's shadow: a dithered blob, made once per size */
   function makeClouds() {
@@ -256,34 +260,15 @@ export function initMap(app: App, bounds: Rect): MapView {
   });
   const dot = (x: number, y: number) => g.fillRect(Math.floor(x), Math.floor(y), 1, 1);
 
-  /** A vehicle, rasterised pixel by pixel from its heading: body, a darker roof, the windscreen, brake lights. */
-  const vehicle = (cx: number, cz: number, heading: number, len: number, wid: number, body: RGB, braking: boolean) => {
+  /** A vehicle: a block in one colour, rasterised pixel by pixel from its heading (it turns as the car turns). */
+  const vehicle = (cx: number, cz: number, heading: number, len: number, wid: number) => {
     const fx = Math.sin(heading), fz = Math.cos(heading);
-    const L = (len * CAR_GROW * ppm) / 2, Wd = Math.max(CAR_MIN_W / 2, (wid * CAR_GROW * ppm) / 2), R = Math.ceil(Math.hypot(L, Wd)) + 1;
-    const roof = css(mix(body, [30, 36, 50], 0.2)), glass = css(tint([46, 58, 78], 'road')), main = css(body);
+    const L = Math.max(CAR_MIN_L / 2, (len * CAR_GROW * ppm) / 2), Wd = Math.max(CAR_MIN_W / 2, (wid * CAR_GROW * ppm) / 2);
+    const R = Math.ceil(Math.hypot(L, Wd)) + 1;
     for (let y = Math.floor(cz - R); y <= cz + R; y++) {
       for (let x = Math.floor(cx - R); x <= cx + R; x++) {
         const dx = x + 0.5 - cx, dz = y + 0.5 - cz;
-        const f = dx * fx + dz * fz, s = dx * fz - dz * fx;
-        if (Math.abs(f) > L || Math.abs(s) > Wd) continue;
-        const inner = Math.abs(s) < Wd * 0.6 && L > 1.5;
-        g.fillStyle = braking && f < -L + 1 ? '#ff4a3a' : inner && f > L * 0.2 && f < L * 0.55 ? glass : inner && f > -L * 0.5 && f <= L * 0.2 ? roof : main;
-        g.fillRect(x, y, 1, 1);
-      }
-    }
-  };
-  /** Headlights: a short fan of light ahead, in three steps of brightness. */
-  const beam = (cx: number, cz: number, heading: number, len: number, wid: number, k: number) => {
-    const fx = Math.sin(heading), fz = Math.cos(heading);
-    const L = (len * CAR_GROW * ppm) / 2, reach = 5 * ppm, R = Math.ceil(L + reach) + 1;
-    for (let y = Math.floor(cz - R); y <= cz + R; y++) {
-      for (let x = Math.floor(cx - R); x <= cx + R; x++) {
-        const dx = x + 0.5 - cx, dz = y + 0.5 - cz;
-        const f = dx * fx + dz * fz - L, s = Math.abs(dx * fz - dz * fx);
-        if (f < 0 || f > reach || s > Math.max(CAR_MIN_W / 2, (wid * CAR_GROW * ppm) / 2) + f * 0.45) continue;
-        const step = f < reach / 3 ? 0.3 : f < (reach * 2) / 3 ? 0.17 : 0.08;
-        g.fillStyle = `rgba(255, 226, 168, ${step * k})`;
-        g.fillRect(x, y, 1, 1);
+        if (Math.abs(dx * fx + dz * fz) <= L && Math.abs(dx * fz - dz * fx) <= Wd) g.fillRect(x, y, 1, 1);
       }
     }
   };
@@ -303,24 +288,13 @@ export function initMap(app: App, bounds: Rect): MapView {
     g.clearRect(0, 0, N, M + EDGE);
     g.drawImage(base, 0, 0);
 
-    // what moves: headlights first (under everything), then the vehicles, then people on foot
+    // what moves: vehicles, then people on foot over them — each kind one solid colour
     const moving = [...plan.moving()];
+    g.fillStyle = css(mix(CAR_DAY, CAR_NIGHT, look.night));
+    for (const m of moving) if (m.kind === 'vehicle') vehicle(X(m.x), Z(m.z), m.heading, m.len ?? 4.2, m.width ?? 1.7);
+    g.fillStyle = css(mix(PERSON_DAY, PERSON_NIGHT, look.night));
     for (const m of moving) {
-      const k = m.kind === 'vehicle' ? (m.lights ?? 0) * Math.max(look.night, 0.25) : 0;
-      if (k > 0.05) beam(X(m.x), Z(m.z), m.heading, m.len ?? 4.2, m.width ?? 1.7, k);
-    }
-    for (const m of moving) {
-      if (m.kind === 'vehicle') vehicle(X(m.x), Z(m.z), m.heading, m.len ?? 4.2, m.width ?? 1.7, tint(hex(m.color ?? '#d9d9d4'), 'building'), !!m.braking);
-    }
-    for (const m of moving) {
-      if (m.kind !== 'person' || underRoof(m.x, m.z)) continue;
-      // two by two pixels — a dark head over their clothes' colour, brighter at night so they still read
-      const x = Math.round(X(m.x) - 1), y = Math.round(Z(m.z) - 1);
-      const body = mix(tint(hex(m.color ?? '#5a6270'), 'building'), [255, 250, 240], look.night * 0.45);
-      g.fillStyle = css(body);
-      g.fillRect(x, y, 2, 2);
-      g.fillStyle = css(mix(body, [30, 26, 24], 0.55));
-      g.fillRect(x, y, 1, 1);
+      if (m.kind === 'person' && !underRoof(m.x, m.z)) g.fillRect(Math.round(X(m.x) - 1), Math.round(Z(m.z) - 1), 2, 2);
     }
 
     // signals: a pixel of colour, with a cross of glow at night

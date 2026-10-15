@@ -1,6 +1,7 @@
 // Desktop-pet mode (?pet=1, set by the Electron shell in desktop/): only the model — or the map — over a transparent
-// window. The settings are the web page's own: the settings button comes out under the model while the pointer is
-// on it (drag the button to move the window, or ⌥-drag anywhere on the model; the map moves with a plain drag).
+// window. The settings are the web page's own: the settings button comes out in the top-right corner (on the map's
+// corner, in the map form) while the pointer is on the model (drag the button to move the window, or ⌥-drag
+// anywhere on the model; the map moves with a plain drag).
 // The native menu (right-click, or the menu-bar icon) keeps what belongs to the window: form, size, floating,
 // icons, power saving. Everywhere the model, the map and the controls aren't, clicks fall through to the desktop.
 import { Vector3 } from 'three';
@@ -163,6 +164,25 @@ export function initPet(app: App, hud: HudActions, map: MapView) {
     if (key === fitKey) return;
     fitKey = key;
     controls.minDistance = wholeDistance(dir, aspect, camera.fov);
+  });
+
+  // in the map form the button sits on the tile's top-right corner (the window is taller than the tile, to leave
+  // room for the settings above it); otherwise in the window's corner, where the stylesheet puts it
+  const bar = button.closest<HTMLElement>('.bar')!;
+  let barAt = '';
+  app.onFrameUI(() => {
+    let at = '';
+    if (hud.form === 'plan') {
+      const r = map.canvas.getBoundingClientRect();
+      if (r.width) at = `${Math.round(r.top + 5)} ${Math.round(r.right - bar.offsetWidth - 5)}`;
+    }
+    if (at === barAt) return;
+    barAt = at;
+    const [top, left] = at.split(' ');
+    bar.style.top = at ? `${top}px` : '';
+    bar.style.left = at ? `${left}px` : '';
+    bar.style.right = at ? 'auto' : '';
+    hud.layout();
   });
 
   // keep the shell's copy of the state current, so the menu opens instantly with the right checks

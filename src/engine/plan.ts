@@ -36,19 +36,18 @@ export interface PlanMarker {
   pool?: number;
 }
 
-/** Something that moves, as the map draws it: heading 0 faces +z, π/2 faces +x (as everywhere in the scene). */
+/**
+ * Something that moves, as the map draws it: heading 0 faces +z, π/2 faces +x (as everywhere in the scene). The
+ * map draws every vehicle in one colour and every person in another — at the size of a stamp, more reads as noise.
+ */
 export interface PlanMover {
   kind: 'vehicle' | 'person';
   x: number;
   z: number;
   heading: number;
-  /** metres; a person is a dot */
+  /** metres (a vehicle's footprint; a person is a dot) */
   len?: number;
   width?: number;
-  color?: string;
-  /** headlights 0–1 */
-  lights?: number;
-  braking?: boolean;
 }
 
 export type PlanSource = () => Iterable<PlanMover>;
