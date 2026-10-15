@@ -71,6 +71,9 @@ export default defineMod({
         },
       });
       cyl(g, 0.7, 0.7, 0.2, materials(ctx).block, 0, 0, 0, 20);
+      // on the map: a round crown in the canopy's colour of the moment; bare branches in winter
+      ctx.plan.add({ kind: 'tree', circle: { x: SAKURA.x, z: SAKURA.z, r: 2.3 }, h: 4.6,
+        color: () => (blobs[0].visible ? `#${blossom[0].color.getHexString()}` : '#9a7d68') });
       g.position.copy(SAKURA);
       root.add(g);
       ctx.surfaces.addRoof({ x0: SAKURA.x - 1.6, x1: SAKURA.x + 1.6, z0: SAKURA.z - 1.6, z1: SAKURA.z + 1.6 }, 3.2);

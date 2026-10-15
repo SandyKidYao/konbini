@@ -15,6 +15,7 @@ import { Interact } from './interact';
 import { GlowRegistry } from './glow';
 import { States } from './states';
 import { Batcher } from './batch';
+import { Plan } from './plan';
 import { orderMods, loadExternalMod, type ModContext, type ModDefinition } from './mod';
 import { Fx } from '../fx';
 
@@ -48,6 +49,8 @@ export class App {
   readonly audio = new Audio();
   readonly glow = new GlowRegistry();
   readonly batcher = new Batcher();
+  /** the scene as flat shapes, for the map form */
+  readonly plan = new Plan();
   readonly states: States;
   readonly interact: Interact;
   readonly fx: Fx;
@@ -58,6 +61,11 @@ export class App {
   elapsed = 0;
   /** at most this many frames a second (0: every display frame) — saves power when nobody is looking closely */
   maxFps = 0;
+  /**
+   * What is on screen: the model, or the plan (the UI draws it as a flat map). Either way the street lives on; with
+   * the plan showing, the model isn't drawn at all — the whole cost of a frame is the simulation.
+   */
+  form: 'model' | 'plan' = 'model';
 
   private frameFns: FrameFn[] = [];
   private uiFns: (() => void)[] = [];
@@ -81,6 +89,10 @@ export class App {
       nav: this.nav, surfaces: this.surfaces, interact: this.interact, parent: this.stage.world,
       time: () => this.elapsed, onWave: () => this.audio.play('tick'),
     }, this.nav, this.services, () => this.atmosphere.day);
+    // people are the engine's own: on the map wherever they walk (fading in or out: not yet, or no longer)
+    this.plan.for('engine').movers(() => this.director.actors.filter((a) => a.walker.visibleScale > 0.4).map((a) => ({
+      kind: 'person' as const, x: a.position.x, z: a.position.z, heading: a.heading, color: a.walker.color,
+    })));
     this.baseCtx = this.contextFor('engine', this.stage.world);
     this.quality.max = this.stage.renderer.getPixelRatio();
     // lightning: a bolt on screen now, thunder later (further away = longer delay, quieter)
@@ -121,6 +133,7 @@ export class App {
         show: (o, when, opts) => { this.shown.add(o); return this.states.show(o, when, opts); },
       },
       interact: { clickable: (o, fn, label) => this.interact.clickable(o, fn, label) },
+      plan: this.plan.for(id),
       onFrame: (fn) => {
         this.frameFns.push(fn);
         return () => { this.frameFns = this.frameFns.filter((f) => f !== fn); };
@@ -158,6 +171,7 @@ export class App {
       } catch (e) {
         console.error(`[konbini] mod "${m.id}" failed`, e);
         this.stage.world.remove(root);
+        this.plan.drop(m.id);
         this.loaded.push({ id: m.id, layer: m.layer, external: extIds.has(m.id), error: String(e) });
       }
     }
@@ -194,12 +208,14 @@ export class App {
       this.owed = 0;
       this.simulate(dt);
       this.audio.update(this.atmosphere.drivers, this.elapsed);
-      this.stage.update(dt);
+      if (this.form === 'model') this.stage.update(dt);
       for (const f of this.uiFns) f();
-      if (this.frame > 60) this.adaptQuality(dt);
-      if (this.resizePending) this.resize();
-      this.batcher.update();
-      this.fx.render();
+      if (this.form === 'model') {
+        if (this.frame > 60) this.adaptQuality(dt);
+        if (this.resizePending) this.resize();
+        this.batcher.update();
+        this.fx.render();
+      }
       this.frame++;
       if (this.frame === 3) this.onFirstFrame?.();
       requestAnimationFrame(tick);

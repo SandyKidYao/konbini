@@ -94,6 +94,8 @@ export default defineMod({
       head.position.set(b.x + dir.x * 0.25, b.y - 0.05, b.z + dir.z * 0.25);
       head.rotation.y = Math.atan2(-dir.z, dir.x);
       root.add(head);
+      // on the map: a warm pool on the street once the lamps come on
+      ctx.plan.marker({ x: head.position.x, z: head.position.z, r: 0.35, pool: 6, color: () => ctx.atmosphere.channel('lamp') > 0.05 ? '#ffe0a6' : null });
       const spot = new THREE.SpotLight('#ffd9a8', 0, 34, 1.0, 0.65, 1.4);
       spot.position.copy(head.position).add(V(0, -0.1, 0));
       spot.target.position.set(head.position.x + dir.x * 1.5, 0, head.position.z + dir.z * 1.5);
@@ -146,6 +148,15 @@ export default defineMod({
     vehicleSignal(21.9, 5.95, 11.85, -Math.PI / 2);
     pedSignal(21.75, 3.3, 9.4, -Math.PI / 2);
     pedSignal(13.1, 3.3, 8.9, Math.PI / 2);
+    // on the map: the lights as dots by the crossing, in step with the real ones
+    const LIT = { g: '#2fd39a', y: '#ffb000', r: '#ff4a3a' } as const;
+    ctx.plan.marker({ x: 21.9, z: 11.85, r: 0.55, color: (t) => LIT[signals.vehicle(t)] });
+    for (const [x, z] of [[21.75, 9.4], [13.1, 8.9]]) {
+      ctx.plan.marker({ x, z, r: 0.42, color: (t) => {
+        const p = signals.ped(t);
+        return p === 'r' ? LIT.r : p === 'g' || Math.floor(t * 4) % 2 === 0 ? LIT.g : null;
+      } });
+    }
     ctx.onFrame((_dt, t) => {
       const on = ctx.atmosphere.channel('signal');
       const v = signals.vehicle(t), p = signals.ped(t);

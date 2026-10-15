@@ -71,9 +71,9 @@ function fitWheels(s: Shell, xs: number[], width: number, r = 0.34) {
   return { wheels, spin: (dist: number) => { for (const w of wheels) w.rotation.z -= dist / r; } };
 }
 
-function finish(s: Shell, len: number, width: number, lamps: (l: Lamps, t: number) => void, wheels: ReturnType<typeof fitWheels>, extra?: (l: Lamps, t: number) => void): Car {
+function finish(s: Shell, color: string, len: number, width: number, lamps: (l: Lamps, t: number) => void, wheels: ReturnType<typeof fitWheels>, extra?: (l: Lamps, t: number) => void): Car {
   return {
-    root: s.g, wheels: wheels.wheels, len, width,
+    root: s.g, wheels: wheels.wheels, len, width, color,
     spin: wheels.spin,
     lamps(l, t) { lamps(l, t); extra?.(l, t); },
     dispose() {
@@ -148,7 +148,7 @@ export function car(_ctx: ModContext, o: CarOptions): Car {
   }
   const lamps = fitLamps(s, { len, width, headY: by + 0.06, tailY: by + 0.08 });
   const wx = len / 2 - 0.82;
-  return finish(s, len, width, lamps, fitWheels(s, [-wx, wx], width), extra);
+  return finish(s, patrol ? '#2a2c30' : color, len, width, lamps, fitWheels(s, [-wx, wx], width), extra);
 }
 
 /** Body shapes, so content can say 'kei' instead of a list of numbers. */
@@ -213,7 +213,7 @@ export function truck(ctx: ModContext, o: TruckOptions): Car {
     }
     add(new RoundedBoxGeometry(0.16, 0.2, width + 0.02, 2, 0.05), dark, len / 2 - 0.02, 0.48, 0);
     const lamps = fitLamps(s, { len, width, headY: 0.82, tailY: 0.6 });
-    return finish(s, len, width, lamps, fitWheels(s, [len / 2 - 0.62, -len / 2 + 0.75], width, 0.3));
+    return finish(s, color, len, width, lamps, fitWheels(s, [len / 2 - 0.62, -len / 2 + 0.75], width, 0.3));
   }
   // box truck
   const len = 5.6, width = 1.92, cabL = 1.55;
@@ -240,7 +240,7 @@ export function truck(ctx: ModContext, o: TruckOptions): Car {
   add(new RoundedBoxGeometry(0.18, 0.24, width + 0.02, 2, 0.05), dark, fx - 0.03, 0.55, 0);
   add(new THREE.BoxGeometry(0.16, 0.12, width - 0.2), dark, -len / 2 + 0.1, 0.5, 0);
   const lamps = fitLamps(s, { len, width, headY: 0.82, tailY: 0.62, rear: -len / 2 + 0.02 });
-  return finish(s, len, width, lamps, fitWheels(s, [fx - 0.85, -len / 2 + 1.25], width, 0.38));
+  return finish(s, o.box ?? '#f6f6f2', len, width, lamps, fitWheels(s, [fx - 0.85, -len / 2 + 1.25], width, 0.38));
 }
 
 // ------------------------------------------------------------------ bus
@@ -273,6 +273,6 @@ export function bus(ctx: ModContext, o: BusOptions): Car {
   add(new RoundedBoxGeometry(0.2, 0.26, width + 0.02, 2, 0.06), dark, len / 2 - 0.04, 0.5, 0);
   add(new RoundedBoxGeometry(0.2, 0.26, width + 0.02, 2, 0.06), dark, -len / 2 + 0.04, 0.5, 0);
   const lamps = fitLamps(s, { len, width, headY: 0.8, tailY: 0.85 });
-  return finish(s, len, width, lamps, fitWheels(s, [len / 2 - 1.35, -len / 2 + 1.45], width, 0.4),
+  return finish(s, o.color ?? '#f4f2ea', len, width, lamps, fitWheels(s, [len / 2 - 1.35, -len / 2 + 1.45], width, 0.4),
     (l) => { sign.emissiveIntensity = l.engine ? 0.5 + 0.8 * l.head : 0; });
 }

@@ -142,6 +142,7 @@ export default defineMod({
 
     // ------------------------------------------------------------------ storage shed (back corner)
     boxE(yard, -13.3, -10.9, G, 2.1, -18.1, -16.4, mat('#d5dfcf', { roughness: 0.6 }));
+    ctx.plan.add({ kind: 'building', rect: { x0: -13.45, x1: -10.75, z0: -18.25, z1: -16.25 }, h: 2.2, color: '#9fb098' });
     boxE(yard, -13.45, -10.75, 2.1, 2.2, -18.25, -16.25, mat('#9fb098'));
     boxE(yard, -13.1, -12.1, 0.2, 1.9, -16.4, -16.36, mat('#c4cebc'), { plain: true });
     boxE(yard, -12.1, -11.1, 0.2, 1.9, -16.38, -16.34, mat('#bcc6b4'), { plain: true });

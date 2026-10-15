@@ -39,6 +39,7 @@ export default defineMod({
 
     // ---------------------------------------------------------------- car park
     boxE(root, LOT.x0, LOT.x1, 0.08, 0.1, LOT.z0, LOT.z1, M.asphalt, { uv: 7, cast: false, plain: true });
+    ctx.plan.add({ kind: 'lot', rect: LOT });
     S.addWalk(LOT, 0.1, 2);
     ctx.fx.addSheen(LOT, 0.1);
     for (const [x, z, r, sx, sz] of [[-2.0, 4.8, 1.2, 1.6, 0.7], [4.2, 3.4, 1.0, 1.3, 0.8], [8.6, 6.2, 0.7, 1, 1], [-7.4, 2.6, 0.6, 1, 1.3], [1.6, 6.6, 0.8, 1.4, 0.6]]) {
@@ -48,6 +49,7 @@ export default defineMod({
     for (let i = 0; i <= BAYS; i++) {
       const x = BAY_X0 + BAY_W * i;
       groundPlane(root, x - 0.06, x + 0.06, WHEEL_STOP - 0.75, BAY_Z1, 0.112, M.roadPaint);
+      ctx.plan.add({ kind: 'paint', rect: { x0: x - 0.06, x1: x + 0.06, z0: WHEEL_STOP - 0.75, z1: BAY_Z1 } });
     }
     // the far end of the bays, and the edge of the aisle along the sidewalk
     groundPlane(root, BAY_X0 - 0.06, BAY_X0 + BAY_W * BAYS + 0.06, BAY_Z1 - 0.12, BAY_Z1, 0.112, M.roadPaint);
@@ -79,6 +81,7 @@ export default defineMod({
     for (const d of driveways) {
       const x0 = Math.max(LOT.x0, d.x - 1.7), x1 = Math.min(LOT.x1, d.x + 1.7);
       boxE(root, x0, x1, 0.15, 0.156, 7.5, 9.8, padM, { uv: 2, cast: false });
+      ctx.plan.add({ kind: 'walk', rect: { x0, x1, z0: 7.5, z1: 9.8 } });
       paintMark(roadJokoTex, 1.8, 0.9, d.x, 6.2);
       // two-way: in on the left, out on the left (we drive on the left)
       paintMark(roadArrowTex, 0.55, 1.1, d.x - 0.75, 4.1);
@@ -146,6 +149,8 @@ export default defineMod({
     boxE(root, PLAZA.x0, PLAZA.x1, 0.08, 0.13, -7.8, 7.5, M.tile, { uv: 1.2, cast: false });
     boxE(root, PLAZA.x1, -7.2, 0.08, 0.13, -7.8, LOT.z0, M.tile, { uv: 1.2, cast: false });
     S.addWalk({ x0: PLAZA.x0, x1: PLAZA.x1, z0: -7.8, z1: 7.5 }, 0.13, 2);
+    ctx.plan.add({ kind: 'walk', rect: { x0: PLAZA.x0, x1: PLAZA.x1, z0: -7.8, z1: 7.5 } });
+    ctx.plan.add({ kind: 'walk', rect: { x0: PLAZA.x1, x1: -7.2, z0: -7.8, z1: LOT.z0 } });
     S.addWalk({ x0: PLAZA.x1, x1: -7.2, z0: -7.8, z1: LOT.z0 }, 0.13, 2);
     ctx.fx.addSheen({ x0: PLAZA.x0, x1: PLAZA.x1, z0: -7.8, z1: 7.5 }, 0.13);
     ctx.fx.addPuddle(-11.8, 1.8, 0.7, 1.2, 0.8);
@@ -185,6 +190,7 @@ export default defineMod({
     // ---------------------------------------------------------------- the lane (east), up from the street corner
     boxE(root, LANE.x0, LANE.x1, 0.08, 0.15, LOT.z0, 7.5, M.tile, { uv: 1.2, cast: false });
     S.addWalk({ x0: LANE.x0, x1: LANE.x1, z0: LOT.z0, z1: 7.5 }, 0.15, 2);
+    ctx.plan.add({ kind: 'walk', rect: { x0: LANE.x0, x1: LANE.x1, z0: LOT.z0, z1: 7.5 } });
     ctx.fx.addSheen({ x0: LANE.x0, x1: LANE.x1, z0: LOT.z0, z1: 7.5 }, 0.15);
 
     // vending machines on the side terrace

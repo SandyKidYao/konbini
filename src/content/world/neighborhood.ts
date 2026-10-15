@@ -26,6 +26,12 @@ export default defineMod({
     S.addRoof({ x0: APARTMENT.x0, x1: APARTMENT.x1, z0: APARTMENT.z0, z1: APARTMENT.z1 + 1 }, 9.8);
     S.addRoof({ x0: SHOP_ROW.x0, x1: SHOP_ROW.x1, z0: SHOP_ROW.z0, z1: SHOP_ROW.z1 }, SHOP_ROW.h);
     S.addRoof({ x0: -27.8, x1: -24.2, z0: -16, z1: -2 }, 8.5);
+    // on the map: the roofs as they look from above; lit windows glow at night
+    ctx.plan.add({ kind: 'building', rect: { x0: HOUSE.x0 - 0.4, x1: HOUSE.x1 + 0.4, z0: HOUSE.z0 - 0.4, z1: HOUSE.z1 + 0.4 }, h: HOUSE.h + 1.9, color: '#6b7891', glow: 'window' });
+    ctx.plan.add({ kind: 'building', rect: { x0: APARTMENT.x0, x1: APARTMENT.x1, z0: APARTMENT.z0, z1: APARTMENT.z1 + 1 }, h: APARTMENT.floors * APARTMENT.fh, color: '#e3cfc4', glow: 'window' });
+    ctx.plan.add({ kind: 'building', rect: { x0: SHOP_ROW.x0 - 0.1, x1: SHOP_ROW.x1 + 0.1, z0: SHOP_ROW.z0 - 0.1, z1: SHOP_ROW.z1 + 0.1 }, h: SHOP_ROW.h, color: '#d6d1de', glow: 'window' });
+    ctx.plan.add({ kind: 'building', rect: { x0: -27.8, x1: -24.2, z0: -16, z1: -2 }, h: 8.5, color: '#cdc8c2', glow: 'window' });
+    ctx.plan.add({ kind: 'green', rect: { x0: -28, x1: 28, z0: 19.6, z1: 20.6 }, color: '#86ad6a' });
 
     // --- two-storey house on the left ---
     {

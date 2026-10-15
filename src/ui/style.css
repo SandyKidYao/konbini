@@ -39,6 +39,19 @@ body {
   transition: color 0.8s var(--ease);
 }
 #stage, #stage canvas { position: fixed; inset: 0; display: block; }
+#stage { transition: opacity 0.5s var(--ease); }
+
+/* --- the map form: the street from straight above, a small tile with the plinth's walnut edge under it --- */
+.plan {
+  --map-w: min(560px, 84vw, calc((100vh - 150px) * 7 / 6));
+  position: fixed; left: 50%; top: 50%; z-index: 1; translate: -50% -54%;
+  width: var(--map-w); aspect-ratio: 7 / 6; border-radius: calc(var(--map-w) * 0.06);
+  box-shadow: 0 calc(var(--map-w) * 0.022) 0 #5b3f2c, 0 calc(var(--map-w) * 0.05) calc(var(--map-w) * 0.09) rgba(30, 40, 62, 0.24);
+  opacity: 0; visibility: hidden; transform: scale(0.97);
+  transition: opacity 0.5s var(--ease), transform 0.5s var(--ease), visibility 0s linear 0.5s;
+}
+body[data-form="plan"] .plan { opacity: 1; visibility: visible; transform: none; transition: opacity 0.5s var(--ease), transform 0.5s var(--ease), visibility 0s; }
+body[data-form="plan"] #stage { opacity: 0; pointer-events: none; }
 svg { fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 button { font: inherit; color: inherit; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -98,7 +111,8 @@ body.chrome-on .chrome { opacity: 1; visibility: visible; transform: none; trans
 /* in a short window a card opened from the tray lies over it (see hud.ts: place); and too tall a panel scrolls */
 body.chrome-on .tray.covered { opacity: 0; visibility: hidden; }
 .tray, .cal, .mods { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
-.views { display: flex; justify-content: space-between; padding: 0 6px 8px; border-bottom: 1px dashed var(--line); }
+.views { display: flex; align-items: center; justify-content: space-between; padding: 0 2px 8px; border-bottom: 1px dashed var(--line); }
+.views > .sep { flex: none; width: 1px; height: 20px; background: var(--line); }
 /* the current view: a small orange dot under its glyph */
 .views .ico::after {
   content: ""; position: absolute; left: 50%; bottom: 3px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%;
@@ -223,6 +237,8 @@ body[data-theme="dark"] .cal-grid .sat { color: #8fb4ff; }
 /* --- desktop pet (?pet=1): only the model on a transparent window; the settings button sits under it --- */
 body.pet, body.pet .veil { background: transparent; }
 body.pet .bar { bottom: 10px; }
+/* the map form sits on the settings button, at the size chosen in the pet's menu */
+body.pet .plan { --map-w: var(--pet-map, 200px); top: auto; bottom: 66px; translate: -50% 0; }
 /* its window is narrow, but it isn't a phone: the panels keep their size */
 body.pet .tray { width: 340px; }
 body.pet .cal, body.pet .mods { width: 300px; }

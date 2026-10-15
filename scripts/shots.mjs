@@ -111,6 +111,14 @@ const SCENES = [
   { name: 'ui-picker-narrow', q: 'weather=partly&time=0900', viewport: { width: 390, height: 844 }, act: async (p) => {
     await p.tap('#stage canvas', { position: { x: 195, y: 300 } }); await p.click('#trayBtn'); await p.click('#dateBtn'); }, touch: true },
   { name: 'narrow', q: 'weather=partly&time=0900', viewport: { width: 390, height: 844 } },
+  // the map form: the street from straight above, the same cars and people, the light and weather of the moment
+  { name: 'plan-day', q: 'view=plan&weather=clear&time=1130&date=2026-10-14&warp=90' },
+  { name: 'plan-dusk', q: 'view=plan&weather=partly&time=1750&date=2026-10-14&warp=90' },
+  { name: 'plan-rain-night', q: 'view=plan&weather=rain&time=2140&date=2026-10-14&warp=90' },
+  { name: 'plan-snow', q: 'view=plan&weather=snow&time=1400&date=2027-01-20&warp=90', wait: 6000 },
+  { name: 'plan-spring', q: 'view=plan&weather=clear&time=0930&date=2026-04-03&warp=90' },
+  { name: 'plan-tray', q: 'view=plan&weather=clear&time=1600&date=2026-10-14&warp=60', act: async (p) => { await openTray(p); } },
+  { name: 'plan-narrow', q: 'view=plan&weather=cloudy&time=0800&date=2026-10-14&warp=90', viewport: { width: 390, height: 844 } },
   // the desktop pet's page (no shell here): the settings button comes out over the model, and opens the same tray
   { name: 'pet-hover', q: 'pet=1&weather=clear&time=1600', viewport: { width: 560, height: 460 }, wait: 900, act: async (p) => {
     await p.mouse.move(270, 250); await p.mouse.move(280, 240); await p.waitForTimeout(400); } },
@@ -118,6 +126,10 @@ const SCENES = [
     await p.mouse.move(270, 250); await p.mouse.move(280, 240); await p.waitForTimeout(400); await p.click('#trayBtn'); } },
   { name: 'pet-picker', q: 'pet=1&weather=clear&time=1600', viewport: { width: 560, height: 460 }, act: async (p) => {
     await p.mouse.move(270, 250); await p.mouse.move(280, 240); await p.waitForTimeout(400); await p.click('#trayBtn'); await p.click('#dateBtn'); } },
+  { name: 'pet-plan', q: 'pet=1&view=plan&size=medium&weather=clear&time=1900&date=2026-10-14&warp=90', viewport: { width: 380, height: 470 }, wait: 900, act: async (p) => {
+    await p.mouse.move(190, 300); await p.mouse.move(195, 310); await p.waitForTimeout(400); } },
+  { name: 'pet-plan-tray', q: 'pet=1&view=plan&size=small&weather=rain&time=1300&date=2026-10-14&warp=90', viewport: { width: 380, height: 470 }, act: async (p) => {
+    await p.mouse.move(190, 330); await p.mouse.move(195, 340); await p.waitForTimeout(400); await p.click('#trayBtn'); } },
   { name: 'pet-picker-small', q: 'pet=1&weather=clear&time=2000', viewport: { width: 400, height: 330 }, act: async (p) => {
     await p.mouse.move(190, 200); await p.mouse.move(200, 190); await p.waitForTimeout(400); await p.click('#trayBtn'); await p.click('#dateBtn'); } },
 ];

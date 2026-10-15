@@ -35,8 +35,19 @@ export default defineMod({
     boxE(root, 21, 28, 0, 0.17, 9.8, 10, M.curb, { cast: false });
     boxE(root, -28, 28, 0, 0.17, 17, 17.2, M.curb, { cast: false });
 
+    // the plan (the map form): asphalt under everything, land and verges, sidewalks; the paint goes on as it's laid
+    const plan = ctx.plan;
+    plan.add({ kind: 'road', rect: BLOCK });
+    plan.add({ kind: 'land', rect: { x0: -28, x1: 11.5, z0: -24, z1: 7.5 } });
+    plan.add({ kind: 'land', rect: { x0: 23, x1: 28, z0: -24, z1: 7.5 } });
+    plan.add({ kind: 'green', rect: { x0: -28, x1: 28, z0: 19.2, z1: 24 } });
+    for (const [x0, x1, z0, z1] of SIDEWALKS) plan.add({ kind: 'walk', rect: { x0, x1, z0, z1 } });
+
     // road markings
-    const paint = (x0: number, x1: number, z0: number, z1: number) => groundPlane(root, x0, x1, z0, z1, 0.012, M.roadPaint);
+    const paint = (x0: number, x1: number, z0: number, z1: number) => {
+      groundPlane(root, x0, x1, z0, z1, 0.012, M.roadPaint);
+      plan.add({ kind: 'paint', rect: { x0, x1, z0, z1 } });
+    };
     for (let x = -27.5; x < 13; x += 4) paint(x, x + 2.2, 13.42, 13.58);
     for (let x = 22; x < 27.8; x += 4) paint(x, Math.min(x + 2.2, 28), 13.42, 13.58);
     paint(-28, 13.6, 10.35, 10.5); paint(-28, 13.6, 16.5, 16.65);

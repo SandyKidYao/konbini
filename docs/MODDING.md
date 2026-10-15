@@ -43,6 +43,7 @@ export default defineMod({
 | `ctx.fx` | `envMap`、`transparent`（桌宠：只画模型，周围没有摄影棚地面和背景）、`wetable(mat)`、`addPuddle`、`addSheen`、`addPass`（自定义后期）、`skyChanged()`（挡雪的东西变了）、`warm(obj)`（预先编译着色器，见下） |
 | `ctx.audio` | `define(name, recipe)` 定义音效、`play(name)` |
 | `ctx.interact.clickable(obj, fn, '名字')` | 可点击（悬停时光标变成手形；名字不显示在画面上） |
+| `ctx.plan` | 俯视图上的样子：`add(shape)` 加一块平面形状、`marker(m)` 加一个小灯、`movers(fn)` 报告会动的东西（见下文「俯视图」） |
 | `ctx.onFrame(fn)` | 每帧回调 `(dt, t, drivers)` |
 
 ## 事件
@@ -144,6 +145,27 @@ ctx.states.show(kadomatsu, (c) => c.has('shogatsu'));
 - 积雪是自动的：模型里朝上、头顶没有遮挡的表面会积雪。会移动的东西（比如车）设 `object.userData.skyIgnore = true`，不想积雪的设 `userData.noSnow = true`
 - 闪电：`ctx.atmosphere.onStrike((distance) => …)`
 - 换天气数据源：实现 `WeatherProvider`（`src/engine/live/openmeteo.ts`），返回 `LiveReport`，传给 `new LiveSync(atmosphere, provider)`
+
+## 俯视图
+
+俯视图是另一种形态：从正上方看下去的一块平面小图，画在 2D 画布上。车和人、红绿灯、天气、昼夜都和模型同步，打开俯视图时模型不再绘制，所以很省电。图上有什么，由模组自己通过 `ctx.plan` 声明，和造模型时一一对应：
+
+```js
+// 地面、路面、屋顶：kind 决定默认颜色和叠放顺序（road → land → green → walk → lot → paint → tree → building → site）
+ctx.plan.add({ kind: 'building', rect: { x0: -4, x1: 4, z0: -3, z1: 3 }, h: 6, color: '#d6d1de', glow: 'window' });
+ctx.plan.add({ kind: 'tree', circle: { x: 2, z: 8, r: 1.5 }, h: 4, color: () => leaves.color.getStyle() });
+// 小灯：color(t) 每帧调用，返回 null 就是灭着；pool 是夜里地上那圈光的半径
+ctx.plan.marker({ x: 10, z: 9, r: 0.4, pool: 6, color: () => ctx.atmosphere.channel('lamp') > 0.05 ? '#ffe0a6' : null });
+// 会动的东西：每画一帧调用一次，返回当前的位置、朝向、尺寸、颜色
+ctx.plan.movers(() => robots.map((r) => ({ kind: 'vehicle', x: r.x, z: r.z, heading: r.heading, len: 0.6, width: 0.6, color: '#c33' })));
+```
+
+- 坐标和场景一样，单位是米；俯视图上 x 向右、z 向下（场景的正面，也就是道路 A，在下方）
+- `h` 是高度：有高度的形状会背着太阳投影，太阳越低影子越长；人走到高于 2 米的屋顶下面就看不见了
+- `color` 可以是函数，每帧读取（季节里变色的树）。不写就用这一类的默认颜色。夜晚、积雪、雨后路湿的效果由地图统一加上，形状只要给白天的颜色
+- `glow` 是一个发光通道名（`window`、`interior`、`sign`…）：通道亮起来时，形状在夜里泛暖光
+- 行人由引擎自动画上（颜色来自 `Walker.color`）；道路模组把 `traffic.vehicles` 报告给了 `movers`（颜色来自 `VehicleBody.color`）
+- 模组 `setup` 失败时，它加到俯视图上的东西会一并撤掉
 
 ## 静态合并（自动，不用声明）
 

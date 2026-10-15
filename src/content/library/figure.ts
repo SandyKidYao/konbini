@@ -159,6 +159,8 @@ export class Figure implements Walker {
   sheltered = false;
   leaving = false;
   visibleScale = 0;
+  /** seen from above: the coat, the yukata or the shirt */
+  color?: string;
   private cur = { hipL: 0, hipR: 0, kneeL: 0, kneeR: 0, armR: 0, armL: 0, armRz: 0, armLz: 0, waist: 0, head: 0 };
   private phase = Math.random() * 6;
   private gesture: string | null = null;
@@ -181,6 +183,7 @@ export class Figure implements Walker {
     let shirtC = o.shirt ?? pickR(SHIRTS), pantsC = o.pants ?? pickR(PANTS);
     if (this.kind === 'staff') { shirtC = '#f4f6f8'; pantsC = '#2f3540'; }
     const yukata = o.yukata ? yukataMat(o.yukata) : null;
+    this.color = o.yukata ?? o.coat ?? shirtC;
     const shirt = yukata ?? M(shirtC), pants = yukata ?? M(pantsC), hair = M(o.hair ?? pickR(HAIR));
     const shoe = yukata ? M('#9a7350') : M(o.shoes ?? pickR(SHOES));
     const sleeve = yukata ?? (o.coat ? M(o.coat) : o.shortSleeve ? skin : shirt);

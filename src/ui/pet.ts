@@ -1,17 +1,26 @@
-// Desktop-pet mode (?pet=1, set by the Electron shell in desktop/): only the model, over a transparent window.
-// The settings are the web page's own: the settings button comes out under the model while the pointer is on it
-// (drag the button to move the window, or ⌥-drag anywhere on the model). The native menu (right-click, or the
-// menu-bar icon) keeps what belongs to the window: size, floating, icons, power saving. Everywhere the model and
-// the controls aren't, clicks fall through to the desktop.
+// Desktop-pet mode (?pet=1, set by the Electron shell in desktop/): only the model — or the map — over a transparent
+// window. The settings are the web page's own: the settings button comes out under the model while the pointer is
+// on it (drag the button to move the window, or ⌥-drag anywhere on the model; the map moves with a plain drag).
+// The native menu (right-click, or the menu-bar icon) keeps what belongs to the window: form, size, floating,
+// icons, power saving. Everywhere the model, the map and the controls aren't, clicks fall through to the desktop.
 import type { App } from '../engine/app';
-import type { HudActions } from './hud';
+import type { Form, HudActions } from './hud';
+import type { MapView } from './map';
+
+export type PetSize = 'small' | 'medium' | 'large';
+/** the map's width (px) at each of the shell's sizes */
+const MAP_SIZE: Record<PetSize, number> = { small: 150, medium: 200, large: 260 };
 
 /** What the shell's menu shows: the page's own settings. */
 export interface PetState {
   saver: boolean;
+  form: Form;
 }
 
-export type PetAction = { type: 'settings' | 'saver' };
+export type PetAction =
+  | { type: 'settings' | 'saver' }
+  | { type: 'form'; value: Form }
+  | { type: 'size'; value: PetSize };
 
 /** Exposed by desktop/preload.cjs. */
 interface DesktopBridge {
@@ -29,7 +38,7 @@ const ACTIVE_FPS = 60;   // while the pointer is on the model or the controls
 const LINGER = 1200;     // ms at full frame rate after the pointer leaves
 const DRAG_SLOP = 4;     // px the settings button must travel before a press becomes a drag
 
-export function initPet(app: App, hud: HudActions) {
+export function initPet(app: App, hud: HudActions, map: MapView) {
   const bridge = (window as unknown as { konbiniDesktop?: DesktopBridge }).konbiniDesktop;
   document.body.classList.add('pet');
   app.stage.controls.enablePan = false;  // the right button opens the menu instead
@@ -42,6 +51,11 @@ export function initPet(app: App, hud: HudActions) {
 
   const button = document.getElementById('trayBtn')!;
   button.setAttribute('aria-label', '设置（拖动可移动）');
+  const setMapSize = (size: string | null) => {
+    const w = MAP_SIZE[size as PetSize] ?? MAP_SIZE.medium;
+    document.body.style.setProperty('--pet-map', `${w}px`);
+  };
+  setMapSize(new URLSearchParams(location.search).get('size'));
 
   // --- hover: wake up (full frame rate) while the pointer is on the model or the controls ---
   let over = false, active = false, sleep = 0, dragging = false;
@@ -72,7 +86,7 @@ export function initPet(app: App, hud: HudActions) {
       if (dragging || last.buttons) { setOver(true); return; }   // hold on to a drag that wanders off the model
       // hidden controls are invisible to the pointer, so any control under it is one that's showing
       const onChrome = !!(last.target as Element | null)?.closest?.('.chrome');
-      const onModel = !onChrome && app.interact.modelAt(last.clientX, last.clientY);
+      const onModel = !onChrome && (hud.form === 'plan' ? map.hit(last.clientX, last.clientY) : app.interact.modelAt(last.clientX, last.clientY));
       if (onModel) hud.showChrome();
       setOver(onChrome || onModel);
     }, 50);
@@ -93,18 +107,21 @@ export function initPet(app: App, hud: HudActions) {
     el.addEventListener('pointerup', end);
     el.addEventListener('pointercancel', end);
   };
-  // the settings button: a click opens the settings, a drag moves the window (and isn't a click)
+  // the settings button: a click opens the settings, a drag moves the window (and isn't a click). The map has
+  // nothing to turn, so a drag on it moves the window too
   let press: { x: number; y: number; id: number } | null = null, dragged = false;
-  button.addEventListener('pointerdown', (e) => {
-    if (e.button !== 0) return;
-    press = { x: e.clientX, y: e.clientY, id: e.pointerId };
-    dragged = false;
-  });
-  button.addEventListener('pointermove', (e) => {
-    if (!press || dragging || e.pointerId !== press.id || Math.hypot(e.clientX - press.x, e.clientY - press.y) < DRAG_SLOP) return;
-    dragged = true;
-    startDrag(e, button);
-  });
+  for (const el of [button, map.canvas]) {
+    el.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      press = { x: e.clientX, y: e.clientY, id: e.pointerId };
+      dragged = false;
+    });
+    el.addEventListener('pointermove', (e) => {
+      if (!press || dragging || e.pointerId !== press.id || Math.hypot(e.clientX - press.x, e.clientY - press.y) < DRAG_SLOP) return;
+      dragged = true;
+      startDrag(e, el);
+    });
+  }
   addEventListener('pointerup', () => { press = null; });
   addEventListener('click', (e) => {
     if (dragged && e.target instanceof Node && button.contains(e.target)) { e.stopImmediatePropagation(); dragged = false; }
@@ -121,6 +138,8 @@ export function initPet(app: App, hud: HudActions) {
   bridge?.onAction((a) => {
     switch (a.type) {
       case 'settings': hud.openTray(); break;
+      case 'form': hud.setForm(a.value); break;
+      case 'size': setMapSize(a.value); break;
       case 'saver':
         saver = !saver;
         try { localStorage.setItem(SAVER_KEY, saver ? '1' : '0'); } catch { /* storage unavailable */ }
@@ -132,7 +151,7 @@ export function initPet(app: App, hud: HudActions) {
   // keep the shell's copy of the state current, so the menu opens instantly with the right checks
   let sent = '';
   app.onFrameUI(() => {
-    const state: PetState = { saver };
+    const state: PetState = { saver, form: hud.form };
     const key = JSON.stringify(state);
     if (key !== sent) { sent = key; bridge?.setState(state); }
   });

@@ -15,15 +15,21 @@ import { execFileSync } from 'node:child_process';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SIZES = { small: [400, 330], medium: [560, 460], large: [760, 625] };
+// the map form: the page draws the map at the chosen size (small / medium / large) on the window's lower edge; the
+// window keeps room above it for the settings, and is click-through wherever there's nothing
+const PLAN_WINDOW = [380, 470];
 const SIZE_LABEL = { small: '小', medium: '中', large: '大' };
+const FORMS = [['model', '模型'], ['plan', '俯视图']];
 
 const probe = process.argv.find((a) => a.startsWith('--probe'))?.split('=')[1] ?? (process.argv.includes('--probe') ? 'pet-probe.png' : null);
 
 // --- preferences: size, floating, where the window was ---
 const prefsFile = path.join(app.getPath('userData'), 'pet.json');
-const prefs = { size: 'medium', onTop: true, x: null, y: null, tray: true, dock: false };
+const prefs = { size: 'medium', form: 'model', onTop: true, x: null, y: null, tray: true, dock: false };
 try { Object.assign(prefs, JSON.parse(fs.readFileSync(prefsFile, 'utf8'))); } catch { /* first run */ }
 if (!SIZES[prefs.size]) prefs.size = 'medium';
+if (!FORMS.some(([k]) => k === prefs.form)) prefs.form = 'model';
+const windowSize = () => (prefs.form === 'plan' ? PLAN_WINDOW : SIZES[prefs.size]);
 if (!prefs.tray && !prefs.dock) prefs.tray = true;
 const savePrefs = () => {
   try { fs.writeFileSync(prefsFile, JSON.stringify(prefs)); } catch { /* read-only */ }
@@ -32,7 +38,7 @@ const savePrefs = () => {
 
 /** @type {BrowserWindow} */ let win;
 /** @type {Tray} */ let tray;
-let state = { saver: false };
+let state = { saver: false, form: prefs.form };
 let dragTimer = null;
 
 if (!app.requestSingleInstanceLock()) app.quit();
@@ -49,7 +55,7 @@ app.on('window-all-closed', () => app.quit());
 app.on('activate', () => win?.show());   // a click on the Dock icon brings the model to the front
 
 function createWindow() {
-  const [w, h] = SIZES[prefs.size];
+  const [w, h] = windowSize();
   win = new BrowserWindow({
     width: w, height: h, ...startPosition(w, h),
     transparent: true, backgroundColor: '#00000000', frame: false, hasShadow: false,
@@ -62,9 +68,10 @@ function createWindow() {
   win.once('ready-to-show', () => win.showInactive());
   win.on('moved', savePosition);
 
+  const query = { pet: '1', size: prefs.size, ...(prefs.form === 'plan' ? { view: 'plan' } : {}) };
   const dev = process.env.KONBINI_DEV_URL;
-  if (dev) void win.loadURL(`${dev}${dev.includes('?') ? '&' : '?'}pet=1`);
-  else void win.loadFile(path.join(here, '..', 'dist', 'index.html'), { query: { pet: '1' } });
+  if (dev) void win.loadURL(`${dev}${dev.includes('?') ? '&' : '?'}${new URLSearchParams(query)}`);
+  else void win.loadFile(path.join(here, '..', 'dist', 'index.html'), { query });
 }
 
 /** Last place if it is still on a screen, otherwise the bottom-right corner of the main screen. */
@@ -90,15 +97,25 @@ function applyOnTop() {
 
 /** Change size around the bottom centre, so the model stays where it stands on the desk. */
 function setSize(size) {
-  const [x, y] = win.getPosition(), [w0, h0] = win.getSize(), [w, h] = SIZES[size];
   prefs.size = size;
-  win.setBounds({ x: Math.round(x + (w0 - w) / 2), y: y + h0 - h, width: w, height: h });
+  send({ type: 'size', value: size });
+  fitWindow();
+}
+
+function fitWindow() {
+  const [x, y] = win.getPosition(), [w0, h0] = win.getSize(), [w, h] = windowSize();
+  if (w !== w0 || h !== h0) win.setBounds({ x: Math.round(x + (w0 - w) / 2), y: y + h0 - h, width: w, height: h });
   savePosition();
 }
 
 // --- messages from the page (desktop/preload.cjs) ---
 ipcMain.on('pet:hit', (_e, over) => { if (!dragTimer) win.setIgnoreMouseEvents(!over, { forward: true }); });
-ipcMain.on('pet:state', (_e, s) => { state = s; refreshDockMenu(); });
+ipcMain.on('pet:state', (_e, s) => {
+  state = s;
+  // the form is chosen in the page (or this menu): the window follows it
+  if (s.form && s.form !== prefs.form) { prefs.form = s.form; fitWindow(); }
+  refreshDockMenu();
+});
 ipcMain.on('pet:menu', () => buildMenu().popup({ window: win }));
 ipcMain.on('pet:drag', (_e, on) => {
   clearInterval(dragTimer);
@@ -119,6 +136,7 @@ function buildMenu({ dock = false } = {}) {
   return Menu.buildFromTemplate([
     // weather, time, date, views… are in the page's own settings, the same as on the web
     { label: '设置…', click: () => { win.showInactive(); send({ type: 'settings' }); } },
+    { label: '形态', submenu: FORMS.map(([k, label]) => ({ label, type: 'radio', checked: s.form === k, click: () => send({ type: 'form', value: k }) })) },
     { type: 'separator' },
     { label: '省电（降低帧率）', type: 'checkbox', checked: s.saver, click: () => send({ type: 'saver' }) },
     { type: 'separator' },

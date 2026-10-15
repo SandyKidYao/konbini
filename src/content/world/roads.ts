@@ -64,6 +64,11 @@ export default defineMod({
 
     // people on foot give way to cars crossing their path (at a driveway, say)
     ctx.director.avoid((a, x, z) => traffic.inTheWay(a.position, x, z));
+    // on the map: every vehicle on the model, lights and all
+    ctx.plan.movers(() => traffic.vehicles.filter((v) => !v.done && v.pose.x > BLOCK.x0 - 3 && v.pose.x < BLOCK.x1 + 3 && v.pose.z > BLOCK.z0 - 3).map((v) => ({
+      kind: 'vehicle' as const, x: v.pose.x, z: v.pose.z, heading: v.pose.heading, len: v.body.len, width: v.body.width,
+      color: v.body.color, lights: v.lamps.head, braking: v.lamps.brake,
+    })));
     ctx.onFrame((dt, t, d) => {
       traffic.speedScale = (1 - 0.15 * d.rain) * (1 - 0.35 * Math.max(d.snow, d.snowCover * 0.8)) * (1 - 0.25 * d.fog);
       traffic.update(dt, t);

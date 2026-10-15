@@ -15,6 +15,7 @@ import type { Audio } from './audio';
 import type { GlowRegistry } from './glow';
 import type * as Steps from './agents/actor';
 import type { Conditions, StateSpec, Tracked } from './states';
+import type { PlanApi } from './plan';
 
 /**
  * Load order. Library mods only register prefabs (nothing is built yet); world builds the block;
@@ -97,6 +98,8 @@ export interface ModContext {
   /** states that follow the date, time and weather (seasons, festivals, hot drinks in winter…) */
   readonly states: StatesApi;
   readonly interact: { clickable(object: THREE.Object3D, onClick: () => void, label: string): () => void };
+  /** the scene seen from straight above, for the map form: footprints, small lights, what moves (see engine/plan.ts) */
+  readonly plan: PlanApi;
   /** per-frame callback; returns an unsubscribe function */
   onFrame(fn: (dt: number, t: number, d: Drivers) => void): () => void;
 }

@@ -1,7 +1,7 @@
 // DOM controls. The page is the model: everything else hides until the pointer moves, and speaks in glyphs
 // (resting the pointer on one shows its name).
 //   bar:  the settings button
-//   tray: view presets, weather keys, time-of-day track, date, live mode, turntable, sound, mods list
+//   tray: view presets and the map form, weather keys, time-of-day track, date, live mode, turntable, sound, mods list
 import type { App } from '../engine/app';
 import { formatHour, WEATHER_KINDS, WEATHER_LABEL, type WeatherKind } from '../engine/atmosphere';
 import type { LiveSync, LiveStatus } from '../engine/live';
@@ -34,8 +34,15 @@ export interface HudOptions {
   pet?: boolean;
 }
 
+export type Form = 'model' | 'plan';
+const PLAN_ICON = '<rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M3.5 14h17M15 4.5v15"/><rect x="6.5" y="7.2" width="5.5" height="4" rx=".8"/>';
+
 /** What the desktop pet needs from the controls. */
 export interface HudActions {
+  /** the model or the map, as chosen in the tray (or the pet's menu) */
+  readonly form: Form;
+  setForm(form: Form): void;
+  onForm(fn: (form: Form) => void): void;
   /** bring the controls out (they fade again once the pointer rests, unless a panel is open) */
   showChrome(): void;
   /** open the settings tray (from the shell's menu) */
@@ -150,19 +157,38 @@ export function initHud(app: App, live: LiveSync, initialView: string | null, op
     if (tap.wasOn) hideChrome(); else showChrome();
   });
 
-  // ---------------------------------------------------------------- view presets
+  // ---------------------------------------------------------------- view presets, then the map form at the end of the row
   const viewBox = $('views');
   viewBox.innerHTML = VIEWS.map((v) => `
     <button type="button" class="ico" data-view="${v.id}" aria-pressed="false" aria-label="${v.name}">
       <svg viewBox="0 0 24 24" aria-hidden="true">${v.icon}</svg>
-    </button>`).join('');
-  const viewBtns = [...viewBox.querySelectorAll<HTMLButtonElement>('button')];
+    </button>`).join('') + `<span class="sep" aria-hidden="true"></span>
+    <button type="button" class="ico" id="planBtn" aria-pressed="false" aria-label="俯视图" aria-keyshortcuts="P">
+      <svg viewBox="0 0 24 24" aria-hidden="true">${PLAN_ICON}</svg>
+    </button>`;
+  const viewBtns = [...viewBox.querySelectorAll<HTMLButtonElement>('[data-view]')];
+  const planBtn = $('planBtn');
   let view: ViewPreset | null = null;
-  const markView = () => viewBtns.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === view?.id)));
+  let form: Form = 'model';
+  const formFns: ((f: Form) => void)[] = [];
+  const markView = () => viewBtns.forEach((b) => b.setAttribute('aria-pressed', String(form === 'model' && b.dataset.view === view?.id)));
+  /** The map form stops drawing the model (the street lives on); a view preset brings the model back. */
+  const setForm = (f: Form) => {
+    if (f === form) return;
+    form = f;
+    app.form = f;
+    body.dataset.form = f;
+    planBtn.setAttribute('aria-pressed', String(f === 'plan'));
+    markView();
+    syncUrl();
+    for (const fn of formFns) fn(f);
+  };
+  planBtn.addEventListener('click', () => { tick(); setForm(form === 'plan' ? 'model' : 'plan'); });
   const setView = (id: string, instant = false) => {
     const v = findView(id);
     if (!v) return;
     view = v;
+    setForm('model');
     stage.flyTo(viewPose(v, innerWidth / innerHeight, opts.pet), instant || app.reducedMotion ? 0 : FLIGHT);
     markView();
     syncUrl();
@@ -172,6 +198,9 @@ export function initHud(app: App, live: LiveSync, initialView: string | null, op
   controls.addEventListener('start', () => { if (view) { view = null; markView(); } });
   addEventListener('resize', () => { if (view && !stage.flying) stage.flyTo(viewPose(view, innerWidth / innerHeight, opts.pet), 0); });
   if (initialView && findView(initialView)) { view = findView(initialView)!; markView(); }
+  body.dataset.form = form;
+  // the map at first; the overview (where the camera stands) when the model comes back
+  if (initialView === 'plan') { view = VIEWS[0]; setForm('plan'); }
   const stepView = (n: number) => {
     const i = view ? VIEWS.indexOf(view) : -1;
     setView(VIEWS[(i + n + VIEWS.length) % VIEWS.length].id);
@@ -251,6 +280,7 @@ export function initHud(app: App, live: LiveSync, initialView: string | null, op
     const n = Number(k);
     if (n >= 1 && n <= WEATHER_KINDS.length) setWeather(WEATHER_KINDS[n - 1]);
     else if (k === 'v') stepView(e.shiftKey ? -1 : 1);
+    else if (k === 'p') planBtn.click();
     else if (k === 'l') toggleLive();
     else if (k === 'r') spinBtn.click();
     else if (k === 'm') toggleSound();
@@ -285,6 +315,9 @@ export function initHud(app: App, live: LiveSync, initialView: string | null, op
   });
 
   return {
+    get form() { return form; },
+    setForm,
+    onForm: (fn) => { formFns.push(fn); },
     showChrome,
     openTray: () => { showChrome(); setTray(true); },
   };
@@ -302,7 +335,9 @@ export function initHud(app: App, live: LiveSync, initialView: string | null, op
       else q.delete('date');
     }
     // `view` is set by choosing a preset; a hand-placed camera (`cam`) gives way to it
-    if (view) { q.set('view', view.id); q.delete('cam'); }
+    if (form === 'plan') q.set('view', 'plan');
+    else if (view) { q.set('view', view.id); q.delete('cam'); }
+    else if (q.get('view') === 'plan') q.delete('view');
     history.replaceState(null, '', `?${q}`);
   }
 }

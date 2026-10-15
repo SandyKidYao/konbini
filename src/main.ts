@@ -2,7 +2,7 @@
 //   ?live=1 (follow the real time and weather here)   ?place=lat,lon[,name] (a place for live mode)
 //   ?weather=clear|partly|cloudy|fog|drizzle|rain|storm|snow   ?time=1130
 //   ?date=2026-07-07 | 07-07   ?season=spring|summer|autumn|winter (a typical date in that season)
-//   ?view=overview|facade|bird|corner|yard (a camera preset)   ?cam=x,y,z,tx,ty,tz[,fov] (any camera)
+//   ?view=overview|facade|bird|corner|yard (a camera preset) | plan (the map form)   ?cam=x,y,z,tx,ty,tz[,fov] (any camera)
 //   ?site=konbini   ?mods=url1,url2   ?disable=mod.id,…   ?warp=60
 //   ?pet=1 (desktop pet: only the model, on a transparent window — see desktop/)
 import './ui/style.css';
@@ -13,6 +13,7 @@ import { SEASONS, SEASON_SAMPLE, parseDate, type Season } from './engine/calenda
 import { LiveSync, type Place } from './engine/live';
 import { builtinMods } from './content';
 import { initHud, revealStage } from './ui/hud';
+import { initMap } from './ui/map';
 import { initPet } from './ui/pet';
 import { VIEWS, findView, viewPose } from './ui/views';
 
@@ -29,10 +30,11 @@ const cam = q.get('cam')?.split(',').map(Number);
 const hasCam = (cam?.length === 6 || cam?.length === 7) && cam.every(Number.isFinite);
 if (cam && hasCam) camera = { position: [cam[0], cam[1], cam[2]], target: [cam[3], cam[4], cam[5]], fov: cam[6] };
 
+const bounds = { x0: -28, x1: 28, z0: -24, z1: 24 };
 const app = new App({
   container: document.getElementById('stage')!,
   site: q.get('site') ?? 'konbini',
-  bounds: { x0: -28, x1: 28, z0: -24, z1: 24 },
+  bounds,
   camera,
   mods: builtinMods,
   external,
@@ -62,8 +64,9 @@ const wantLive = q.get('live') === '1' || (q.get('live') !== '0' && !manual && L
 if (wantLive) void live.start();   // applies cached weather synchronously, refreshes in the background
 app.atmosphere.settle();
 
-const hud = initHud(app, live, hasCam ? null : (preset ?? VIEWS[0]).id, { pet });
-const petUi = pet ? initPet(app, hud) : null;
+const map = initMap(app, bounds);
+const hud = initHud(app, live, q.get('view') === 'plan' ? 'plan' : hasCam ? null : (preset ?? VIEWS[0]).id, { pet });
+const petUi = pet ? initPet(app, hud, map) : null;
 
 await app.load();
 app.warp(Number(q.get('warp')) || 0);
