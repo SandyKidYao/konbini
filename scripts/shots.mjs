@@ -76,6 +76,16 @@ const SCENES = [
       konbini.stage.world.add(b.root);
       x += b.len / 2 + 0.8;
     }` },
+  // a car leaving over the east edge, caught halfway and the clock stopped: its cut end is a solid slice, not a hollow shell
+  { name: 'vehicle-edge', q: 'weather=clear&time=1600&date=2026-10-14&warp=120&cam=44,5,17,27,0.8,12,32', wait: 800, setup: `(async () => {
+    const t0 = performance.now();
+    while (performance.now() - t0 < 90000) {
+      const v = konbini.services.get('world.roads').traffic.vehicles.find((v) => v.pose.x > 27.2 && v.pose.x < 29 && Math.sin(v.pose.heading) > 0.9);
+      if (v) break;
+      await new Promise((r) => requestAnimationFrame(r));
+    }
+    konbini.simulate = () => {};
+  })()` },
   // traffic by the clock: a weekday rush, a quiet weekend afternoon, late night (taxis), the lot close up
   { name: 'traffic-rush', q: 'weather=cloudy&time=0800&date=2026-10-14&warp=120' },
   { name: 'traffic-night', q: 'weather=clear&time=2330&date=2026-10-14&warp=120' },

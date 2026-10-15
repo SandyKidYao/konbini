@@ -15,12 +15,27 @@ interface Shell {
   add(geo: THREE.BufferGeometry, m: THREE.Material, x: number, y: number, z: number): THREE.Mesh;
 }
 
+/**
+ * Cut at the model's edge, a body would show that it is hollow, and whatever is behind it through the gap. So the
+ * inside faces are drawn too, flat, in a dark shade of the part's own colour: the cut reads as a solid slice, like
+ * the cut faces of the slab the car drives off.
+ */
+function sliced(m: THREE.MeshStandardMaterial) {
+  m.side = THREE.DoubleSide;
+  m.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace('#include <dithering_fragment>',
+      '#include <dithering_fragment>\n  if (!gl_FrontFacing) gl_FragColor = vec4(diffuse * 0.32, 1.0);');
+  };
+  m.customProgramCacheKey = () => 'vehicle-sliced';
+  return m;
+}
+
 function shell(clip?: THREE.Plane[]): Shell {
   const g = new THREE.Group();
   return {
     g,
     // clip the shadow too: a car still outside the model must not cast one onto it (or the floor)
-    cm: (c, p = {}) => mat(c, clip ? { clippingPlanes: clip, clipShadows: true, ...p } : p),
+    cm: (c, p = {}) => (clip ? sliced(mat(c, { clippingPlanes: clip, clipShadows: true, ...p })) : mat(c, p)),
     add(geo, m, x, y, z) {
       const ob = new THREE.Mesh(geo, m); ob.position.set(x, y, z); ob.castShadow = ob.receiveShadow = true; g.add(ob); return ob;
     },
