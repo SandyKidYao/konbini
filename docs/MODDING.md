@@ -79,7 +79,7 @@ ctx.director.define({
   - `through(from, to)`：穿过路口开走，遵守信号灯；能直行，也能左转、右转进出 B 路
   - `arrive(from, pose, onward, { enter, balk })`：沿 A 路开来、拐进路边某处（比如停车场出入口），再慢慢开过 `onward`；拐弯前问 `enter` 有没有空位，没有就直接开过去（`balk`）。`onward` / `via` 里的点写 `[x, z]` 是直线开过去，写 `{ x, z, heading }` 是转弯过去
   - `depart(pose, 'east' | 'west', { via })`：先慢慢开过 `via` 这些点（比如沿停车场车道开到出入口），在人行道前等空当，再汇入 A 路开走
-  - `clip`：车身要用的裁切平面，开出模型边缘时被切掉
+  - `clip`：车身要用的裁切平面。用素材库造的车身带上它，还会在离模型边缘最后几米里整体淡出（开进来时淡入），到边缘时已经完全消失，不会露出被切开的截面。自己写车身时，实现 `VehicleBody.fade(presence)` 就能得到同样的效果，`presence` 由引擎每帧给出（0–1）
 - 车身素材：`car`（形状见 `CAR_MODELS`：kei、hatch、sedan、minivan、taxi）、`truck`（`kei` 小货车、`box` 箱式送货车）、`bus`；都实现 `VehicleBody`，也可以自己做车身
 
 ```js

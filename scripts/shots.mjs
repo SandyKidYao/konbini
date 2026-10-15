@@ -76,11 +76,11 @@ const SCENES = [
       konbini.stage.world.add(b.root);
       x += b.len / 2 + 0.8;
     }` },
-  // a car leaving over the east edge, caught halfway and the clock stopped: its cut end is a solid slice, not a hollow shell
-  { name: 'vehicle-edge', q: 'weather=clear&time=1600&date=2026-10-14&warp=120&cam=44,5,17,27,0.8,12,32', wait: 800, setup: `(async () => {
+  // a car about to leave over the east edge, the clock stopped: it is fading out (never seen cut in two at the edge)
+  { name: 'vehicle-edge', q: 'weather=clear&time=1600&date=2026-10-14&warp=120&cam=38,6,22,25,0.8,12,30', wait: 800, setup: `(async () => {
     const t0 = performance.now();
     while (performance.now() - t0 < 90000) {
-      const v = konbini.services.get('world.roads').traffic.vehicles.find((v) => v.pose.x > 27.2 && v.pose.x < 29 && Math.sin(v.pose.heading) > 0.9);
+      const v = konbini.services.get('world.roads').traffic.vehicles.find((v) => v.presence > 0.3 && v.presence < 0.7 && Math.sin(v.pose.heading) > 0.9);
       if (v) break;
       await new Promise((r) => requestAnimationFrame(r));
     }

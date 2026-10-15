@@ -171,6 +171,8 @@ export interface VehicleBody {
   /** roll the wheels by this distance */
   spin(distance: number): void;
   lamps?(l: Lamps, t: number): void;
+  /** how much of it shows, 0…1 (see Vehicle.presence): a body fades itself, so no cut-off part is ever seen */
+  fade?(presence: number): void;
   dispose?(): void;
 }
 
@@ -234,6 +236,8 @@ export interface VehicleOptions {
 }
 
 let nextId = 1;
+/** metres over which a vehicle fades out before the edge of the model (and in, after it) */
+const EDGE_FADE = 3;
 const flat = (s: VehicleSteps): VehicleStep[] => (Array.isArray(s) ? s.flatMap(flat) : [s]);
 
 export class Vehicle {
@@ -272,6 +276,22 @@ export class Vehicle {
     this.tags = new Set(o.tags ?? []);
     this.accel = o.accel ?? 2.2;
     if (o.at) this.place(o.at);
+  }
+
+  /**
+   * How much of it shows, 0…1: full inside the model, fading over its last metres before the edge, and gone the
+   * moment any corner of it would cross — so a vehicle is never seen cut in two at the edge. (One value for the whole
+   * body: a fade that varied across it would let you see inside.)
+   */
+  get presence() {
+    const B = this.traffic.env.bounds, p = this.pose;
+    const fx = Math.sin(p.heading), fz = Math.cos(p.heading);
+    let inside = Infinity;
+    for (const a of [-1, 1]) for (const b of [-1, 1]) {
+      const x = p.x + fx * this.half * a + fz * this.halfWidth * b, z = p.z + fz * this.half * a - fx * this.halfWidth * b;
+      inside = Math.min(inside, x - B.x0, B.x1 - x, z - B.z0, B.z1 - z);
+    }
+    return Math.min(1, Math.max(0, inside / EDGE_FADE));
   }
 
   get half() { return this.body.len / 2; }
@@ -395,6 +415,7 @@ export class Vehicle {
     if (!this.engine) this.lamps.brake = false;
     this.lamps.flash = Math.max(0, this.lamps.flash - dt * 2.5);
     this.body.lamps?.(this.lamps, t);
+    this.body.fade?.(this.presence);
   }
 
   dispose() {
@@ -566,7 +587,8 @@ export class Traffic {
   private updateBeams(dt: number) {
     const want = this.env.headlights();
     const B = this.env.bounds;
-    const inside = (v: Vehicle) => !v.done && v.engine && v.pose.x > B.x0 - 1 && v.pose.x < B.x1 + 1 && v.pose.z > B.z0 - 1 && v.pose.z < B.z1 + 1;
+    // (a vehicle fading out at the edge has given its beam back by the time it's gone)
+    const inside = (v: Vehicle) => !v.done && v.engine && v.presence > 0.5 && v.pose.x > B.x0 - 1 && v.pose.x < B.x1 + 1 && v.pose.z > B.z0 - 1 && v.pose.z < B.z1 + 1;
     for (const b of this.beams) {
       if (b.v && (!inside(b.v) || want < 0.05)) { b.k -= dt * 3; if (b.k <= 0) { b.v = null; b.k = 0; } }
       else if (b.v) b.k = Math.min(1, b.k + dt * 2);
