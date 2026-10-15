@@ -126,11 +126,7 @@ export default defineMod({
       [-15, 17, -14, 1.0, 0], [9, 19.5, -21, 1.25, 0], [25, 15.5, -7, 0.85, 0], [-29, 14, 3, 0.8, 0],
       [-2, 21, -30, 1.3, 0.4], [-24, 18.5, -24, 1.1, 0.5], [20, 18, -27, 1.0, 0.6], [33, 16, 8, 0.9, 0.7],
     ];
-    for (const anchor of ANCHORS) {
-      let [x, y, z, size] = anchor;
-      const appear = anchor[4];
-      // on the desk (a transparent window) the clouds stay low and over the model, so the window frames all of it
-      if (ctx.fx.transparent) { x *= 0.6; z *= 0.6; y = 12 + (y - 14) * 0.3; size = Math.min(size, 0.9); }
+    for (const [x, y, z, size, appear] of ANCHORS) {
       const c = new THREE.Group();
       const n = 6 + Math.floor(rand() * 4);
       for (let k = 0; k < n; k++) {

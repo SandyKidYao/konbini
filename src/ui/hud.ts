@@ -7,7 +7,7 @@ import { formatHour, WEATHER_KINDS, WEATHER_LABEL, type WeatherKind } from '../e
 import type { LiveSync, LiveStatus } from '../engine/live';
 import { initDatePicker } from './date-picker';
 import { initTips } from './tips';
-import { VIEWS, findView, viewPose, type ViewPreset } from './views';
+import { VIEWS, findView, fitView, type ViewPreset } from './views';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -30,7 +30,7 @@ const FLIGHT = 1.8;
 const GAP = 10, EDGE = 8;
 
 export interface HudOptions {
-  /** desktop pet: the pet decides when the controls come out (only over the model), and frames its own overview */
+  /** desktop pet: the pet decides when the controls come out (a double-click on the model) */
   pet?: boolean;
 }
 
@@ -204,14 +204,14 @@ export function initHud(app: App, live: LiveSync, initialView: string | null, op
     if (!v) return;
     view = v;
     setForm('model');
-    stage.flyTo(viewPose(v, innerWidth / innerHeight, opts.pet), instant || app.reducedMotion ? 0 : FLIGHT);
+    stage.flyTo(fitView(v, innerWidth / innerHeight), instant || app.reducedMotion ? 0 : FLIGHT);
     markView();
     syncUrl();
   };
   viewBtns.forEach((b) => b.addEventListener('click', () => { tick(); setView(b.dataset.view!); }));
   // hand-turning the model leaves the preset
   controls.addEventListener('start', () => { if (view) { view = null; markView(); } });
-  addEventListener('resize', () => { if (view && !stage.flying) stage.flyTo(viewPose(view, innerWidth / innerHeight, opts.pet), 0); });
+  addEventListener('resize', () => { if (view && !stage.flying) stage.flyTo(fitView(view, innerWidth / innerHeight), 0); });
   if (initialView && findView(initialView)) { view = findView(initialView)!; markView(); }
   body.dataset.form = form;
   // the map at first; the overview (where the camera stands) when the model comes back

@@ -3,11 +3,9 @@
 // its close button (or Escape) puts it away. ⌥-drag on the model moves the window; the map moves with a plain drag.
 // The native menu (right-click, or the menu-bar icon) keeps what belongs to the window: form, size, floating,
 // icons, power saving. Everywhere the model, the map and the controls aren't, clicks fall through to the desktop.
-import { Vector3 } from 'three';
 import type { App } from '../engine/app';
 import type { Form, HudActions } from './hud';
 import type { MapView } from './map';
-import { wholeDistance } from './views';
 
 export type PetSize = 'small' | 'medium' | 'large';
 /** the map's width (px) at each of the shell's sizes */
@@ -39,13 +37,21 @@ const SAVER_FPS = 10;    // 省电: still moving, about a quarter less energy
 const ACTIVE_FPS = 60;   // while the pointer is on the model or the controls
 const LINGER = 1200;     // ms at full frame rate after the pointer leaves
 const DRAG_SLOP = 4;     // px the map must be dragged before the press moves the window
+/** the soft edge (style.css): its width as a share of the window's shorter side, and below what opacity a faded
+ *  bit of the model no longer catches the pointer */
+const FADE = 0.16, FADE_HIT = 0.3;
+
+/** How opaque the edge mask leaves this point: 0 at the window's edge, eased up to 1 a band's width in. */
+function edgeAlpha(x: number, y: number) {
+  const band = Math.min(innerWidth, innerHeight) * FADE;
+  const axis = (d: number) => (d >= band ? 1 : d < band / 2 ? (0.25 * d) / (band / 2) : 0.25 + (0.75 * (d - band / 2)) / (band / 2));
+  return axis(Math.min(x, innerWidth - x)) * axis(Math.min(y, innerHeight - y));
+}
 
 export function initPet(app: App, hud: HudActions, map: MapView) {
   const bridge = (window as unknown as { konbiniDesktop?: DesktopBridge }).konbiniDesktop;
   document.body.classList.add('pet');
-  const controls = app.stage.controls, camera = app.stage.camera;
-  controls.enablePan = false;            // the right button opens the menu instead (and the model stays centred)
-  controls.maxPolarAngle = 1.25;         // a thing on the desk, seen from above: not from down at street level
+  app.stage.controls.enablePan = false;  // the right button opens the menu instead
   app.fx.post.gtao.enabled = false;      // ambient occlusion barely shows at this size
   const SAVER_KEY = 'konbini.pet.saver';
   let saver = false;
@@ -97,7 +103,8 @@ export function initPet(app: App, hud: HudActions, map: MapView) {
       if (dragging || last.buttons) { setOver(true); return; }   // hold on to a drag that wanders off the model
       // hidden controls are invisible to the pointer, so any control under it is one that's showing
       const onChrome = !!(last.target as Element | null)?.closest?.('.chrome');
-      const onModel = !onChrome && (hud.form === 'plan' ? map.hit(last.clientX, last.clientY) : app.interact.modelAt(last.clientX, last.clientY));
+      const onModel = !onChrome && (hud.form === 'plan' ? map.hit(last.clientX, last.clientY)
+        : edgeAlpha(last.clientX, last.clientY) > FADE_HIT && app.interact.modelAt(last.clientX, last.clientY));
       setOver(onChrome || onModel);
       onShape = onModel;
       alt = last.altKey;
@@ -153,19 +160,6 @@ export function initPet(app: App, hud: HudActions, map: MapView) {
         if (!active) app.maxFps = idleFps();
         break;
     }
-  });
-
-  // the window is the model's frame: however it is turned, the camera can't come closer than the whole model fits
-  const dir = new Vector3();
-  let fitKey = '';
-  app.onFrameUI(() => {
-    if (hud.form !== 'model') return;
-    dir.copy(camera.position).sub(controls.target).normalize();
-    const aspect = innerWidth / innerHeight;
-    const key = `${dir.x.toFixed(2)} ${dir.y.toFixed(2)} ${dir.z.toFixed(2)} ${aspect.toFixed(3)} ${camera.fov.toFixed(1)}`;
-    if (key === fitKey) return;
-    fitKey = key;
-    controls.minDistance = wholeDistance(dir, aspect, camera.fov);
   });
 
   // the settings button isn't shown on the desk, but the panel still opens from where it stands (see hud.ts: place):
