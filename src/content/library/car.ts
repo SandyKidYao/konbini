@@ -17,14 +17,15 @@ interface Shell {
 
 /**
  * Cut at the model's edge, a body would show that it is hollow, and whatever is behind it through the gap. So the
- * inside faces are drawn too, flat, in a dark shade of the part's own colour: the cut reads as a solid slice, like
- * the cut faces of the slab the car drives off.
+ * inside faces are drawn too, flat and all in one dark charcoal: the cut reads as one solid slice, like the cut faces
+ * of the slab the car drives off. (One colour, not each part's own: those would show the parts inside. And dark in
+ * linear terms — the frame is tone-mapped afterwards, so a merely darker shade comes out light grey.)
  */
 function sliced(m: THREE.MeshStandardMaterial) {
   m.side = THREE.DoubleSide;
   m.onBeforeCompile = (shader) => {
     shader.fragmentShader = shader.fragmentShader.replace('#include <dithering_fragment>',
-      '#include <dithering_fragment>\n  if (!gl_FrontFacing) gl_FragColor = vec4(diffuse * 0.32, 1.0);');
+      '#include <dithering_fragment>\n  if (!gl_FrontFacing) gl_FragColor = vec4(0.018, 0.016, 0.015, 1.0);');
   };
   m.customProgramCacheKey = () => 'vehicle-sliced';
   return m;
