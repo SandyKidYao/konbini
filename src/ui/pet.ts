@@ -1,7 +1,6 @@
 // Desktop-pet mode (?pet=1, set by the Electron shell in desktop/): only the model — or the map — over a transparent
-// window. The settings are the web page's own: the settings button comes out in the top-right corner (on the map's
-// corner, in the map form) while the pointer is on the model (drag the button to move the window, or ⌥-drag
-// anywhere on the model; the map moves with a plain drag).
+// window. Nothing else shows: a double-click on the model (or the map) opens the web page's own settings panel, and
+// its close button (or Escape) puts it away. ⌥-drag on the model moves the window; the map moves with a plain drag.
 // The native menu (right-click, or the menu-bar icon) keeps what belongs to the window: form, size, floating,
 // icons, power saving. Everywhere the model, the map and the controls aren't, clicks fall through to the desktop.
 import { Vector3 } from 'three';
@@ -39,7 +38,7 @@ const IDLE_FPS = 20;     // the street keeps living, gently
 const SAVER_FPS = 10;    // 省电: still moving, about a quarter less energy
 const ACTIVE_FPS = 60;   // while the pointer is on the model or the controls
 const LINGER = 1200;     // ms at full frame rate after the pointer leaves
-const DRAG_SLOP = 4;     // px the settings button must travel before a press becomes a drag
+const DRAG_SLOP = 4;     // px the map must be dragged before the press moves the window
 
 export function initPet(app: App, hud: HudActions, map: MapView) {
   const bridge = (window as unknown as { konbiniDesktop?: DesktopBridge }).konbiniDesktop;
@@ -54,8 +53,6 @@ export function initPet(app: App, hud: HudActions, map: MapView) {
   const idleFps = () => (saver ? SAVER_FPS : IDLE_FPS);
   app.maxFps = idleFps();
 
-  const button = document.getElementById('trayBtn')!;
-  button.setAttribute('aria-label', '设置（拖动可移动）');
   const setMapSize = (size: string | null) => {
     const w = MAP_SIZE[size as PetSize] ?? MAP_SIZE.medium;
     document.body.style.setProperty('--pet-map', `${w}px`);
@@ -92,7 +89,6 @@ export function initPet(app: App, hud: HudActions, map: MapView) {
       // hidden controls are invisible to the pointer, so any control under it is one that's showing
       const onChrome = !!(last.target as Element | null)?.closest?.('.chrome');
       const onModel = !onChrome && (hud.form === 'plan' ? map.hit(last.clientX, last.clientY) : app.interact.modelAt(last.clientX, last.clientY));
-      if (onModel) hud.showChrome();
       setOver(onChrome || onModel);
     }, 50);
   });
@@ -112,31 +108,23 @@ export function initPet(app: App, hud: HudActions, map: MapView) {
     el.addEventListener('pointerup', end);
     el.addEventListener('pointercancel', end);
   };
-  // the settings button: a click opens the settings, a drag moves the window (and isn't a click). The map has
-  // nothing to turn, so a drag on it moves the window too
-  let press: { x: number; y: number; id: number } | null = null, dragged = false;
-  for (const el of [button, map.canvas]) {
-    el.addEventListener('pointerdown', (e) => {
-      if (e.button !== 0) return;
-      press = { x: e.clientX, y: e.clientY, id: e.pointerId };
-      dragged = false;
-    });
-    el.addEventListener('pointermove', (e) => {
-      if (!press || dragging || e.pointerId !== press.id || Math.hypot(e.clientX - press.x, e.clientY - press.y) < DRAG_SLOP) return;
-      dragged = true;
-      startDrag(e, el);
-    });
-  }
+  // the map has nothing to turn, so a drag on it moves the window
+  let press: { x: number; y: number; id: number } | null = null;
+  map.canvas.addEventListener('pointerdown', (e) => { if (e.button === 0) press = { x: e.clientX, y: e.clientY, id: e.pointerId }; });
+  map.canvas.addEventListener('pointermove', (e) => {
+    if (!press || dragging || e.pointerId !== press.id || Math.hypot(e.clientX - press.x, e.clientY - press.y) < DRAG_SLOP) return;
+    startDrag(e, map.canvas);
+  });
   addEventListener('pointerup', () => { press = null; });
-  addEventListener('click', (e) => {
-    if (dragged && e.target instanceof Node && button.contains(e.target)) { e.stopImmediatePropagation(); dragged = false; }
-  }, { capture: true });
   addEventListener('pointerdown', (e) => {
     if (e.button !== 0 || !e.altKey || !(e.target instanceof HTMLCanvasElement)) return;
     e.preventDefault();
     e.stopPropagation();   // keep the orbit controls out of it
     startDrag(e, e.target);
   }, { capture: true });
+
+  // --- the settings: a double-click on the model or the map (there is no button on the desk) ---
+  addEventListener('dblclick', (e) => { if (e.target instanceof HTMLCanvasElement) hud.openTray(); });
 
   // --- the native menu ---
   addEventListener('contextmenu', (e) => { e.preventDefault(); bridge?.showMenu(); });
@@ -166,15 +154,16 @@ export function initPet(app: App, hud: HudActions, map: MapView) {
     controls.minDistance = wholeDistance(dir, aspect, camera.fov);
   });
 
-  // in the map form the button sits on the tile's top-right corner (the window is taller than the tile, to leave
-  // room for the settings above it); otherwise in the window's corner, where the stylesheet puts it
-  const bar = button.closest<HTMLElement>('.bar')!;
+  // the settings button isn't shown on the desk, but the panel still opens from where it stands (see hud.ts: place):
+  // above the window's top edge, so the panel hangs from the top; in the map form on the tile's top edge, so the
+  // panel opens above the tile (the window is taller than the tile to leave it room)
+  const bar = document.querySelector<HTMLElement>('.bar')!;
   let barAt = '';
   app.onFrameUI(() => {
     let at = '';
     if (hud.form === 'plan') {
       const r = map.canvas.getBoundingClientRect();
-      if (r.width) at = `${Math.round(r.top + 5)} ${Math.round(r.right - bar.offsetWidth - 5)}`;
+      if (r.width) at = `${Math.round(r.top)} ${Math.round(r.left + r.width / 2)}`;
     }
     if (at === barAt) return;
     barAt = at;

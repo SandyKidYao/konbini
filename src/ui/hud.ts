@@ -130,6 +130,9 @@ export function initHud(app: App, live: LiveSync, initialView: string | null, op
     if (!open) { cal.setOpen(false); setMods(false); }
     layout();
   };
+  // the panel's own close button puts all of it away; a card's back button returns to the tray
+  $('trayClose').addEventListener('click', () => { tick(); setTray(false); });
+  document.querySelectorAll('[data-back]').forEach((b) => b.addEventListener('click', () => { tick(); closeOne(); }));
   // the button opens the tray, and steps back out of it one layer at a time, like Escape
   trayBtn.addEventListener('click', () => { tick(); if (tray.hidden) setTray(true); else closeOne(); });
   modsBtn.addEventListener('click', () => { tick(); cal.setOpen(false); setMods(modsPanel.hidden); });

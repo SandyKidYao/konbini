@@ -24,7 +24,13 @@
 
   <!-- the tray: views; weather, time of day, date, real time; turntable, sound, mods -->
   <section class="tray panel chrome" id="tray" aria-label="设置" hidden>
-    <div class="views" id="views" role="group" aria-label="视角"></div>
+    <div class="tray-head">
+      <div class="views" id="views" role="group" aria-label="视角"></div>
+      <span class="sep" aria-hidden="true"></span>
+      <button type="button" class="ico close" id="trayClose" aria-label="关闭" aria-keyshortcuts="Escape">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>
+      </button>
+    </div>
     <div class="keys" id="weatherKeys" role="group" aria-label="天气"></div>
     <div class="time">
       <div class="track">
@@ -87,6 +93,7 @@
     </div>
     <div class="cal-grid" id="calGrid" role="grid"></div>
     <div class="cal-foot">
+      <button type="button" class="cal-nav back" data-back aria-label="返回"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6 8.5 12l6 6"/></svg></button>
       <button type="button" class="cal-today" id="calToday" aria-label="回到今天">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4.5 4v3.5H8"/><circle cx="12" cy="12" r="1.6"/></svg>
       </button>
@@ -95,6 +102,7 @@
 
   <div class="mods panel chrome" id="modsPanel" aria-label="模组" hidden>
     <ul id="modsList"></ul>
+    <div class="cal-foot"><button type="button" class="cal-nav back" data-back aria-label="返回"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6 8.5 12l6 6"/></svg></button></div>
   </div>
 
   <!-- a button's name, shown while the pointer rests on it -->

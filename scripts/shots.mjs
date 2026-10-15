@@ -90,6 +90,8 @@ const SCENES = [
   { name: 'ui-bar', q: 'weather=clear&time=1100&date=2026-10-13', wait: 600, act: async (p) => { await reveal(p); } },
   { name: 'ui-view-click', q: 'weather=clear&time=1100&date=2026-10-13', act: async (p) => { await openTray(p); await p.click('[data-view="facade"]'); } },
   { name: 'ui-tray', q: 'weather=clear&time=1100&date=2026-10-13', act: async (p) => { await reveal(p); await p.click('#trayBtn'); } },
+  // the panel's close button puts it away (the bar stays until the pointer rests)
+  { name: 'ui-tray-close', q: 'weather=clear&time=1100&date=2026-10-13', wait: 800, act: async (p) => { await openTray(p); await p.click('#trayClose'); } },
   { name: 'ui-picker', q: 'weather=clear&time=1100&date=2026-10-13', act: async (p) => { await openTray(p); await p.click('#dateBtn'); } },
   { name: 'ui-picker-autumn', q: 'weather=clear&time=1100&date=2026-07-01', act: async (p) => {
     await openTray(p); await p.click('#dateBtn'); await p.click('[data-season="autumn"]'); } },
@@ -120,28 +122,29 @@ const SCENES = [
   { name: 'plan-tray', q: 'view=plan&weather=clear&time=1600&date=2026-10-14&warp=60', act: async (p) => { await openTray(p); } },
   { name: 'plan-narrow', q: 'view=plan&weather=cloudy&time=0800&date=2026-10-14&warp=90', viewport: { width: 390, height: 844 } },
   // the desktop pet's page (no shell here): the settings button comes out over the model, and opens the same tray
+  // the desk shows only the model: no button even with the pointer on it (a double-click opens the panel)
   { name: 'pet-hover', q: 'pet=1&weather=clear&time=1600', viewport: { width: 560, height: 460 }, wait: 900, act: async (p) => {
     await p.mouse.move(270, 250); await p.mouse.move(280, 240); await p.waitForTimeout(400); } },
   { name: 'pet-tray', q: 'pet=1&weather=clear&time=1600', viewport: { width: 560, height: 460 }, act: async (p) => {
-    await p.mouse.move(270, 250); await p.mouse.move(280, 240); await p.waitForTimeout(400); await p.click('#trayBtn'); } },
+    await p.mouse.move(270, 250); await p.mouse.move(280, 240); await p.waitForTimeout(400); await p.mouse.dblclick(280, 240); } },
   { name: 'pet-picker', q: 'pet=1&weather=clear&time=1600', viewport: { width: 560, height: 460 }, act: async (p) => {
-    await p.mouse.move(270, 250); await p.mouse.move(280, 240); await p.waitForTimeout(400); await p.click('#trayBtn'); await p.click('#dateBtn'); } },
+    await p.mouse.move(270, 250); await p.mouse.move(280, 240); await p.waitForTimeout(400); await p.mouse.dblclick(280, 240); await p.click('#dateBtn'); } },
   { name: 'pet-plan', q: 'pet=1&view=plan&size=medium&weather=clear&time=1900&date=2026-10-14&warp=90', viewport: { width: 380, height: 470 }, wait: 900, act: async (p) => {
     await p.mouse.move(190, 400); await p.mouse.move(195, 405); await p.waitForTimeout(400); } },
   { name: 'pet-plan-tray', q: 'pet=1&view=plan&size=small&weather=rain&time=1300&date=2026-10-14&warp=90', viewport: { width: 380, height: 470 }, act: async (p) => {
-    await p.mouse.move(190, 400); await p.mouse.move(195, 405); await p.waitForTimeout(400); await p.click('#trayBtn'); } },
+    await p.mouse.move(190, 400); await p.mouse.move(195, 405); await p.waitForTimeout(400); await p.mouse.dblclick(195, 405); } },
   { name: 'pet-plan-tiny', q: 'pet=1&view=plan&size=small&weather=clear&time=1215&date=2026-10-14&warp=150', viewport: { width: 380, height: 470 } },
   // on the desk every view is the whole model, and zooming in stops before anything is cut off
   { name: 'pet-view-facade', q: 'pet=1&weather=clear&time=1600', viewport: { width: 560, height: 460 }, act: async (p) => {
-    await p.mouse.move(270, 250); await p.mouse.move(280, 240); await p.waitForTimeout(400); await p.click('#trayBtn');
+    await p.mouse.move(270, 250); await p.mouse.move(280, 240); await p.waitForTimeout(400); await p.mouse.dblclick(280, 240);
     await p.click('[data-view="facade"]'); await p.keyboard.press('Escape'); await p.waitForTimeout(500); } },
   { name: 'pet-view-bird', q: 'pet=1&weather=partly&time=1600', viewport: { width: 400, height: 330 }, act: async (p) => {
-    await p.mouse.move(190, 160); await p.mouse.move(200, 150); await p.waitForTimeout(400); await p.click('#trayBtn');
+    await p.mouse.move(190, 160); await p.mouse.move(200, 150); await p.waitForTimeout(400); await p.mouse.dblclick(200, 150);
     await p.click('[data-view="bird"]'); await p.keyboard.press('Escape'); await p.waitForTimeout(500); } },
   { name: 'pet-zoom', q: 'pet=1&weather=clear&time=1000', viewport: { width: 560, height: 460 }, wait: 3000, act: async (p) => {
     await p.mouse.move(280, 230); for (let i = 0; i < 12; i++) { await p.mouse.wheel(0, -400); await p.waitForTimeout(60); } } },
   { name: 'pet-picker-small', q: 'pet=1&weather=clear&time=2000', viewport: { width: 400, height: 330 }, act: async (p) => {
-    await p.mouse.move(190, 200); await p.mouse.move(200, 190); await p.waitForTimeout(400); await p.click('#trayBtn'); await p.click('#dateBtn'); } },
+    await p.mouse.move(190, 200); await p.mouse.move(200, 190); await p.waitForTimeout(400); await p.mouse.dblclick(200, 190); await p.click('#dateBtn'); } },
 ];
 
 // the controls stay hidden until the pointer moves over the page
