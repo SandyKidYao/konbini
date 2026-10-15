@@ -1,5 +1,6 @@
 {
   "name": "konbini",
+  "productName": "Konbini",
   "private": true,
   "version": "0.3.0",
   "type": "module",
@@ -10,9 +11,10 @@
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "shots": "node scripts/shots.mjs",
+    "icons": "node scripts/icons.mjs",
     "pet": "npm run build && electron .",
     "pet:dev": "KONBINI_DEV_URL=http://localhost:5173/ electron .",
-    "site": "npm run typecheck && vite build --outDir _site/app --emptyOutDir && cp -R site/. _site/",
+    "site": "npm run typecheck && vite build --outDir _site/app --emptyOutDir && cp -R site/. _site/ && cp assets/icon.svg _site/",
     "site:preview": "vite preview --outDir _site"
   },
   "dependencies": {

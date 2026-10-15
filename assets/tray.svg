@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18">
+  <!-- The shop as a menu-bar icon (a macOS template image: only the alpha counts), drawn in outline like the
+       system's own: the front, the awning's edge, the door. Strokes are 1.5pt so they land on whole pixels at 2x. -->
+  <g fill="none" stroke="#000" stroke-width="1.5">
+    <rect x="3.25" y="3.25" width="11.5" height="11.5" rx="1.5"/>
+    <path d="M3.25 7.75H14.75"/>
+    <rect x="6.25" y="10.25" width="5.5" height="4.5"/>
+  </g>
+</svg>

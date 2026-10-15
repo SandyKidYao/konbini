@@ -20,6 +20,7 @@ npm run shots -- door winter   # 只截名字含这些词的场景
 npm run site         # 打包 Pages 站点到 _site/（首页 + app/）
 npm run site:preview # 本地预览 _site/
 npm run pet          # 打包后打开桌宠；pet:dev 让桌宠加载开发服务器
+npm run icons        # 由 assets/ 里的 SVG 生成桌面版图标和菜单栏图标到 desktop/（需要 macOS）
 ```
 
 调试常用网址参数：`?weather=snow&time=2200`、`?date=12-24`、`?season=summer`、`?view=facade`、`?warp=60`、`?live=1&place=35.68,139.69,東京`、`?mods=mods/furin.js`、`?pet=1`。完整列表见 `src/main.ts` 开头的注释。
@@ -40,9 +41,10 @@ src/
     common/     内置内容共用的色板、贴图、材质
   ui/         界面：hud.ts 工具栏与托盘、views.ts 视角预设、date-picker.ts、pet.ts 桌宠模式
   main.ts     入口：读网址参数、建 App、接界面
-desktop/      Electron 桌宠外壳（main.js 窗口与菜单，preload.cjs 页面与外壳的接口）
+desktop/      Electron 桌宠外壳（main.js 窗口与菜单，preload.cjs 页面与外壳的接口，图标由 npm run icons 生成）
 public/mods/  外部模组示例（运行时加载）
 site/         GitHub Pages 首页（静态页，iframe 嵌入 app/）
+assets/       图标源文件：icon.svg（网页 favicon 直接用它，桌面版图标由它生成）、tray.svg（菜单栏图标，线框）
 scripts/shots.mjs  无头截图检查
 docs/         MODDING.md 与 README 用图
 tmp/          本地草稿：截图、开发记录 PROGRESS.md（不入库）
@@ -100,6 +102,7 @@ tmp/          本地草稿：截图、开发记录 PROGRESS.md（不入库）
 
 - `vite-plugin-singlefile` 把所有东西内联成一个 `index.html`，`base: './'`，从 `file://` 双击打开也要能用（此时实况退回到 IP 和时区估计）
 - Pages 站点：`npm run site` 把应用打包到 `_site/app/`，再把 `site/` 的静态首页复制过去。首页用同源 iframe 嵌入 `app/`，读取 iframe 里的 `data-theme` 来跟随昼夜
+- 图标只有一个源文件 `assets/icon.svg`：应用的 favicon 在打包时内联（`vite.config.ts` 的 `inlineIcon`），首页由 `npm run site` 复制过去；改了它要重跑 `npm run icons` 并提交新生成的 `desktop/` 图标
 - 桌宠用 `?pet=1`：透明背景、不显示界面、低功耗。外壳和页面之间只通过 `preload.cjs` 暴露的 `window.konbiniDesktop` 通信，页面在没有外壳时也必须正常运行
 
 ## 开发原则

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 824 824">
+  <!-- The shop by day: cream front, the brand's three stripes on its sign, a green awning, a warm window.
+       The favicon as is; scripts/icons.mjs fits it to the macOS icon grid for the desktop app. -->
+  <defs>
+    <clipPath id="tile"><rect width="824" height="824" rx="185"/></clipPath>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#dcece5"/>
+      <stop offset="1" stop-color="#c4dcd2"/>
+    </linearGradient>
+  </defs>
+  <g clip-path="url(#tile)">
+    <rect width="824" height="824" fill="url(#sky)"/>
+    <rect x="152" y="200" width="520" height="500" rx="44" fill="#fdfdf8"/>
+    <rect x="200" y="250" width="26" height="80" rx="13" fill="#14a05a"/>
+    <rect x="238" y="250" width="26" height="80" rx="13" fill="#ff8a1e"/>
+    <rect x="276" y="250" width="26" height="80" rx="13" fill="#2a6fd6"/>
+    <path d="M152 370H672V420Q672 448 644 448H180Q152 448 152 420Z" fill="#14a05a"/>
+    <rect x="208" y="500" width="408" height="200" rx="18" fill="#ffd98a"/>
+    <rect y="660" width="824" height="164" fill="#b3cfc4"/>
+  </g>
+</svg>
