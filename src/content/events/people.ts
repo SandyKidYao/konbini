@@ -71,8 +71,11 @@ export function shopAround(ctx: ModContext, fig: Figure, board: Record<string, u
   if (o.browse ?? true) {
     // a spot somewhere along the aisle, between its two ends
     const front = ctx.nav.node(aisle.front)!, back = ctx.nav.node(aisle.back)!;
+    // (and on to one of its ends along it before going anywhere else: from the middle of an aisle the nearest node
+    // can be on the far side of a shelf, and `go` would set off straight through it)
     steps.push(S.go(aisle.front), S.walk([[aisle.x, R(back.z + 0.8, front.z - 0.4)]]), S.face(pickR(aisle.faces)), S.pose('browse', R(2, 4)), S.wait(R(0.4, 1.2)));
-    if (Math.random() < 0.5) steps.push(S.go(aisle.back), S.face(PI), S.pose('browse', R(1.5, 3)));
+    if (Math.random() < 0.5) steps.push(S.walk([[back.x, back.z]]), S.go(aisle.back), S.face(PI), S.pose('browse', R(1.5, 3)));
+    else steps.push(S.walk([[front.x, front.z]]), S.go(aisle.front));
   }
   steps.push(
     S.go('shop.register.queue'),
