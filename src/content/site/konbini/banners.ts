@@ -19,11 +19,11 @@ function lineup({ season, has }: Conditions): NoboriDesign[] {
   return l;
 }
 
-// on the apron's edge, clear of the bollards and of the gaps drivers walk up between the cars
+// on the apron's edge, clear of the door
 const SLOTS = [
-  { x: -2.4, z: -4.45, ry: 0.25 },
-  { x: 5.4, z: -4.45, ry: -0.1 },
-  { x: 7.8, z: -4.45, ry: -0.3 },
+  { x: -3.6, z: STORE.z1 + 2.05, ry: 0.25 },
+  { x: 4.2, z: STORE.z1 + 2.05, ry: -0.1 },
+  { x: 6.6, z: STORE.z1 + 2.05, ry: -0.3 },
 ];
 
 export default defineMod({
@@ -49,8 +49,8 @@ export default defineMod({
     ctx.onFrame((_dt, t, d) => { for (const f of flags) if (f.root.visible) f.update(t, d.wind + d.rain * 0.4 + d.thunder * 0.4); });
 
     // staff stand on the apron just behind each slot; the apron connects to the shop door
-    const ids = SLOTS.map((s, i) => ctx.nav.addNode(`shop.banner.${i}`, s.x, -5.1, { heading: 0 }));
-    const byX = [...ids.map((id, i) => ({ id, x: SLOTS[i].x })), { id: 'shop.door.out', x: 1.0 }].sort((a, b) => a.x - b.x);
+    const ids = SLOTS.map((s, i) => ctx.nav.addNode(`shop.banner.${i}`, s.x, STORE.z1 + 1.4, { heading: 0 }));
+    const byX = [...ids.map((id, i) => ({ id, x: SLOTS[i].x })), { id: 'shop.door.out', x: ctx.nav.node('shop.door.out')!.x }].sort((a, b) => a.x - b.x);
     ctx.nav.addPath(byX.map((n) => n.id));
 
     ctx.services.provide<BannerService>('shop.banners', {

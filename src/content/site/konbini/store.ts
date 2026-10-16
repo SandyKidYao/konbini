@@ -1,4 +1,5 @@
-// ひかりマート — the building itself: shell, glazing, sliding doors, signage, awnings, interior, rooftop.
+// ひかりマート — the building itself: shell, glazing, sliding doors (the front, and a small one in the side windows
+// for the bays beside the shop), signage, awnings, interior, rooftop.
 // Registers its floor, roof and shelter, the walkable aisles inside, and offers the 'shop' service.
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
@@ -9,6 +10,9 @@ import { BRAND, PROD_COLORS } from '../../common/palette';
 import { floorTex } from '../../common/surfaces';
 import { signTex, sideSignTex, coolerTex, cigTex, posterTex } from '../../common/signage';
 import { STORE, type ShopService } from './api';
+
+/** the front door's centre (x), the side door's (z), and how wide the walkway down the side windows is */
+const DOOR_X = -0.2, SIDE_DOOR = -0.3, STORE_WALK = 1.2;
 
 export default defineMod({
   id: 'konbini.site.store',
@@ -28,45 +32,51 @@ export default defineMod({
       parent.add(u);
     };
 
-    // apron, floor slab, side terrace
-    boxE(store, -7.2, 10.9, 0.08, FL, SZ1, -4.25, M.tile, { uv: 1.2, cast: false });
+    // apron, floor slab, the walkway down the side windows (the bays beside the shop are nose-in to it)
+    const APRON = SZ1 + 2.25, WALK = SX1 + STORE_WALK;
+    boxE(store, SX0 - 0.2, WALK, 0.08, FL, SZ1, APRON, M.tile, { uv: 1.2, cast: false });
     boxE(store, SX0, SX1, 0.08, FL, SZ0, SZ1, mat('#ffffff', { map: floorTex, roughness: 0.35 }), { uv: 1.2, cast: false, plain: true });
-    boxE(store, 9, 10.9, 0.08, FL, -10.8, SZ1, M.tile, { uv: 1.2, cast: false });
+    boxE(store, SX1, WALK, 0.08, FL, SZ0, SZ1, M.tile, { uv: 1.2, cast: false });
 
     // shell
     const wallM = M.wall;
     boxE(store, SX0, SX0 + 0.2, FL, SH, SZ0, SZ1, wallM, { uv: 1.8 });
     boxE(store, SX0, SX1, FL, SH, SZ0, SZ0 + 0.2, wallM, { uv: 1.8 });
-    boxE(store, SX1 - 0.2, SX1, FL, SH, SZ0, -10.6, wallM, { uv: 1.8 });
-    boxE(store, SX1 - 0.2, SX1, GT, SH, -10.6, SZ1, wallM, { uv: 1.8 });
+    boxE(store, SX1 - 0.2, SX1, FL, SH, SZ0, SZ0 + 0.3, wallM, { uv: 1.8 });
+    boxE(store, SX1 - 0.2, SX1, GT, SH, SZ0 + 0.3, SZ1, wallM, { uv: 1.8 });
     boxE(store, SX0, SX1, GT, SH, SZ1 - 0.2, SZ1, wallM, { uv: 1.8 });
     boxE(store, SX0 + 0.2, SX1 - 0.2, 4.25, 4.35, SZ0 + 0.2, SZ1 - 0.2, M.roof, { cast: false, plain: true });
     const skirtMat = mat('#6a6f77', { roughness: 0.7 });
     boxE(store, SX0 - 0.03, SX0, FL, 0.6, SZ0, SZ1, skirtMat, { cast: false, plain: true });
     boxE(store, SX0, SX1, FL, 0.6, SZ0 - 0.03, SZ0, skirtMat, { cast: false, plain: true });
-    boxE(store, SX1, SX1 + 0.03, FL, 0.6, SZ0, -10.6, skirtMat, { cast: false, plain: true });
     // parapet coping
     boxE(store, SX0 - 0.05, SX1 + 0.05, SH, SH + 0.1, SZ0 - 0.05, SZ0 + 0.25, M.coping);
     boxE(store, SX0 - 0.05, SX1 + 0.05, SH, SH + 0.1, SZ1 - 0.25, SZ1 + 0.05, M.coping);
     boxE(store, SX0 - 0.05, SX0 + 0.25, SH, SH + 0.1, SZ0, SZ1, M.coping);
     boxE(store, SX1 - 0.25, SX1 + 0.05, SH, SH + 0.1, SZ0, SZ1, M.coping);
 
-    // front glazing + mullions (the door bay x∈[0,2] is handled by the sliding doors below)
-    const mullX = [-6.8, -4.6, -2.4, 0, 2, 4.2, 6.5, 8.8];
-    for (const x of mullX) boxE(store, x - 0.05, x + 0.05, FL, GT, -6.66, -6.54, M.frame);
-    boxE(store, SX0 + 0.2, SX1 - 0.2, GT - 0.1, GT, -6.67, -6.53, M.frame);
-    boxE(store, SX0 + 0.2, SX1 - 0.2, FL, FL + 0.12, -6.67, -6.53, M.frame);
-    boxE(store, 0, 2, 2.35, 2.4, -6.67, -6.53, M.frame);
+    // front glazing + mullions (the door bay x∈[−1.2, 0.8] is handled by the sliding doors below)
+    const mullX = [-8, -5.8, -3.6, -1.2, 0.8, 3, 5.3, 7.6];
+    for (const x of mullX) boxE(store, x - 0.05, x + 0.05, FL, GT, 3.84, 3.96, M.frame);
+    boxE(store, SX0 + 0.2, SX1 - 0.2, GT - 0.1, GT, 3.83, 3.97, M.frame);
+    boxE(store, SX0 + 0.2, SX1 - 0.2, FL, FL + 0.12, 3.83, 3.97, M.frame);
+    boxE(store, -1.2, 0.8, 2.35, 2.4, 3.83, 3.97, M.frame);
     for (let i = 0; i < mullX.length - 1; i++) {
       const x0 = mullX[i] + 0.05, x1 = mullX[i + 1] - 0.05;
-      if (x0 > -0.1 && x1 < 2.1) continue;
-      boxE(store, x0, x1, FL + 0.12, GT - 0.1, -6.61, -6.59, M.glass, { cast: false, recv: false, plain: true });
+      if (x0 > -1.3 && x1 < 0.9) continue;
+      boxE(store, x0, x1, FL + 0.12, GT - 0.1, 3.89, 3.91, M.glass, { cast: false, recv: false, plain: true });
     }
-    // right side glazing
-    for (const z of [-10.6, -8.65, -6.7]) boxE(store, SX1 - 0.16, SX1 - 0.04, FL, GT, z - 0.05, z + 0.05, M.frame);
-    boxE(store, SX1 - 0.17, SX1 - 0.03, GT - 0.1, GT, -10.6, -6.6, M.frame);
-    boxE(store, SX1 - 0.17, SX1 - 0.03, FL, FL + 0.12, -10.6, -6.6, M.frame);
-    boxE(store, SX1 - 0.11, SX1 - 0.09, FL + 0.12, GT - 0.1, -10.55, -6.75, M.glass, { cast: false, recv: false, plain: true });
+    // side windows, front to back (the side door bay is handled by its own sliding leaf)
+    const mullZ = [SZ0 + 0.3, -3.6, SIDE_DOOR - 0.55, SIDE_DOOR + 0.55, 1.6, SZ1 - 0.1];
+    for (const z of mullZ) boxE(store, SX1 - 0.16, SX1 - 0.04, FL, GT, z - 0.05, z + 0.05, M.frame);
+    boxE(store, SX1 - 0.17, SX1 - 0.03, GT - 0.1, GT, SZ0 + 0.3, SZ1 - 0.1, M.frame);
+    boxE(store, SX1 - 0.17, SX1 - 0.03, FL, FL + 0.12, SZ0 + 0.3, SZ1 - 0.1, M.frame);
+    boxE(store, SX1 - 0.17, SX1 - 0.03, 2.35, 2.4, SIDE_DOOR - 0.55, SIDE_DOOR + 0.55, M.frame);
+    for (let i = 0; i < mullZ.length - 1; i++) {
+      const z0 = mullZ[i] + 0.05, z1 = mullZ[i + 1] - 0.05;
+      if (z0 > SIDE_DOOR - 0.6 && z1 < SIDE_DOOR + 0.6) continue;
+      boxE(store, SX1 - 0.11, SX1 - 0.09, FL + 0.12, GT - 0.1, z0, z1, M.glass, { cast: false, recv: false, plain: true });
+    }
 
     // automatic sliding doors
     function doorLeaf(x: number) {
@@ -74,22 +84,39 @@ export default defineMod({
       boxE(g, -0.49, 0.49, FL + 0.12, 2.35, -0.015, 0.015, M.glass, { cast: false, recv: false, plain: true });
       boxE(g, -0.49, 0.49, FL + 0.1, FL + 0.18, -0.03, 0.03, M.frame, { cast: false });
       boxE(g, -0.49, 0.49, 2.29, 2.35, -0.03, 0.03, M.frame, { cast: false });
-      boxE(g, -0.03, 0.03, FL + 0.1, 2.35, -0.03, 0.03, M.frame, { cast: false }).position.x = x < 1 ? 0.46 : -0.46;
-      g.position.set(x, 0, -6.6);
+      boxE(g, -0.03, 0.03, FL + 0.1, 2.35, -0.03, 0.03, M.frame, { cast: false }).position.x = x < DOOR_X ? 0.46 : -0.46;
+      g.position.set(x, 0, SZ1 - 0.1);
       store.add(g);
       return g;
     }
-    const doorL = doorLeaf(0.5), doorR = doorLeaf(1.5);
+    const doorL = doorLeaf(DOOR_X - 0.5), doorR = doorLeaf(DOOR_X + 0.5);
     let doorT = 0, doorTimer = 0;
     const openDoor = () => { doorTimer = Math.max(doorTimer, 2.6); };
     ctx.onFrame((dt) => {
       doorTimer = Math.max(0, doorTimer - dt);
       const target = doorTimer > 0 ? 1 : 0;
       doorT += (target - doorT) * Math.min(1, dt * 4);
-      doorL.position.x = 0.5 - doorT * 0.88;
-      doorR.position.x = 1.5 + doorT * 0.88;
+      doorL.position.x = DOOR_X - 0.5 - doorT * 0.88;
+      doorR.position.x = DOOR_X + 0.5 + doorT * 0.88;
     });
-    boxE(store, 0.1, 1.9, FL, FL + 0.01, -6.4, -5.4, mat('#454a52', { roughness: 1 }), { cast: false, plain: true });
+    // the side door: one leaf sliding back along the windows
+    const sideLeaf = new THREE.Group();
+    boxE(sideLeaf, -0.015, 0.015, FL + 0.12, 2.3, -0.49, 0.49, M.glass, { cast: false, recv: false, plain: true });
+    boxE(sideLeaf, -0.03, 0.03, FL + 0.1, FL + 0.18, -0.49, 0.49, M.frame, { cast: false });
+    boxE(sideLeaf, -0.03, 0.03, 2.24, 2.3, -0.49, 0.49, M.frame, { cast: false });
+    for (const z of [-0.46, 0.46]) boxE(sideLeaf, -0.03, 0.03, FL + 0.1, 2.3, z - 0.03, z + 0.03, M.frame, { cast: false });
+    sideLeaf.position.set(SX1 - 0.1, 0, SIDE_DOOR);
+    store.add(sideLeaf);
+    let sideT = 0, sideTimer = 0;
+    const openSideDoor = () => { sideTimer = Math.max(sideTimer, 2.6); };
+    ctx.onFrame((dt) => {
+      sideTimer = Math.max(0, sideTimer - dt);
+      sideT += ((sideTimer > 0 ? 1 : 0) - sideT) * Math.min(1, dt * 4);
+      sideLeaf.position.z = SIDE_DOOR - sideT * 0.95;
+      sideLeaf.position.x = SX1 - 0.1 + sideT * 0.06;   // it slides just outside the fixed pane
+    });
+    boxE(store, SX1 + 0.4, SX1 + 1.4, FL, FL + 0.01, SIDE_DOOR - 0.5, SIDE_DOOR + 0.5, mat('#454a52', { roughness: 1 }), { cast: false, plain: true });
+    boxE(store, -1.1, 0.7, FL, FL + 0.01, 4.1, 5.1, mat('#454a52', { roughness: 1 }), { cast: false, plain: true });
     {
       const t = canvasTex(256, 64, (g, w, h) => {
         g.fillStyle = BRAND.green; g.fillRect(0, 0, w, h); g.fillStyle = '#fff'; g.font = `700 34px ${JP}`;
@@ -111,37 +138,40 @@ export default defineMod({
       const face = ctx.glow.add(new THREE.MeshStandardMaterial({ map: signTex, emissiveMap: signTex, emissive: '#ffffff', roughness: 0.35 }), 'sign', 1);
       const side = ctx.glow.add(mat('#f6f6f0', { emissive: '#ffffff', roughness: 0.4 }), 'sign', 0.25);
       const m = new THREE.Mesh(new RoundedBoxGeometry(15.2, 1.18, 0.32, 2, 0.05), [side, side, M.white, M.white, face, side]);
-      m.position.set(1, 3.82, SZ1 + 0.16);
+      m.position.set((SX0 + SX1) / 2, 3.82, SZ1 + 0.16);
       m.castShadow = true;
       store.add(m);
-      boxE(store, -6.7, 8.7, 3.2, 3.24, SZ1, SZ1 + 0.36, M.frame, { plain: true });
-      boxE(store, -6.7, 8.7, 4.4, 4.44, SZ1, SZ1 + 0.36, M.frame, { plain: true });
+      boxE(store, -7.9, 7.5, 3.2, 3.24, SZ1, SZ1 + 0.36, M.frame, { plain: true });
+      boxE(store, -7.9, 7.5, 4.4, 4.44, SZ1, SZ1 + 0.36, M.frame, { plain: true });
       const sface = ctx.glow.add(new THREE.MeshStandardMaterial({ map: sideSignTex, emissiveMap: sideSignTex, emissive: '#ffffff', roughness: 0.35 }), 'sign', 1);
       const sm = new THREE.Mesh(new RoundedBoxGeometry(9.4, 1.18, 0.28, 2, 0.05), [side, side, M.white, M.white, sface, side]);
       sm.rotation.y = Math.PI / 2;
-      sm.position.set(SX1 + 0.14, 3.82, -11.7);
+      sm.position.set(SX1 + 0.14, 3.82, (SZ0 + SZ1) / 2 - 0.2);
       sm.castShadow = true;
       store.add(sm);
     }
 
-    // awnings, wrapping around the corner
+    // awnings: along the front, and down the side over the walkway, meeting at the corner
     {
-      const aw = new THREE.Mesh(new RoundedBoxGeometry(18.1, 0.1, 2.3, 2, 0.03), M.awning);
-      aw.position.set(1.9, 2.74, -5.45);
+      const AX0 = SX0 - 0.15, AX1 = WALK + 0.15;
+      const aw = new THREE.Mesh(new RoundedBoxGeometry(AX1 - AX0, 0.1, 2.3, 2, 0.03), M.awning);
+      aw.position.set((AX0 + AX1) / 2, 2.74, SZ1 + 1.05);
       aw.rotation.x = 0.12;
       aw.castShadow = aw.receiveShadow = true;
       store.add(aw);
-      boxE(store, -7.15, 10.95, 2.38, 2.7, -4.42, -4.3, M.green);
-      const saw = new THREE.Mesh(new RoundedBoxGeometry(2.0, 0.1, 4.3, 2, 0.03), M.awning);
-      saw.position.set(9.95, 2.74, -8.65);
+      boxE(store, AX0, AX1, 2.38, 2.7, APRON - 0.17, APRON - 0.05, M.green);
+      const saw = new THREE.Mesh(new RoundedBoxGeometry(AX1 - SX1, 0.1, SZ1 - SZ0, 2, 0.03), M.awning);
+      saw.position.set((SX1 + AX1) / 2, 2.74, (SZ0 + SZ1) / 2);
       saw.rotation.z = -0.12;
       saw.castShadow = saw.receiveShadow = true;
       store.add(saw);
-      boxE(store, 10.83, 10.95, 2.38, 2.7, -10.8, -4.3, M.green);
-      boxE(store, 9, 10.95, 2.38, 2.7, -10.82, -10.7, M.green);
+      boxE(store, AX1 - 0.12, AX1, 2.38, 2.7, SZ0, APRON - 0.05, M.green);
+      boxE(store, SX1, AX1, 2.38, 2.7, SZ0 - 0.06, SZ0 + 0.06, M.green);
       const dl = ctx.glow.add(mat('#ffffff', { emissive: '#fff4e0' }), 'interior', 2.2);
-      for (let x = -5.5; x < 10; x += 2.6) cyl(store, 0.12, 0.12, 0.03, dl, x, 2.6, -5.3, 12, { cast: false });
-      for (const x of [-7.05, 10.85]) cyl(store, 0.05, 0.05, 2.4, M.frame, x, FL, -4.38, 8);
+      for (let x = SX0 + 1.5; x < AX1 - 0.5; x += 2.6) cyl(store, 0.12, 0.12, 0.03, dl, x, 2.6, SZ1 + 1.2, 12, { cast: false });
+      for (let z = SZ0 + 1.2; z < SZ1; z += 2.5) cyl(store, 0.12, 0.12, 0.03, dl, SX1 + 0.65, 2.6, z, 12, { cast: false });
+      for (const x of [AX0 + 0.1, AX1 - 0.1]) cyl(store, 0.05, 0.05, 2.4, M.frame, x, FL, APRON - 0.13, 8);
+      cyl(store, 0.05, 0.05, 2.4, M.frame, AX1 - 0.1, FL, SZ0 + 0.1, 8);
     }
 
     // ------------------------------- interior -------------------------------
@@ -149,12 +179,12 @@ export default defineMod({
     store.add(interior);
     boxE(interior, SX0 + 0.2, SX1 - 0.2, GT, GT + 0.06, SZ0 + 0.2, SZ1 - 0.2, M.white, { cast: false, plain: true });
     const ceilLight = ctx.glow.add(mat('#ffffff', { emissive: '#ffffff' }), 'interior', 2.4);
-    for (const x of [-4.8, -1.8, 1.2, 4.2, 7.2]) boxE(interior, x - 0.13, x + 0.13, GT - 0.04, GT, -15.7, -7.3, ceilLight, { cast: false, recv: false });
+    for (const x of [-6, -3, 0, 3, 6]) boxE(interior, x - 0.13, x + 0.13, GT - 0.04, GT, -5.2, 3.2, ceilLight, { cast: false, recv: false });
 
     {
       const cm = ctx.glow.add(new THREE.MeshStandardMaterial({ map: coolerTex, emissiveMap: coolerTex, emissive: '#ffffff', roughness: 0.2 }), 'interior', 0.9);
       const m = new THREE.Mesh(new THREE.BoxGeometry(14, 2.2, 0.7), [M.white, M.white, M.white, M.white, cm, M.white]);
-      m.position.set(1.4, FL + 1.1, SZ0 + 0.55);
+      m.position.set(0.2, FL + 1.1, SZ0 + 0.55);
       interior.add(m);
     }
 
@@ -177,30 +207,30 @@ export default defineMod({
       box(interior, 0.8, 0.28, 0.04, popM, cx, FL + 1.75, z1 + 0.02, { cast: false, plain: true });
       box(interior, 0.02, 0.1, 0.02, M.frame, cx, FL + 1.55, z1 + 0.02, { cast: false, plain: true });
     }
-    for (const x of [-3.0, -0.95, 4.0, 6.3]) gondola(x, -13.9, -9.1);
+    for (const x of [-4.2, -2.15, 2.8, 5.1]) gondola(x, -3.4, 1.4);
 
     // counter (with room behind it for the clerk), registers, hot snacks, cigarette wall
-    boxE(interior, -5.5, -4.6, FL, FL + 1.0, -14.1, -8.1, mat('#ece6db', { roughness: 0.5 }), { cast: false });
-    boxE(interior, -5.55, -4.55, FL + 1.0, FL + 1.05, -14.15, -8.05, M.wood, { cast: false });
-    boxE(interior, -5.35, -4.95, FL + 1.05, FL + 1.33, -9.95, -9.45, M.darkMetal, { cast: false });
-    boxE(interior, -5.35, -4.95, FL + 1.05, FL + 1.33, -8.75, -8.25, M.darkMetal, { cast: false });
-    boxE(interior, -5.4, -4.7, FL + 1.05, FL + 1.55, -13.7, -12.3, ctx.glow.add(mat('#ffd59a', { emissive: '#ff9a3c', transparent: true, opacity: 0.85 }), 'interior', 0.8), { cast: false });
+    boxE(interior, -6.7, -5.8, FL, FL + 1.0, -3.6, 2.4, mat('#ece6db', { roughness: 0.5 }), { cast: false });
+    boxE(interior, -6.75, -5.75, FL + 1.0, FL + 1.05, -3.65, 2.45, M.wood, { cast: false });
+    boxE(interior, -6.55, -6.15, FL + 1.05, FL + 1.33, 0.55, 1.05, M.darkMetal, { cast: false });
+    boxE(interior, -6.55, -6.15, FL + 1.05, FL + 1.33, 1.75, 2.25, M.darkMetal, { cast: false });
+    boxE(interior, -6.6, -5.9, FL + 1.05, FL + 1.55, -3.2, -1.8, ctx.glow.add(mat('#ffd59a', { emissive: '#ff9a3c', transparent: true, opacity: 0.85 }), 'interior', 0.8), { cast: false });
     {
       const cg = ctx.glow.add(new THREE.MeshStandardMaterial({ map: cigTex, emissiveMap: cigTex, emissive: '#ffffff' }), 'interior', 0.4);
       const m = new THREE.Mesh(new THREE.PlaneGeometry(4.5, 1.1), cg);
-      m.rotation.y = Math.PI / 2; m.position.set(SX0 + 0.21, FL + 1.9, -11);
+      m.rotation.y = Math.PI / 2; m.position.set(SX0 + 0.21, FL + 1.9, -0.5);
       interior.add(m);
     }
     // magazine racks
-    boxE(interior, -6.5, -0.4, FL, FL + 0.8, -7.3, -6.85, M.shelf, { cast: false });
-    boxE(interior, 2.4, 8.4, FL, FL + 0.8, -7.3, -6.85, M.shelf, { cast: false });
+    boxE(interior, -7.7, -1.6, FL, FL + 0.8, 3.2, 3.65, M.shelf, { cast: false });
+    boxE(interior, 1.2, 7.2, FL, FL + 0.8, 3.2, 3.65, M.shelf, { cast: false });
     const magList: { x: number; c: string }[] = [];
-    for (const [a, b] of [[-6.3, -0.6], [2.6, 8.2]]) for (let x = a; x < b; x += 0.26) magList.push({ x, c: pick(PROD_COLORS) });
-    // ATM + ice-cream freezer, both against the right wall so the aisles stay walkable
-    boxE(interior, 8.1, 8.75, FL, FL + 1.45, -9.9, -9.1, mat('#dadde1', { roughness: 0.4 }), { cast: false });
-    boxE(interior, 8.08, 8.1, FL + 0.85, FL + 1.25, -9.8, -9.2, ctx.glow.add(mat('#2a74d9', { emissive: '#4fa3ff' }), 'interior', 0.8), { cast: false, plain: true });
-    boxE(interior, 7.95, 8.75, FL, FL + 0.82, -13.7, -11.7, M.white, { cast: false });
-    boxE(interior, 8.0, 8.7, FL + 0.82, FL + 0.86, -13.65, -11.75, ctx.glow.add(mat('#cfeaff', { emissive: '#bfe3ff', transparent: true, opacity: 0.7 }), 'interior', 0.6), { cast: false, plain: true });
+    for (const [a, b] of [[-7.5, -1.8], [1.4, 7.0]]) for (let x = a; x < b; x += 0.26) magList.push({ x, c: pick(PROD_COLORS) });
+    // ATM + ice-cream freezer, against the side windows either side of the side door, so the aisles stay walkable
+    boxE(interior, 6.9, 7.55, FL, FL + 1.45, 0.6, 1.4, mat('#dadde1', { roughness: 0.4 }), { cast: false });
+    boxE(interior, 6.88, 6.9, FL + 0.85, FL + 1.25, 0.7, 1.3, ctx.glow.add(mat('#2a74d9', { emissive: '#4fa3ff' }), 'interior', 0.8), { cast: false, plain: true });
+    boxE(interior, 6.75, 7.55, FL, FL + 0.82, -3.2, -1.2, M.white, { cast: false });
+    boxE(interior, 6.8, 7.5, FL + 0.82, FL + 0.86, -3.15, -1.25, ctx.glow.add(mat('#cfeaff', { emissive: '#bfe3ff', transparent: true, opacity: 0.7 }), 'interior', 0.6), { cast: false, plain: true });
 
     // products and magazines in one instanced draw
     {
@@ -213,7 +243,7 @@ export default defineMod({
       }
       const qm = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.35, 0, 0));
       for (const it of magList) {
-        m4.compose(p.set(it.x, FL + 0.95, -7.05), qm, s.set(0.22, 0.3, 0.02));
+        m4.compose(p.set(it.x, FL + 0.95, 3.45), qm, s.set(0.22, 0.3, 0.02));
         im.setMatrixAt(i, m4); im.setColorAt(i, c.set(it.c)); i++;
       }
       im.receiveShadow = true;
@@ -221,14 +251,14 @@ export default defineMod({
     }
     // posters on the inside of the glass; the last one is the seasonal campaign
     const posterMats = ([
-      [posterTex(['からあげ', '¥230'], '#e8642c', '揚げたて！'), -5.7],
-      [posterTex(['おにぎり', '100円'], '#d7383b', 'セール中'), -3.5],
-      [posterTex(['ATM', '24H'], '#2756b0', 'いつでも'), 5.3],
-      [posterTex(['くじ', '開催中'], '#16936a', '1回700円'), 7.6],
+      [posterTex(['からあげ', '¥230'], '#e8642c', '揚げたて！'), -6.9],
+      [posterTex(['おにぎり', '100円'], '#d7383b', 'セール中'), -4.7],
+      [posterTex(['ATM', '24H'], '#2756b0', 'いつでも'), 4.1],
+      [posterTex(['くじ', '開催中'], '#16936a', '1回700円'), 6.4],
     ] as [THREE.Texture, number][]).map(([tex, x]) => {
       const pm = ctx.glow.add(new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: '#fff', roughness: 0.6 }), 'interior', 0.25);
       const m = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.82), pm);
-      m.position.set(x, 1.95, -6.63);
+      m.position.set(x, 1.95, SZ1 - 0.13);
       store.add(m);
       return pm;
     });
@@ -248,24 +278,24 @@ export default defineMod({
     });
 
     // rooftop
-    ac(store, -3.6, 4.35, -10.7); ac(store, -2.4, 4.35, -10.7); ac(store, -1.2, 4.35, -10.7);
-    ac(store, 6.2, 4.35, -15.1, Math.PI);
-    boxE(store, 3.4, 5.0, 4.35, 5.35, -13.7, -12.3, mat('#d0d0ca', { roughness: 0.7 }));
-    cyl(store, 0.22, 0.22, 0.9, M.chrome, 0.6, 4.35, -14.9, 12);
-    cyl(store, 0.32, 0.22, 0.12, M.chrome, 0.6, 5.25, -14.9, 12);
-    rod(store, V(-3.6, 4.5, -10.45), V(-3.6, 4.5, -7.1), 0.05, M.white);
-    rod(store, V(-3.6, 4.5, -7.1), V(-3.6, 3.3, -6.75), 0.05, M.white);
+    ac(store, -4.8, 4.35, -0.2); ac(store, -3.6, 4.35, -0.2); ac(store, -2.4, 4.35, -0.2);
+    ac(store, 5, 4.35, -4.6, Math.PI);
+    boxE(store, 2.2, 3.8, 4.35, 5.35, -3.2, -1.8, mat('#d0d0ca', { roughness: 0.7 }));
+    cyl(store, 0.22, 0.22, 0.9, M.chrome, -0.6, 4.35, -4.4, 12);
+    cyl(store, 0.32, 0.22, 0.12, M.chrome, -0.6, 5.25, -4.4, 12);
+    rod(store, V(-4.8, 4.5, 0.05), V(-4.8, 4.5, 3.4), 0.05, M.white);
+    rod(store, V(-4.8, 4.5, 3.4), V(-4.8, 3.3, 3.75), 0.05, M.white);
 
     // ---------------------------------------------------------------- the shop's own light
     // ceiling lights fill the interior and spill out through the glass; a warm downlight under the awning
-    const interiorLights = ([[-3.2, 2.45, -11], [4.6, 2.45, -11], [1, 2.45, -7.7]] as const).map(([x, y, z]) => {
+    const interiorLights = ([[-4.4, 2.45, -0.5], [3.4, 2.45, -0.5], [-0.2, 2.45, 2.8]] as const).map(([x, y, z]) => {
       const l = new THREE.PointLight('#f6f8ff', 10, 0, 2);
       l.position.set(x, y, z);
       store.add(l);
       return l;
     });
     const awningLight = new THREE.PointLight('#fff1dc', 0, 0, 1.8);
-    awningLight.position.set(1.5, 2.3, -4.1);
+    awningLight.position.set(DOOR_X + 0.5, 2.3, SZ1 + 2.4);
     store.add(awningLight);
     ctx.onFrame((_dt, _t, d) => {
       // the shop is always open: brighter inside when it's dark or grey outside
@@ -280,22 +310,23 @@ export default defineMod({
     // ---------------------------------------------------------------- surfaces
     const S = ctx.surfaces;
     S.addWalk({ x0: SX0, x1: SX1, z0: SZ0, z1: SZ1 }, FL, 3);
-    S.addWalk({ x0: -7.2, x1: 10.9, z0: SZ1 - 0.01, z1: -4.25 }, FL, 3);
-    S.addWalk({ x0: SX1, x1: 10.9, z0: -10.8, z1: SZ1 }, FL, 3);
+    const AWN = { x0: SX0 - 0.15, x1: WALK + 0.15 };
+    S.addWalk({ x0: SX0 - 0.2, x1: WALK, z0: SZ1 - 0.01, z1: APRON }, FL, 3);
+    S.addWalk({ x0: SX1, x1: WALK, z0: SZ0, z1: SZ1 }, FL, 3);
     S.addRoof({ x0: SX0 - 0.1, x1: SX1 + 0.1, z0: SZ0 - 0.1, z1: SZ1 + 0.1 }, SH);
-    S.addRoof({ x0: -7.2, x1: 10.95, z0: SZ1, z1: -4.3 }, 2.7);
-    S.addRoof({ x0: SX1, x1: 10.95, z0: -10.8, z1: SZ1 }, 2.7);
-    S.addShelter({ x0: -7.3, x1: 11, z0: SZ0, z1: -4.3 });
+    S.addRoof({ x0: AWN.x0, x1: AWN.x1, z0: SZ1, z1: APRON - 0.05 }, 2.7);
+    S.addRoof({ x0: SX1, x1: AWN.x1, z0: SZ0, z1: SZ1 }, 2.7);
+    S.addShelter({ x0: AWN.x0 - 0.1, x1: AWN.x1, z0: SZ0, z1: APRON - 0.05 });
 
     // ---------------------------------------------------------------- on the map
     // the roof and the canopy over the apron and the side terrace; light spills out of the shop at night. On the
     // roof's back corner (the map shows the customers inside, so the middle stays clear), the brand's three stripes —
     // the one thing that says "konbini" at the size of a stamp
-    ctx.plan.add({ kind: 'site', rect: { x0: -7.2, x1: 10.95, z0: SZ1, z1: -4.3 }, h: 2.7, color: '#f3f3ef', glow: 'interior' });
-    ctx.plan.add({ kind: 'site', rect: { x0: SX1, x1: 10.95, z0: -10.8, z1: SZ1 }, h: 2.7, color: '#f3f3ef', glow: 'interior' });
+    ctx.plan.add({ kind: 'site', rect: { x0: AWN.x0, x1: AWN.x1, z0: SZ1, z1: APRON - 0.05 }, h: 2.7, color: '#f3f3ef', glow: 'interior' });
+    ctx.plan.add({ kind: 'site', rect: { x0: SX1, x1: AWN.x1, z0: SZ0, z1: SZ1 }, h: 2.7, color: '#f3f3ef', glow: 'interior' });
     ctx.plan.add({ kind: 'site', rect: { x0: SX0 - 0.1, x1: SX1 + 0.1, z0: SZ0 - 0.1, z1: SZ1 + 0.1 }, h: SH, color: '#ecebe6' });
-    ctx.plan.add({ kind: 'site', rect: { x0: -7.2, x1: 10.95, z0: -4.75, z1: -4.3 }, color: BRAND.green });
-    ctx.plan.add({ kind: 'site', rect: { x0: -7.2, x1: 10.95, z0: -5.0, z1: -4.75 }, color: BRAND.orange, glow: 'sign' });
+    ctx.plan.add({ kind: 'site', rect: { x0: AWN.x0, x1: AWN.x1, z0: APRON - 0.5, z1: APRON - 0.05 }, color: BRAND.green });
+    ctx.plan.add({ kind: 'site', rect: { x0: AWN.x0, x1: AWN.x1, z0: APRON - 0.75, z1: APRON - 0.5 }, color: BRAND.orange, glow: 'sign' });
     [BRAND.green, BRAND.orange, BRAND.blue].forEach((color, i) => {
       const x = SX0 + 0.9 + i * 1.6;
       ctx.plan.add({ kind: 'site', rect: { x0: x, x1: x + 0.9, z0: SZ0 + 0.9, z1: SZ0 + 4.2 }, color });
@@ -303,18 +334,18 @@ export default defineMod({
 
     // ---------------------------------------------------------------- walkable inside
     const N = ctx.nav;
-    const FRONT = -8.15, BACK = -14.75;
-    N.addNode('shop.door.out', 1.0, -5.2);
-    N.addNode('shop.door.in', 1.0, -7.65);
+    const FRONT = SZ1 - 1.65, BACK = SZ0 + 1.75;
+    N.addNode('shop.door.out', DOOR_X, SZ1 + 1.3);
+    N.addNode('shop.door.in', DOOR_X, SZ1 - 1.15);
     N.addEdge('shop.door.out', 'shop.door.in', { onEnter: openDoor, tags: ['door'] });
     const aisles: ShopService['aisles'] = [
-      { x: -1.97, faces: [Math.PI / 2, -Math.PI / 2] },
-      { x: 1.5, faces: [Math.PI / 2, -Math.PI / 2] },
-      { x: 5.15, faces: [Math.PI / 2, -Math.PI / 2] },
-      { x: 7.65, faces: [-Math.PI / 2] },
+      { x: -3.17, faces: [Math.PI / 2, -Math.PI / 2] },
+      { x: 0.3, faces: [Math.PI / 2, -Math.PI / 2] },
+      { x: 3.95, faces: [Math.PI / 2, -Math.PI / 2] },
+      { x: 6.45, faces: [-Math.PI / 2] },
     ].map((a, i) => ({ ...a, front: `shop.aisle.${i}.front`, back: `shop.aisle.${i}.back` }));
-    N.addNode('shop.register.queue', -4.05, FRONT);
-    N.addNode('shop.register', -4.05, -9.7, { heading: -Math.PI / 2 });
+    N.addNode('shop.register.queue', -5.25, FRONT);
+    N.addNode('shop.register', -5.25, 0.8, { heading: -Math.PI / 2 });
     N.addEdge('shop.register.queue', 'shop.register');
     for (const a of aisles) {
       N.addNode(a.front, a.x, FRONT);
@@ -324,15 +355,21 @@ export default defineMod({
     N.addPath(['shop.register.queue', ...aisles.map((a) => a.front)]);
     N.addPath(aisles.map((a) => a.back));
     N.addEdge('shop.door.in', aisles[1].front);
-    N.addNode('shop.clerk', -6.1, -9.7, { heading: Math.PI / 2 });
-    N.addNode('shop.backroom', 1.5, -15.1, { heading: 0 });
+    // the side door, between the freezer and the ATM, onto the last aisle
+    N.addNode('shop.side.out', SX1 + 0.6, SIDE_DOOR);
+    N.addNode('shop.side.in', 6.6, SIDE_DOOR);
+    N.addEdge('shop.side.out', 'shop.side.in', { onEnter: openSideDoor, tags: ['door'] });
+    N.addEdge('shop.side.in', aisles[3].front);
+    N.addEdge('shop.side.in', aisles[3].back);
+    N.addNode('shop.clerk', -7.3, 0.8, { heading: Math.PI / 2 });
+    N.addNode('shop.backroom', 0.3, SZ0 + 1.4, { heading: 0 });
     N.addEdge('shop.backroom', aisles[1].back);
 
     ctx.services.provide<ShopService>('shop', {
       openDoor,
       aisles,
-      nodes: { doorOut: 'shop.door.out', doorIn: 'shop.door.in', register: 'shop.register', clerk: 'shop.clerk', backroom: 'shop.backroom' },
-      awning: { x0: -7.15, x1: 10.95, z: -4.36, y: 2.38 },
+      nodes: { doorOut: 'shop.door.out', doorIn: 'shop.door.in', register: 'shop.register', clerk: 'shop.clerk', backroom: 'shop.backroom', sideOut: 'shop.side.out' },
+      awning: { x0: AWN.x0, x1: AWN.x1, z: APRON - 0.11, y: 2.38 },
     });
   },
 });

@@ -80,6 +80,12 @@ export const roadTomareTex = canvasTex(512, 512, (g, w, h) => {
   g.font = `800 150px ${JP}`; g.fillText('止まれ', 0, 0); g.restore();
 });
 
+/** 停止禁止 ("don't stop here"), painted in the box where a side lane meets the road */
+export const roadStopBoxTex = canvasTex(512, 128, (g, w, h) => {
+  g.fillStyle = 'rgba(255,255,255,0.92)'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = `800 96px ${JP}`; g.fillText('停止禁止', w / 2, h / 2 + 4);
+});
+
 /** 徐行 ("go slow"), painted where a car park's driveway meets the aisle */
 export const roadJokoTex = canvasTex(512, 256, (g, w, h) => {
   g.fillStyle = 'rgba(255,255,255,0.92)'; g.textAlign = 'center'; g.textBaseline = 'middle';

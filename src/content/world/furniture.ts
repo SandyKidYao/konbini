@@ -56,7 +56,7 @@ export default defineMod({
       root.add(g);
       return { g, pts, low: V(x, 6.9, z) };
     }
-    const P1 = pole(-13, 8.8, 'z'), P2 = pole(12.9, 8.9, 'x'), P3 = pole(12.9, -9, 'x');
+    const P1 = pole(-13, 8.8, 'z'), P2 = pole(12.9, 8.9, 'x'), P3 = pole(12.9, -12.2, 'x');   // P3 stands clear of the back lane's mouth
     cyl(P1.g, 0.36, 0.36, 1.1, mat('#b3b8bd', { roughness: 0.5, metalness: 0.3 }), 0, 6.4, -0.45, 16);
     box(P3.g, 0.5, 0.7, 0.3, mat('#9ea3a9'), 0, 5.6, 0.3);
     box(P2.g, 0.12, 0.12, 1.9, M.darkMetal, 0, 8.55, 0);
@@ -77,8 +77,7 @@ export default defineMod({
     wire(P1.low, P2.low, 0.8, 0.045); wire(P2.low, P3.low, 0.7, 0.045);
     wire(P1.low, P1.low.clone().setX(-28), 0.4, 0.045);
     wire(P3.low, P3.low.clone().setZ(-24), 0.4, 0.045);
-    wire(V(12.9, 6.6, 8.9), V(9.0, 4.4, -3.0), 0.5, 0.018);
-    wire(P1.low, V(-15.5, 5.2, -1), 0.4, 0.018);
+    wire(V(12.9, 6.6, 8.9), V(7.7, 4.4, 2.6), 0.5, 0.018);   // the drop to the shop
 
     // ------------------------------------------------ street lamps (warm, cosier than cold LED in a miniature)
     const lamps: THREE.SpotLight[] = [];
@@ -189,7 +188,7 @@ export default defineMod({
       m.position.set(x, h, z); m.rotation.y = ry; m.castShadow = true;
       root.add(m);
     };
-    signPost(12.0, -1.6, Math.PI / 2, new THREE.CircleGeometry(0.32, 32), noParkTex);
+    signPost(12.1, -13.6, Math.PI / 2, new THREE.CircleGeometry(0.32, 32), noParkTex);
     const tri = new THREE.CircleGeometry(0.55, 3); tri.rotateZ(-Math.PI / 2); planarUV(tri);
     signPost(22.1, 2.2, Math.PI, tri, stopSignTex, 2.2);
   },

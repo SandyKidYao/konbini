@@ -16,14 +16,14 @@ export default defineMod({
     const FL = STORE.floor;
     const { range: rr, pick } = ctx.mod.random;
     // the spot left of the door, under the awning
-    const BESIDE_DOOR = V(-0.55, FL, -5.95);
+    const BESIDE_DOOR = V(-1.75, FL, STORE.z1 + 0.55);
 
     // ---------------------------------------------------------------- 門松, a pair flanking the way in
     const kadomatsu = new THREE.Group();
     {
       const straw = mat('#cfae6e', { roughness: 0.95 }), rope = mat('#4a3a2a'), bamboo = mat('#6aa452', { roughness: 0.5 });
       const cut = mat('#d8e6b8', { roughness: 0.6 }), pine = mat('#2f5f3e', { roughness: 0.9, flatShading: true }), plum = mat('#d23c4a');
-      for (const x of [-0.45, 2.45]) {
+      for (const x of [-1.65, 1.25]) {
         const g = new THREE.Group();
         cyl(g, 0.24, 0.27, 0.34, straw, 0, 0, 0, 16);
         for (const y of [0.08, 0.24]) cyl(g, 0.255, 0.255, 0.035, rope, 0, y, 0, 16);
@@ -45,7 +45,7 @@ export default defineMod({
           b.position.set(rr(-0.15, 0.15), rr(0.45, 0.6), rr(0.05, 0.18));
           g.add(b);
         }
-        g.position.set(x, FL, -5.3);
+        g.position.set(x, FL, STORE.z1 + 1.2);
         kadomatsu.add(g);
       }
       ctx.root.add(kadomatsu);

@@ -69,7 +69,9 @@ export function shopAround(ctx: ModContext, fig: Figure, board: Record<string, u
   const aisle = pickR(shop.aisles);
   const steps: Steps[] = [S.go(shop.nodes.doorIn), S.run(() => clerk(ctx)?.bow())];   // いらっしゃいませ
   if (o.browse ?? true) {
-    steps.push(S.go(aisle.front), S.walk([[aisle.x, R(-8.6, -5.2)]]), S.face(pickR(aisle.faces)), S.pose('browse', R(2, 4)), S.wait(R(0.4, 1.2)));
+    // a spot somewhere along the aisle, between its two ends
+    const front = ctx.nav.node(aisle.front)!, back = ctx.nav.node(aisle.back)!;
+    steps.push(S.go(aisle.front), S.walk([[aisle.x, R(back.z + 0.8, front.z - 0.4)]]), S.face(pickR(aisle.faces)), S.pose('browse', R(2, 4)), S.wait(R(0.4, 1.2)));
     if (Math.random() < 0.5) steps.push(S.go(aisle.back), S.face(PI), S.pose('browse', R(1.5, 3)));
   }
   steps.push(
