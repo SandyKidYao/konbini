@@ -2,7 +2,7 @@
 //   ?live=1 (follow the real time and weather here)   ?place=lat,lon[,name] (a place for live mode)
 //   ?weather=clear|partly|cloudy|fog|drizzle|rain|storm|snow   ?time=1130
 //   ?date=2026-07-07 | 07-07   ?season=spring|summer|autumn|winter (a typical date in that season)
-//   ?view=overview|facade|bird|corner|yard (a camera preset) | plan (the map form)   ?cam=x,y,z,tx,ty,tz[,fov] (any camera)
+//   ?view=overview|facade|bird|corner|yard|fumikiri (a camera preset) | plan (the map form)   ?cam=x,y,z,tx,ty,tz[,fov] (any camera)
 //   ?site=konbini   ?mods=url1,url2   ?disable=mod.id,…   ?warp=60
 //   ?pet=1 (desktop pet: only the model, on a transparent window — see desktop/)
 import './ui/style.css';

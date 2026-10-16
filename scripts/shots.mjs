@@ -105,6 +105,7 @@ const SCENES = [
   { name: 'view-bird', q: 'weather=clear&time=1600&date=2026-10-14&warp=60&view=bird' },
   { name: 'view-corner', q: 'weather=rain&time=1830&date=2026-10-14&warp=60&view=corner' },
   { name: 'view-yard', q: 'weather=clear&time=2100&date=2026-10-14&warp=60&view=yard' },
+  { name: 'view-fumikiri', q: 'weather=partly&time=1730&date=2026-10-14&warp=60&view=fumikiri' },
   // the controls, driven like a person would: they only come out once the pointer moves
   { name: 'ui-bar', q: 'weather=clear&time=1100&date=2026-10-13', wait: 600, act: async (p) => { await reveal(p); } },
   { name: 'ui-view-click', q: 'weather=clear&time=1100&date=2026-10-13', act: async (p) => { await openTray(p); await p.click('[data-view="facade"]'); } },
