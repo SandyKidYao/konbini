@@ -282,11 +282,13 @@ export default defineMod({
     // from 5:30 to 23:50, a train every couple of minutes, one way then the other
     let running: { dir: 1 | -1; x: number } | null = null;
     let next = R(8, 30), lastDir: 1 | -1 = Math.random() < 0.5 ? 1 : -1;
-    const START = BLOCK.x1 + TRAIN / 2 + 6;
+    // it sets off out of sight, deep in the tunnel, far enough back that the whole warning — bell, then the arms —
+    // runs before its nose reaches the crossing (the crossing is only a few metres from the east tunnel)
+    const LEAD = SPEED * WARN + 6, GONE = BLOCK.x1 + TRAIN / 2 + 6;
     const send = (dir?: 1 | -1) => {
       if (running) return false;
       const d = dir ?? (lastDir = (lastDir * -1) as 1 | -1);
-      running = { dir: d, x: -d * START };
+      running = { dir: d, x: d > 0 ? XING.x0 - 1 - LEAD - TRAIN / 2 : XING.x1 + 1 + LEAD + TRAIN / 2 };
       return true;
     };
     let ring = 0, bellT = 0, armT = 0, alarm = false;
@@ -309,7 +311,7 @@ export default defineMod({
         const head = ctx.atmosphere.channel('head') * 1.6 + 0.4, lead = running.dir > 0 ? ends.east : ends.west, back = running.dir > 0 ? ends.west : ends.east;
         lead.head.emissiveIntensity = head; lead.tail.emissiveIntensity = 0;
         back.head.emissiveIntensity = 0; back.tail.emissiveIntensity = 1.2;
-        if (Math.abs(running.x) > START + 1) { running = null; train.position.x = -BLOCK.x1 * 2; }
+        if (running.x * running.dir > GONE) { running = null; train.position.x = -BLOCK.x1 * 2; }
       }
       if (warn && !alarm) { alarm = true; ring = 0; }
       if (!warn && alarm) alarm = false;

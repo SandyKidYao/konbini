@@ -37,9 +37,9 @@ const SCENES = [
   // a train on the level crossing: bell, lamps, arms down, people and cars waiting (sent, then run on to the crossing)
   // (the train keeps going while the shot is taken: it is sent so that it is on the crossing a moment later)
   { name: 'train-crossing', q: 'weather=clear&time=1600&date=2026-10-14&warp=60&cam=16.4,7.6,22,17.2,0.8,-23.6,26', wait: 400, setup: `
-    konbini.services.get('world.railway').send(1); for (let i = 0; i < 150; i++) konbini.simulate(0.05);` },
-  { name: 'train-dusk', q: 'weather=partly&time=1800&date=2026-10-14&warp=60&cam=-14,9,-4,0,1.5,-22,36', wait: 400, setup: `
-    konbini.services.get('world.railway').send(-1); for (let i = 0; i < 110; i++) konbini.simulate(0.05);` },
+    konbini.services.get('world.railway').send(1); for (let i = 0; i < 245; i++) konbini.simulate(0.05);` },
+  { name: 'train-dusk', q: 'weather=partly&time=1800&date=2026-10-14&warp=60&cam=-4,5.5,-31,4,2,-18.6,38', wait: 400, setup: `
+    konbini.services.get('world.railway').send(-1); for (let i = 0; i < 297; i++) konbini.simulate(0.05);` },
   // seasons and festivals (the close-ups look at the shop door, where the decorations go)
   { name: 'spring-bloom', q: 'weather=clear&time=1100&date=2026-04-03' },
   { name: 'summer-festival', q: 'weather=clear&time=1930&date=2026-08-08&warp=40' },
