@@ -36,7 +36,10 @@ export class Wet {
     };
     const make = (puddle: boolean) => new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, side: THREE.DoubleSide,
-      blending: puddle ? THREE.NormalBlending : THREE.AdditiveBlending,
+      // puddles: the reflection added on top of the ground, which they only darken a little (src·1 + dst·(1−a)) —
+      // laid over it like paint, a puddle reflecting the night sky was a black hole in the road
+      blending: puddle ? THREE.CustomBlending : THREE.AdditiveBlending,
+      blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendEquation: THREE.AddEquation,
       polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4,
       defines: puddle ? { PUDDLE: 1 } : {},
       uniforms: {
@@ -90,7 +93,7 @@ export class Wet {
             p.xy += vec2(rip * 0.01, rip * 0.006) * p.w;
             vec3 refl = texture2DProj(tRefl, p).rgb;
             float a = uStrength * smoothstep(1.0, 0.7, vEdge);
-            gl_FragColor = vec4(refl * uTint * 1.15 + uRing * rip * 0.16, a * 0.82);
+            gl_FragColor = vec4((refl * uTint * 0.6 + uRing * rip * 0.16) * a, a * 0.4);
           #else
             vec3 refl = vec3(0.0); float tw = 0.0;
             for (int k = -4; k <= 4; k++) {
