@@ -1,6 +1,7 @@
 // Traffic: cars, taxis, trucks and the community bus driving through the junction — more or fewer by the
 // hour, with a mix that follows the clock, the day of the week and the weather. Customers who drive to the
-// shop, park nose-in, go shopping and back out again; and the delivery truck restocking the shop.
+// shop, pull in nose first beside it, go shopping and back out onto road B; and the delivery truck, which comes
+// up the back lane and restocks the shop through the staff yard.
 import { defineMod, type ModContext } from '../../engine/mod';
 import { R, pickR } from '../../engine/kit/rng';
 import * as V from '../../engine/agents/vehicle';
@@ -9,7 +10,7 @@ import type { Drivers } from '../../engine/atmosphere';
 import type { Conditions } from '../../engine/states';
 import type { Steps } from '../../engine/agents/actor';
 import type { RoadService, RoadEnd } from '../world/roads';
-import type { ParkingService, ParkingBay, Driveway, ShopService } from '../site/konbini/api';
+import type { ParkingService, ParkingBay, ShopService, BackyardService } from '../site/konbini/api';
 import { CAR_MODELS, CAR_COLORS, KEI_COLORS, TAXI_LIVERIES, type Car } from '../library/car';
 import type { FigureOptions } from '../library/figure';
 import { citizen, clerk, rushHour, shopAround } from './people';
@@ -85,9 +86,12 @@ const STREET_DAYOFF = [[0, 3], [2, 1.5], [5, 1.2], [7, 3], [9, 5], [11, 7], [16,
 const streetRate = (c: Conditions, d: Drivers) => byHour(c.hour, c.dayOff ? STREET_DAYOFF : STREET_WEEKDAY)
   * (1 - 0.45 * d.snow) * (1 - 0.25 * d.thunder) * (1 + 0.15 * d.rain);
 
+// mostly along road A; some down road B to the shore and up from it; a steady trickle along the coast road
 const WAYS: [readonly [RoadEnd, RoadEnd], number][] = [
-  [['west', 'east'], 0.33], [['east', 'west'], 0.33], [['west', 'south'], 0.07],
-  [['east', 'south'], 0.06], [['south', 'east'], 0.1], [['south', 'west'], 0.11],
+  [['west', 'east'], 0.27], [['east', 'west'], 0.27],
+  [['west', 'shore-west'], 0.035], [['west', 'shore-east'], 0.035], [['east', 'shore-west'], 0.03], [['east', 'shore-east'], 0.03],
+  [['shore-west', 'east'], 0.04], [['shore-west', 'west'], 0.04], [['shore-east', 'east'], 0.04], [['shore-east', 'west'], 0.04],
+  [['shore-west', 'shore-east'], 0.085], [['shore-east', 'shore-west'], 0.085],
 ];
 
 export const trafficMod = defineMod({
@@ -148,74 +152,34 @@ function lotMix(c: Conditions): [VehicleKind, number][] {
   ];
 }
 
-/** Where a body stops in a bay: front tyres against the wheel stop, nose to the shop. */
+/** Where a body stops in a bay: front tyres against the wheel stop, nose to the side windows (−x). */
 function parkedPose(bay: ParkingBay, body: Car): Pose {
   const front = Math.max(...body.wheels.map((w) => w.position.x)), r = body.wheels[0].position.y;
-  return { x: bay.x, z: bay.stop + r + front, heading: PI };
+  return { x: bay.stop + r + front, z: bay.z, heading: -PI / 2 };
 }
-/** Back out of the bay into the aisle, the tail swinging towards `swing` (±1 in x): the nose ends up pointing the other way. */
-function backOut(lot: ParkingService, bay: ParkingBay, park: Pose, swing: number) {
-  const z = lot.aisle.out, zs = Math.max(park.z, z - 3), r = z - zs;
-  const p = V.path(bay.x, park.z, 0).speed(1.6).line(bay.x, zs).curve(bay.x + swing * r, z, swing * PI / 2, 0.4).build();
-  return { path: p, out: { x: bay.x + swing * r, z, heading: -swing * PI / 2 } as Pose };
-}
-/** room a car needs between where it is heading along the aisle and the driveway it turns out of (or into) */
-const TURN = 2.9;
+/** where they drive off to: on down road B and along the shore, or back up to road A and away either way */
+const AWAY: [RoadEnd, number][] = [['shore-west', 0.22], ['shore-east', 0.23], ['east', 0.28], ['west', 0.27]];
 
 /**
- * How to come in to bay i: which driveway (and so from which end of road A), then round onto the aisle, along
- * it and round into the bay — or, from a driveway right in front of the bay, a gentle S-bend straight in.
+ * Back out onto road B, once there is a gap and the frontage is free, and drive off. From the bays nearest the
+ * junction nobody heads for the sea: backing out that way would swing the tail up onto the crossing.
  */
-function waysIn(lot: ParkingService, i: number, park: Pose) {
-  const bay = lot.bays[i], out: { d: Driveway; from: 'west' | 'east'; path: V.Waypoint[] }[] = [];
-  for (const d of lot.driveways) {
-    const dx = bay.x - d.x, s = Math.sign(dx) || 1;
-    let path: V.Waypoint[] | null = null;
-    if (Math.abs(dx) <= 2) path = [{ x: bay.x, z: 2.8, heading: PI }, [park.x, park.z]];
-    else if (Math.abs(dx) >= 2 * TURN + 0.1) path = [{ x: d.x + s * TURN, z: lot.aisle.in, heading: s * PI / 2 }, [bay.x - s * 3, lot.aisle.in], { x: bay.x, z: 2.6, heading: PI }, [park.x, park.z]];
-    if (path) for (const from of d.from) out.push({ d, from, path });
-  }
-  return out;
-}
-/**
- * How to leave bay i: back out with the tail swinging one way or the other — staying inside the car park — so
- * the nose ends up pointing at a driveway with room to turn into it, then along the aisle and out.
- */
-function waysOut(lot: ParkingService, i: number, park: Pose, body: Car) {
-  const bay = lot.bays[i], out: { swing: number; to: Driveway['to']; via: V.Waypoint[] }[] = [];
-  for (const swing of [-1, 1]) {
-    const back = backOut(lot, bay, park, swing).out, nose = -swing;
-    if (back.x - body.len / 2 < lot.aisle.x0 + 0.1 || back.x + body.len / 2 > lot.aisle.x1 - 0.1) continue;
-    for (const d of lot.driveways) {
-      if ((d.x - back.x) * nose < TURN) continue;
-      out.push({ swing, to: d.to, via: [[d.x - nose * TURN, back.z], { x: d.x, z: d.mouth, heading: 0 }] });
-    }
-  }
-  return out;
-}
-/** Wait (engine running) for the aisle, then back out, drive along to a driveway and off along road A. */
-function leaveBay(roads: RoadService, lot: ParkingService, i: number, park: Pose, body: Car, who: string, speed: number): V.VehicleSteps {
-  const bay = lot.bays[i];
+function leaveBay(roads: RoadService, lot: ParkingService, i: number, park: Pose, body: Car, who: string): V.VehicleSteps {
+  const away = park.z + 3 + body.len / 2 < CROSSING_Z ? AWAY : AWAY.filter(([e]) => e === 'east' || e === 'west');
+  // the frontage is only taken once there is a gap and it really goes: waiting for one, it holds nobody up
   return [
-    V.until(() => lot.takeAisle(who)),
-    V.choose(() => {
-      const plan = pickR(waysOut(lot, i, park, body));
-      const out = backOut(lot, bay, park, plan.swing);
-      return [
-        V.wait(R(0.6, 1.2)),
-        V.drive(out.path, { reverse: true, speed }),
-        V.run(() => lot.release(i)),
-        V.wait(R(0.3, 0.8)),
-        roads.depart(out.out, pickR(plan.to), { via: plan.via, onRoad: () => lot.freeAisle(who) }),
-      ];
-    }),
+    V.wait(R(0.6, 1.2)),
+    roads.backOut(park, pickW(away), { ready: () => lot.takeFront(who), onRoad: () => { lot.release(i); lot.freeFront(who); } }),
   ];
 }
-/** The walk from beside the car (driver's side, or the passenger's) up the gap to the apron, and back. */
+/** where road B's zebra crossing starts, on the bays' side of the junction */
+const CROSSING_Z = 4;
+/** The walk from beside the car (driver's side, or the passenger's) up the gap to the walkway, and back. */
 function walkway(bay: ParkingBay, park: Pose, passenger: boolean) {
-  const x = passenger ? bay.walk.passenger : bay.walk.driver;
-  const there: [number, number][] = [[x, park.z], [x, bay.walk.apron]];
-  return { there, back: [...there].reverse(), door: [bay.x + (passenger ? -1 : 1) * 1.02, park.z + 0.35] as [number, number] };
+  const z = passenger ? bay.walk.passenger : bay.walk.driver;
+  const there: [number, number][] = [[park.x, z], [bay.walk.walkway, z]];
+  // parked facing −x, the driver (right-hand drive) gets out on the −z side
+  return { there, back: [...there].reverse(), door: [park.x + 0.35, bay.z + (passenger ? 1.02 : -1.02)] as [number, number] };
 }
 
 const OUTFIT: Partial<Record<VehicleKind, FigureOptions>> = {
@@ -236,21 +200,19 @@ export const parkingMod = defineMod({
     const S = ctx.steps, C = ctx.states.conditions, board = ctx.director.board;
     let n = 0;
 
-    /** A car pulls in off road A (or, `waiting`, is already parked with its people inside), they shop and drive off. */
+    /** A car comes along road A and pulls in (or, `waiting`, is already parked with its people inside); they shop and drive off. */
     function visit(i: number, kind: VehicleKind, waiting: boolean) {
       const bay = lot!.bays[i], who = `visit${++n}`;
       const m = makeVehicle(ctx, roads!, kind);
       const park = parkedPose(bay, m.body);
-      const way = pickR(waysIn(lot!, i, park).filter((w) => roads!.free(w.from)));
-      if (!waiting && !way) return;
+      // they come along road A from the west: the turn down road B is then a left turn, across nobody's path
+      if (!waiting && !roads!.free('west')) return;
       lot!.claim(i, who);
       const o = { kind, label: LABEL[kind], accel: m.accel };
-      const v = waiting ? roads!.traffic.spawn(m.body, { at: park, ...o }) : roads!.spawn(m.body, way.from, o);
+      const from = 'west';
+      const v = waiting ? roads!.traffic.spawn(m.body, { at: park, ...o }) : roads!.spawn(m.body, from, o);
       if (waiting) v.engine = false;
-      else v.then(roads!.arrive(way.from, { x: way.d.x, z: way.d.mouth, heading: PI }, way.path, {
-        enter: () => lot!.takeAisle(who),
-        balk: () => lot!.release(i),                     // someone is manoeuvring: drive on by
-      }));
+      else v.then(roads!.pullIn(from, park, { enter: () => lot!.takeFront(who) }));
 
       // a passenger now and then — more often at weekends
       const count = kind === 'taxi' || kind === 'patrol' || kind === 'kei-truck' ? 1 : Math.random() < (C.dayOff ? 0.4 : 0.15) ? 2 : 1;
@@ -258,10 +220,12 @@ export const parkingMod = defineMod({
       const back = (passenger: boolean) => {
         const w = walkway(bay, park, passenger);
         const steps: Steps[] = [S.walk(w.back), S.walk([w.door]), S.face([park.x, park.z])];
-        if (kind === 'taxi' && !passenger) steps.push(S.run((a) => { a.heading = PI; }), S.pose('drink', R(7, 12)));
+        if (kind === 'taxi' && !passenger) steps.push(S.run((a) => { a.heading = park.heading; }), S.pose('drink', R(7, 12)));
         steps.push(S.run(() => { aboard++; }), S.leave());
         return steps;
       };
+      // back out to the car by the side door, the one nearer the bays
+      const out = shop!.nodes.sideOut ?? shop!.nodes.doorOut;
       const person = (passenger: boolean, d: Drivers) => {
         const fig = citizen(ctx, d, { ...(passenger ? {} : OUTFIT[kind]), umbrella: d.rain > 0.3 || d.snow > 0.3 });
         const buy = kind === 'taxi' ? 'can' : 'bag';
@@ -270,20 +234,20 @@ export const parkingMod = defineMod({
           // already inside: they come out of the shop with their shopping
           fig.hold(buy);
           const a = ctx.director.spawn(fig, { at: shop!.nodes.doorIn, label: '开车来的顾客', tags: ['customer'] });
-          a.then(S.wait(R(4, 40)), S.go(shop!.nodes.doorOut), back(passenger));
+          a.then(S.wait(R(4, 40)), S.go(out), back(passenger));
         } else {
-          const a = ctx.director.spawn(fig, { x: w.door[0], z: w.door[1], heading: passenger ? -PI / 2 : PI / 2, label: '开车来的顾客', tags: ['customer'] });
-          a.then(S.walk(w.there), shopAround(ctx, fig, board, { buy }), S.go(shop!.nodes.doorOut), back(passenger));
+          const a = ctx.director.spawn(fig, { x: w.door[0], z: w.door[1], heading: passenger ? 0 : PI, label: '开车来的顾客', tags: ['customer'] });
+          a.then(S.walk(w.there), shopAround(ctx, fig, board, { buy }), S.go(out), back(passenger));
         }
       };
       v.then(
-        V.engine(false), V.run(() => lot!.freeAisle(who)),
+        V.engine(false), V.run(() => lot!.freeFront(who)),
         V.run(() => { const d = ctx.atmosphere.drivers; for (let k = 0; k < count; k++) person(k === 1, d); }),
         V.until(() => aboard >= count),
         V.wait(R(0.8, 1.6)), V.engine(true),
-        leaveBay(roads!, lot!, i, park, m.body, who, 1.4),
+        leaveBay(roads!, lot!, i, park, m.body, who),
       );
-      v.onDispose = () => { if (lot!.holder(i) === who) lot!.release(i); lot!.freeAisle(who); };
+      v.onDispose = () => { if (lot!.holder(i) === who) lot!.release(i); lot!.freeFront(who); };
     }
 
     const freeBays = () => lot.bays.map((_, i) => i).filter((i) => lot.holder(i) === null);
@@ -315,55 +279,51 @@ export const deliveryMod = defineMod({
   requires: ['konbini.library', 'konbini.world.roads'],
   setup(ctx) {
     const roads = ctx.services.get<RoadService>('world.roads');
-    const lot = ctx.services.get<ParkingService>('shop.parking');
-    const shop = ctx.services.get<ShopService>('shop');
-    if (!roads || !lot || !shop) return;
+    const yard = ctx.services.get<BackyardService>('shop.backyard');
+    if (!roads || !yard) return;
     const S = ctx.steps, C = ctx.states.conditions;
     // the shop is restocked three times a day: early morning, mid-afternoon, late evening
     const ROUNDS = [6.3, 14.5, 22.2];
-    // the truck takes a bay at the east end, near the door to the back room if it can
-    const BAYS = lot.bays.map((_, i) => i).sort((a, b) => lot.bays[b].x - lot.bays[a].x).slice(0, 3);
     let next = R(4, 15), busy = false;
 
-    function deliver(i: number) {
-      const bay = lot!.bays[i];
-      const m = makeVehicle(ctx, roads!, 'box-truck');
-      const park = parkedPose(bay, m.body);
-      const way = pickR(waysIn(lot!, i, park).filter((w) => roads!.free(w.from)));
-      if (!way) return;
+    /** Up the back lane, stop at the yard's opening, two trips with crates to the back door, on along the lane. */
+    function deliver() {
+      // from the west, like the customers: a long truck turning right would wait in the middle of the junction
+      if (!roads!.free('west')) return;
       busy = true;
-      lot!.claim(i, 'delivery');
-      const v = roads!.spawn(m.body, way.from, { kind: 'box-truck', label: '送货卡车', accel: m.accel });
+      const m = makeVehicle(ctx, roads!, 'box-truck');
+      // facing −x along the lane, its back doors just short of the middle of the opening: the driver unloads standing
+      // behind it, right where the way in through the opening starts (the yard's lane node), not inside the box
+      const openX = (yard!.opening.x0 + yard!.opening.x1) / 2, x = openX - m.body.len / 2 - 0.55;
+      const from = 'west';
+      const v = roads!.spawn(m.body, from, { kind: 'box-truck', label: '送货卡车', accel: m.accel });
       let done = false;
       v.then(
-        roads!.arrive(way.from, { x: way.d.x, z: way.d.mouth, heading: PI }, way.path, {
-          enter: () => lot!.takeAisle('delivery'),
-          balk: () => lot!.release(i),
-        }),
-        V.engine(false), V.run(() => { lot!.freeAisle('delivery'); v.hazard = true; driver(); }),
+        roads!.intoLane(from, x),
+        V.engine(false), V.run(() => { v.hazard = true; driver(); }),
         V.until(() => done),
         V.wait(1), V.run(() => { v.hazard = false; }), V.engine(true), V.wait(0.8),
-        leaveBay(roads!, lot!, i, park, m.body, 'delivery', 1.2),
+        roads!.alongLane(),
       );
-      v.onDispose = () => { busy = false; if (lot!.holder(i) === 'delivery') lot!.release(i); lot!.freeAisle('delivery'); };
+      v.onDispose = () => { busy = false; };
 
       function driver() {
         const fig = ctx.prefabs.create('figure', { shirt: '#2f6db5', pants: '#2f3540', skirt: null, hat: 'cap', shortSleeve: ctx.atmosphere.drivers.temperature > 22 });
-        const w = walkway(bay, park, false);
-        const rear: [number, number] = [bay.x + 0.45, park.z + m.body.len / 2 + 0.5];
-        const toShop: [number, number][] = [[w.there[0][0], rear[1]], ...w.there.slice(1)];
-        const a = ctx.director.spawn(fig, { x: w.door[0], z: w.door[1], heading: PI / 2, label: '送货员' });
-        const trips = 2;
-        for (let k = 0; k < trips; k++) {
+        // out of the cab on the driver's side, and along it clear of the body, round to the back doors
+        const p = v.pose, side = p.z - m.body.width / 2 - 0.4;
+        const cab: [number, number] = [p.x - m.body.len / 2 + 1.0, side];
+        const rear: [number, number] = [p.x + m.body.len / 2 + 0.5, p.z];
+        const a = ctx.director.spawn(fig, { x: cab[0], z: cab[1], heading: PI, label: '送货员' });
+        for (let k = 0; k < 2; k++) {
           a.then(
-            S.walk([[w.there[0][0], park.z], [w.there[0][0], rear[1]], rear]), S.face(PI), S.pose('place', 1.1),
+            S.walk([[rear[0], cab[1]], rear]), S.face(-PI / 2), S.pose('place', 1.1),
             S.run(() => fig.hold('crate')), S.wait(0.3),
-            S.walk(toShop), S.go(shop!.nodes.doorIn), S.run(() => clerk(ctx)?.bow()),
-            S.go(shop!.nodes.backroom), S.pose('place', 1.2), S.run(() => fig.hold(null)), S.wait(0.6),
-            S.go(shop!.nodes.doorOut), S.walk([...toShop].reverse()),
+            S.go(yard!.nodes.lane), S.go(yard!.nodes.door), S.run(() => clerk(ctx)?.bow()),
+            S.pose('place', 1.2), S.run(() => fig.hold(null)), S.wait(0.6),
+            S.go(yard!.nodes.lane),
           );
         }
-        a.then(S.walk([[w.there[0][0], park.z], w.door]), S.face([park.x, park.z]), S.run(() => { done = true; }), S.leave());
+        a.then(S.walk([[rear[0], cab[1]], cab]), S.face([p.x, p.z]), S.run(() => { done = true; }), S.leave());
       }
     }
 
@@ -373,9 +333,7 @@ export const deliveryMod = defineMod({
       next = R(25, 45);
       const h = C.hour;
       const due = ROUNDS.some((r) => Math.min(Math.abs(h - r), 24 - Math.abs(h - r)) < 1.0);
-      if (!due || Math.random() > 0.5) return;
-      const i = BAYS.find((b) => lot.holder(b) === null);
-      if (i !== undefined) deliver(i);
+      if (due && Math.random() < 0.5) deliver();
     });
   },
 });

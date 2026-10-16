@@ -294,6 +294,9 @@ export class Vehicle {
     return Math.min(1, Math.max(0, inside / EDGE_FADE));
   }
 
+  /** Has it got past the gate placed at `at` on its current leg (the same `at` the Gate was given)? The engine's own
+   * test, so callers needn't guess where along the path that happens. */
+  passedGate(at: Gate['at']) { return !!this.leg?.gates.some((g) => g.at === at && g.passed); }
   get half() { return this.body.len / 2; }
   get halfWidth() { return this.body.width / 2; }
   get idle() { return this.queue.length === 0; }
@@ -359,12 +362,16 @@ export class Vehicle {
       const d = stopAt - s;
       want = Math.min(want, d <= 0.005 ? 0 : Math.max(0.35, Math.sqrt(2 * BRAKE * d)));
     }
-    // whatever is in the way
-    const hit = this.traffic.ahead(this, P, s, o.reverse ?? false);
+    // whatever is in the way — short of where a closed gate stops it anyway: beyond that it is not its business yet
+    // (a car at a T would otherwise brake early for the traffic it is about to wait for, short of its line)
+    const hit = this.traffic.ahead(this, P, s, o.reverse ?? false, stopAt < Infinity ? stopAt - s + this.half + 0.5 : Infinity);
     this.blocker = hit?.what ?? null;
     if (hit) want = Math.min(want, Math.max(0, Math.min(Math.sqrt(2 * BRAKE * Math.max(0, hit.d - hit.gap)), (hit.d - hit.gap) * 1.4)));
+    // a jam nobody can untangle — vehicles waiting on each other round in a circle — is broken by squeezing past.
+    // Queueing behind someone who waits at a light or a gate is not a jam, however long the wait (but after a
+    // couple of minutes of that, squeeze past anyway: something is waiting on something that will never come).
     if (this.blocker instanceof Vehicle && this.v < 0.05) this.stuck += dt; else this.stuck = 0;
-    if (this.stuck > 40) { this.ghost = 3; this.stuck = 0; }   // a jam nobody can untangle: squeeze past
+    if ((this.stuck > 40 && this.waitsInCircle()) || this.stuck > 120) { this.ghost = 3; this.stuck = 0; }
     this.ghost = Math.max(0, this.ghost - dt);
 
     const before = this.v;
@@ -385,6 +392,16 @@ export class Vehicle {
     } else this.lamps.blink = null;
     if (o.through && ns >= P.length) return true;
     return !o.through && ns >= P.length - 0.01 && this.v < 0.4;
+  }
+
+  /** Following who blocks whom from here comes back round to this vehicle. */
+  private waitsInCircle() {
+    let b = this.blocker;
+    for (let i = 0; i < 12 && b instanceof Vehicle; i++) {
+      if (b === this) return true;
+      b = b.blocker;
+    }
+    return false;
   }
 
   private apply(heading: number) {
@@ -521,7 +538,7 @@ export class Traffic {
   }
 
   /** What is in the way of `me` along path P from s on: the nearest vehicle or person, and its distance from my front. */
-  ahead(me: Vehicle, P: Path, s: number, _reverse: boolean): { d: number; gap: number; what: Vehicle | object } | null {
+  ahead(me: Vehicle, P: Path, s: number, _reverse: boolean, upTo = Infinity): { d: number; gap: number; what: Vehicle | object } | null {
     const half = me.half, hw = me.halfWidth;
     const look = Math.min(24, Math.max(7, 4 + (me.v * me.v) / (2 * BRAKE) + me.v * 0.6));
     const reach = half + look + 8;
@@ -536,7 +553,7 @@ export class Traffic {
     if (!near.length && !people.length) return null;
     const pt = this.tmp;
     for (let ds = half + 0.2; ds <= half + look; ds += 0.5) {
-      if (s + ds > P.length + 0.6) break;
+      if (s + ds > P.length + 0.6 || ds > upTo) break;
       P.at(s + ds, pt);
       if (s + ds > P.length) {   // just past the end: keep a little room ahead of where it stops
         const over = s + ds - P.length;

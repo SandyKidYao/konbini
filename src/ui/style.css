@@ -44,9 +44,9 @@ body {
 /* --- the map form: the street from straight above, a small pixel-art tile (its walnut edge is drawn in it) --- */
 .plan {
   /* not too big: the tile is a few dozen pixels across, and blown up further they turn into blocks */
-  --map-w: min(392px, 84vw, calc((100vh - 150px) * 7 / 6));
+  --map-w: min(392px, 84vw, calc((100vh - 150px) * var(--map-aspect, 0.86)));
   position: fixed; left: 50%; top: 50%; z-index: 1; translate: -50% -54%;
-  width: var(--map-w); aspect-ratio: 7 / 6; display: grid; place-items: end center; pointer-events: none;
+  width: var(--map-w); aspect-ratio: var(--map-aspect, 0.86); display: grid; place-items: end center; pointer-events: none;
   opacity: 0; visibility: hidden; transform: scale(0.97);
   transition: opacity 0.5s var(--ease), transform 0.5s var(--ease), visibility 0s linear 0.5s;
 }

@@ -26,7 +26,7 @@ const SCENES = [
   { name: 'snow-day', q: 'weather=snow&time=1300' },
   { name: 'snow-night', q: 'weather=snow&time=2200' },
   { name: 'fog-day', q: 'weather=fog&time=1000' },
-  { name: 'shop-night-close', q: 'weather=clear&time=2300&cam=14,7,13,1.5,0.8,-6.5' },
+  { name: 'shop-night-close', q: 'weather=clear&time=2300&cam=12.8,7,23.5,0.3,0.8,4' },
   { name: 'live-tokyo', q: 'live=1&place=35.68,139.69,東京', wait: 6000 },
   // no place given: geolocation is denied in headless Chrome, so this exercises the IP / time-zone fallback
   { name: 'live-fallback', q: 'live=1', wait: 15000 },
@@ -34,20 +34,26 @@ const SCENES = [
   { name: 'live-file', q: 'live=1', file: true, wait: 15000 },
   // every outside request fails: the status line should say so, the scene should still run
   { name: 'live-offline', q: 'live=1&place=35.68,139.69,東京', offline: true, wait: 4000 },
+  // a train on the level crossing: bell, lamps, arms down, people and cars waiting (sent, then run on to the crossing)
+  // (the train keeps going while the shot is taken: it is sent so that it is on the crossing a moment later)
+  { name: 'train-crossing', q: 'weather=clear&time=1600&date=2026-10-14&warp=60&cam=16.4,7.6,22,17.2,0.8,-23.6,26', wait: 400, setup: `
+    konbini.services.get('world.railway').send(1); for (let i = 0; i < 245; i++) konbini.simulate(0.05);` },
+  { name: 'train-dusk', q: 'weather=partly&time=1800&date=2026-10-14&warp=60&cam=-4,5.5,-31,4,2,-18.6,38', wait: 400, setup: `
+    konbini.services.get('world.railway').send(-1); for (let i = 0; i < 297; i++) konbini.simulate(0.05);` },
   // seasons and festivals (the close-ups look at the shop door, where the decorations go)
   { name: 'spring-bloom', q: 'weather=clear&time=1100&date=2026-04-03' },
   { name: 'summer-festival', q: 'weather=clear&time=1930&date=2026-08-08&warp=40' },
   { name: 'autumn-leaves', q: 'weather=partly&time=1500&date=2026-11-12' },
   { name: 'winter-bare', q: 'weather=clear&time=1200&date=2026-01-21&warp=30' },
-  { name: 'newyear-door', q: 'weather=clear&time=1000&date=2027-01-02&cam=10,5,7.5,1,0.8,-6' },
-  { name: 'tanabata-door', q: 'weather=clear&time=1800&date=2026-07-05&cam=10,5,7.5,1,0.8,-6' },
-  { name: 'halloween-door', q: 'weather=clear&time=2000&date=2026-10-25&cam=10,5,7.5,1,0.8,-6' },
-  { name: 'xmas-door', q: 'weather=snow&time=1900&date=2026-12-22&cam=10,5,7.5,1,0.8,-6&warp=20' },
+  { name: 'newyear-door', q: 'weather=clear&time=1000&date=2027-01-02&cam=8.8,5,18,-0.2,0.8,4.5' },
+  { name: 'tanabata-door', q: 'weather=clear&time=1800&date=2026-07-05&cam=8.8,5,18,-0.2,0.8,4.5' },
+  { name: 'halloween-door', q: 'weather=clear&time=2000&date=2026-10-25&cam=8.8,5,18,-0.2,0.8,4.5' },
+  { name: 'xmas-door', q: 'weather=snow&time=1900&date=2026-12-22&cam=8.8,5,18,-0.2,0.8,4.5&warp=20' },
   { name: 'festival-street', q: 'weather=clear&time=1940&date=2026-08-08&warp=90&cam=-2,4,19,-2,0.9,9' },
   { name: 'winter-street', q: 'weather=cloudy&time=0800&date=2027-01-20&warp=90&cam=-2,4,19,-2,0.9,9' },
-  { name: 'furin-summer', q: 'weather=partly&time=1400&season=summer&mods=mods/furin.js&cam=4,3.2,0,4,2.1,-4.5' },
+  { name: 'furin-summer', q: 'weather=partly&time=1400&season=summer&mods=mods/furin.js&cam=2.8,3.2,10.5,2.8,2.1,6' },
   // stepping the date with ] at runtime: bare branches on 3-20, blossom five days later (snow cover re-bakes)
-  { name: 'date-keys', q: 'weather=snow&time=1200&date=2026-03-20&cam=-9,7,14,-16,3,4', setup: `
+  { name: 'date-keys', q: 'weather=snow&time=1200&date=2026-03-20&cam=-3,4.5,-32.5,9.2,2.4,-22.5,32', setup: `
     for (let i = 0; i < 5; i++) dispatchEvent(new KeyboardEvent('keydown', { key: ']' }));` },
   // a line-up of figures in every outfit, on the sidewalk in front of the shop
   { name: 'outfits', q: 'weather=clear&time=1100&cam=-1,2.6,13.5,-1,1,8.8', setup: `
@@ -90,15 +96,16 @@ const SCENES = [
   { name: 'traffic-rush', q: 'weather=cloudy&time=0800&date=2026-10-14&warp=120' },
   { name: 'traffic-night', q: 'weather=clear&time=2330&date=2026-10-14&warp=120' },
   { name: 'traffic-rain-dusk', q: 'weather=rain&time=1820&date=2026-10-14&warp=120' },
-  { name: 'lot-lunch', q: 'weather=clear&time=1215&date=2026-10-14&warp=150&cam=1,13,20,1,0,0' },
+  { name: 'lot-lunch', q: 'weather=clear&time=1215&date=2026-10-14&warp=150&cam=25,11,10,10,0,-1' },
   // the shop front from above: the car park, the plaza and the lane people walk in by
-  { name: 'front-plan', q: 'weather=clear&time=1200&date=2026-10-17&warp=60&cam=0,70,-4,0,0,-5' },
-  { name: 'lot-delivery', q: 'weather=partly&time=1430&date=2026-10-14&warp=200&cam=1,13,20,1,0,0' },
+  { name: 'front-plan', q: 'weather=clear&time=1200&date=2026-10-17&warp=60&cam=0,70,1,0,0,0' },
+  { name: 'lot-delivery', q: 'weather=partly&time=1430&date=2026-10-14&warp=200&cam=-1,12,3,-10,0,-7' },
   // the camera presets (the overview is the default view, shot above)
   { name: 'view-facade', q: 'weather=clear&time=1600&date=2026-10-14&warp=60&view=facade' },
   { name: 'view-bird', q: 'weather=clear&time=1600&date=2026-10-14&warp=60&view=bird' },
   { name: 'view-corner', q: 'weather=rain&time=1830&date=2026-10-14&warp=60&view=corner' },
   { name: 'view-yard', q: 'weather=clear&time=2100&date=2026-10-14&warp=60&view=yard' },
+  { name: 'view-fumikiri', q: 'weather=partly&time=1730&date=2026-10-14&warp=60&view=fumikiri' },
   // the controls, driven like a person would: they only come out once the pointer moves
   { name: 'ui-bar', q: 'weather=clear&time=1100&date=2026-10-13', wait: 600, act: async (p) => { await reveal(p); } },
   { name: 'ui-view-click', q: 'weather=clear&time=1100&date=2026-10-13', act: async (p) => { await openTray(p); await p.click('[data-view="facade"]'); } },
@@ -142,11 +149,11 @@ const SCENES = [
     await p.mouse.move(270, 250); await p.mouse.move(280, 240); await p.waitForTimeout(400); await p.mouse.dblclick(280, 240); } },
   { name: 'pet-picker', q: 'pet=1&weather=clear&time=1600', viewport: { width: 560, height: 460 }, setup: DESK, act: async (p) => {
     await p.mouse.move(270, 250); await p.mouse.move(280, 240); await p.waitForTimeout(400); await p.mouse.dblclick(280, 240); await p.click('#dateBtn'); } },
-  { name: 'pet-plan', q: 'pet=1&view=plan&size=medium&weather=clear&time=1900&date=2026-10-14&warp=90', viewport: { width: 380, height: 470 }, setup: DESK, wait: 900, act: async (p) => {
+  { name: 'pet-plan', q: 'pet=1&view=plan&size=medium&weather=clear&time=1900&date=2026-10-14&warp=90', viewport: { width: 380, height: 540 }, setup: DESK, wait: 900, act: async (p) => {
     await p.mouse.move(190, 400); await p.mouse.move(195, 405); await p.waitForTimeout(400); } },
-  { name: 'pet-plan-tray', q: 'pet=1&view=plan&size=small&weather=rain&time=1300&date=2026-10-14&warp=90', viewport: { width: 380, height: 470 }, setup: DESK, act: async (p) => {
+  { name: 'pet-plan-tray', q: 'pet=1&view=plan&size=small&weather=rain&time=1300&date=2026-10-14&warp=90', viewport: { width: 380, height: 540 }, setup: DESK, act: async (p) => {
     await p.mouse.move(190, 400); await p.mouse.move(195, 405); await p.waitForTimeout(400); await p.mouse.dblclick(195, 405); } },
-  { name: 'pet-plan-tiny', q: 'pet=1&view=plan&size=small&weather=clear&time=1215&date=2026-10-14&warp=150', viewport: { width: 380, height: 470 } },
+  { name: 'pet-plan-tiny', q: 'pet=1&view=plan&size=small&weather=clear&time=1215&date=2026-10-14&warp=150', viewport: { width: 380, height: 540 } },
   // on the desk the views are the web's; where the model runs past the window's edge it fades into the desk
   { name: 'pet-view-facade', q: 'pet=1&weather=clear&time=1600', viewport: { width: 560, height: 460 }, setup: DESK, act: async (p) => {
     await p.mouse.move(270, 250); await p.mouse.move(280, 240); await p.waitForTimeout(400); await p.mouse.dblclick(280, 240);

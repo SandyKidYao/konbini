@@ -25,8 +25,8 @@ export default defineMod({
     const petalMat = mat('#f9cfdb', { side: THREE.DoubleSide, roughness: 0.8 });
     const fall = { amount: 1, size: 1 };
 
-    // sakura in the neighbour's front yard
-    const SAKURA = V(-16.6, 0.08, 4.2);
+    // sakura on the verge between the railway and the coast road, west of the crossing
+    const SAKURA = V(9.2, 0.08, -23.2);
     {
       const g = new THREE.Group();
       const bark = mat('#6b5040', { roughness: 0.9 });

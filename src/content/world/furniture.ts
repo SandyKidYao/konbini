@@ -56,7 +56,9 @@ export default defineMod({
       root.add(g);
       return { g, pts, low: V(x, 6.9, z) };
     }
-    const P1 = pole(-13, 8.8, 'z'), P2 = pole(12.9, 8.9, 'x'), P3 = pole(12.9, -9, 'x');
+    const P1 = pole(-13, 8.8, 'z'), P2 = pole(12.9, 8.9, 'x'), P3 = pole(12.9, -12.2, 'x');   // P3 stands clear of the back lane's mouth
+    // P4 between the level crossing and the coast road; from it a single line runs off west along the verge
+    const P4 = pole(12.9, -24.4, 'x');
     cyl(P1.g, 0.36, 0.36, 1.1, mat('#b3b8bd', { roughness: 0.5, metalness: 0.3 }), 0, 6.4, -0.45, 16);
     box(P3.g, 0.5, 0.7, 0.3, mat('#9ea3a9'), 0, 5.6, 0.3);
     box(P2.g, 0.12, 0.12, 1.9, M.darkMetal, 0, 8.55, 0);
@@ -72,13 +74,13 @@ export default defineMod({
     wireSet(P1.pts, P2z, 0.9);
     wireSet(P1.pts, P1.pts.map((p) => p.clone().setX(-28)), 0.5);
     wireSet(P2.pts, P3.pts, 0.7);
-    wireSet(P3.pts, P3.pts.map((p) => p.clone().setZ(-24)), 0.6);
+    wireSet(P3.pts, P4.pts, 0.7);
     wireSet(P2z, P2z.map((p) => p.clone().setX(28)), 0.9);
     wire(P1.low, P2.low, 0.8, 0.045); wire(P2.low, P3.low, 0.7, 0.045);
     wire(P1.low, P1.low.clone().setX(-28), 0.4, 0.045);
-    wire(P3.low, P3.low.clone().setZ(-24), 0.4, 0.045);
-    wire(V(12.9, 6.6, 8.9), V(9.0, 4.4, -3.0), 0.5, 0.018);
-    wire(P1.low, V(-15.5, 5.2, -1), 0.4, 0.018);
+    wire(P3.low, P4.low, 0.6, 0.045);
+    wire(P4.low, P4.low.clone().setX(-28), 0.4, 0.045);
+    wire(V(12.9, 6.6, 8.9), V(7.7, 4.4, 2.6), 0.5, 0.018);   // the drop to the shop
 
     // ------------------------------------------------ street lamps (warm, cosier than cold LED in a miniature)
     const lamps: THREE.SpotLight[] = [];
@@ -175,8 +177,11 @@ export default defineMod({
     const om = mat('#ee7a35', { roughness: 0.45 });
     cyl(root, 0.055, 0.055, 2.9, om, 11.95, 0.15, 9.5, 12);
     const mirror = new THREE.Group();
-    const glass = new THREE.Mesh(new THREE.CircleGeometry(0.42, 32), new THREE.MeshStandardMaterial({ color: '#ffffff', metalness: 1, roughness: 0.02, envMap: ctx.fx.envMap }));
-    glass.position.z = 0.03; mirror.add(glass);
+    // the glass: a shallow convex cap, its rim just in front of the backing (flush with it, the two fight), so it
+    // shows a wide view round the corner as a real one does
+    const CAP_R = 1.2, CAP_T = Math.asin(0.42 / CAP_R);
+    const glass = new THREE.Mesh(new THREE.SphereGeometry(CAP_R, 32, 6, 0, Math.PI * 2, 0, CAP_T), new THREE.MeshStandardMaterial({ color: '#ffffff', metalness: 1, roughness: 0.02, envMap: ctx.fx.envMap }));
+    glass.rotation.x = Math.PI / 2; glass.position.z = 0.04 - CAP_R * Math.cos(CAP_T); mirror.add(glass);
     mirror.add(new THREE.Mesh(new THREE.TorusGeometry(0.44, 0.04, 10, 32), om));
     const back = new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.44, 0.06, 32), om); back.rotation.x = Math.PI / 2; mirror.add(back);
     mirror.traverse((o) => { o.castShadow = true; });
@@ -189,7 +194,7 @@ export default defineMod({
       m.position.set(x, h, z); m.rotation.y = ry; m.castShadow = true;
       root.add(m);
     };
-    signPost(12.0, -1.6, Math.PI / 2, new THREE.CircleGeometry(0.32, 32), noParkTex);
+    signPost(12.1, -13.6, Math.PI / 2, new THREE.CircleGeometry(0.32, 32), noParkTex);
     const tri = new THREE.CircleGeometry(0.55, 3); tri.rotateZ(-Math.PI / 2); planarUV(tri);
     signPost(22.1, 2.2, Math.PI, tri, stopSignTex, 2.2);
   },
