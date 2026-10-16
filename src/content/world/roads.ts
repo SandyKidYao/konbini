@@ -64,6 +64,8 @@ const BACKING_HOLD = -11.6;
 const shore = (e: RoadEnd): e is 'shore-west' | 'shore-east' => e === 'shore-west' || e === 'shore-east';
 const LANE = { east: 11.9, west: 15.1 } as const;       // road A: eastbound keeps left (the shop side)
 const B = { north: 19.0, south: 16.0 } as const;        // road B: northbound keeps left (the east side)
+/** where traffic coming up road B stops for the level crossing (its gate's `at`, so we can ask who is past it) */
+const RAIL_UP = [B.north, XING.z0 - 0.75] as const;
 const SPEED = { a: 8.5, b: 6.5, turn: 4.5, lot: 3 };
 /** the edge of the sidewalk along road A on the plot's side: vehicles leaving a plot take a last look here */
 const KERB = SIDEWALKS[0][2];
@@ -154,38 +156,45 @@ export default defineMod({
     /** anyone slow (queueing, stopped) in this rectangle, but me */
     const queued = (r: Rect, self: Vehicle) => traffic.vehicles.some((o) => o !== self && !o.done && !o.parked && o.v < 1.5 && inRect(r)(o));
     /**
-     * Room beyond the level crossing for all of me, so I never stop on it. Up to a line where I would stop nose-on —
-     * the T's stop line going down, the hold for someone backing out of a bay going up — I need my length and a
-     * little; behind whoever is nearest ahead in my lane (moving or not: a car rolling off may stop a moment later),
-     * my length and the gap I would keep from its tail in a queue.
+     * Room beyond the level crossing for all of me, so I never stop on it.
+     * Going down, between the crossing and the T there is room for one, stopped nose-on at the T's line — and only if
+     * nothing stops it sooner: nobody ahead in that stretch or still turning out of it (from a vehicle across its
+     * path the engine keeps a wide gap), and nobody walking over the mouth of road B on the coast road's sidewalk.
+     * Going up: my length and a little up to the hold for someone backing out of a bay, and my length and the gap I
+     * would keep in a queue behind whoever is nearest ahead in the lane (moving or not: it may stop a moment later).
      */
     // nose to tail in a queue: the engine keeps 1.4 m, plus the margins round both footprints, found in 0.5 m steps
     const QUEUE_GAP = 2.3;
+    const MOUTH: Rect = { x0: 13.6, x1: 21.4, z0: COAST.z1 - 0.4, z1: COAST.z1 + 1.6 };
     const roomBeyond = (v: Vehicle, down: boolean) => {
-      const lane = down ? B.south : B.north, len = 2 * v.half;
-      const line = down ? XING.z0 - T_STOP : backing.size > 0 ? BACKING_HOLD - XING.z1 : Infinity;
+      const len = 2 * v.half;
+      if (down) {
+        const ahead = traffic.vehicles.some((o) => o !== v && !o.done && !o.parked && Math.abs(o.pose.x - B.south) < 2.2
+          && o.pose.z < XING.z1 + 1 && o.pose.z > COAST.z0 - 2);
+        const walking = ctx.director.actors.some((a) => { const q = a.position;
+          return a.walker.visibleScale > 0.3 && q.x > MOUTH.x0 && q.x < MOUTH.x1 && q.z > MOUTH.z0 && q.z < MOUTH.z1; });
+        if (ahead || walking) return false;
+        // too long to wait at the T's line clear of the tracks (a truck): only with the coast road clear, so it can
+        // turn out without stopping
+        return XING.z0 - T_STOP >= len + 0.3 || (!alongShore('west', B.south - 2, 7, v) && !alongShore('east', B.south + 4, 7, v));
+      }
       let tail = Infinity;
       for (const o of traffic.vehicles) {
-        if (o === v || o.done || o.parked || Math.abs(o.pose.x - lane) > 2.2) continue;
-        if (down ? o.pose.z > XING.z1 + 1 || o.pose.z < COAST.z0 - 2 : o.pose.z < XING.z0 - 1 || o.pose.z > 9.5) continue;
-        tail = Math.min(tail, down ? XING.z0 - (o.pose.z + o.half) : o.pose.z - o.half - XING.z1);
+        if (o === v || o.done || o.parked || Math.abs(o.pose.x - B.north) > 2.2 || o.pose.z < XING.z0 - 1 || o.pose.z > 9.5) continue;
+        tail = Math.min(tail, o.pose.z - o.half - XING.z1);
       }
-      if (line >= len + 0.3 && tail >= len + QUEUE_GAP) return true;
-      // too long to wait between the crossing and the T (a truck): only go with nobody ahead and the coast road
-      // clear, so it can turn out without stopping
-      return down && tail === Infinity && !alongShore('west', B.south - 2, 7, v) && !alongShore('east', B.south + 4, 7, v);
+      return (backing.size === 0 || BACKING_HOLD - XING.z1 >= len + 0.3) && tail >= len + QUEUE_GAP;
     };
-    /** coming up road B, over the crossing's stop line but not yet past the hold for backing out: holding them now
-     * would leave them on the tracks */
+    /** coming up road B, let over the crossing (past its gate) but not yet past the hold for backing out: holding
+     * them now would leave them on the tracks */
     const crossingUp = (self: Vehicle) => traffic.vehicles.some((o) => o !== self && !o.done && !o.parked
-      && Math.abs(o.pose.x - B.north) < 1.8 && Math.cos(o.pose.heading) > 0.5
-      && o.pose.z + o.half > XING.z0 - 0.8 && o.pose.z + o.half < BACKING_HOLD + 0.3);
+      && o.passedGate(RAIL_UP) && o.pose.z + o.half < BACKING_HOLD + 0.3);
     /** gates every path is checked against (each applies only where the path passes it) */
     const standard: Gate[] = [
       // the level crossing: everyone stops before it, then goes only if it is open and there is room beyond
       // (never stop on the tracks): one car's length between the crossing and the T, or beyond it on the way up
       { at: [B.south, XING.z1 + 0.75], near: 1.2, halt: 0.8, open: (v) => !railway()?.closed() && roomBeyond(v, true) },
-      { at: [B.north, XING.z0 - 0.75], near: 1.2, halt: 0.8, open: (v) => !railway()?.closed() && roomBeyond(v, false) },
+      { at: RAIL_UP, near: 1.2, halt: 0.8, open: (v) => !railway()?.closed() && roomBeyond(v, false) },
       // 停止禁止: going down, don't stop across the back lane's mouth — wait short of it while the stretch beyond is full
       { at: [B.south, BACK_LANE.z1 + 0.3], near: 1.2, commit: false, open: (v) => !queued({ x0: 14.5, x1: 17.5, z0: XING.z1 + 0.5, z1: BACK_LANE.z0 - 0.2 }, v) },
       // coming up road B from the sea: hold short of the bays while someone backs out across the lane
