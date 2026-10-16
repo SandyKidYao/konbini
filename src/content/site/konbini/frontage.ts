@@ -13,6 +13,7 @@ import { mat, box, boxE, cyl, rod, V, groundPlane } from '../../../engine/kit/bu
 import { materials } from '../../common/materials';
 import { BRAND } from '../../common/palette';
 import { binTex, poleSignTex, bayNumberTex } from '../../common/signage';
+import { plantTree } from '../../common/trees';
 import { STORE, YARD, type ParkingBay, type ParkingService } from './api';
 
 /** the walkway along the side windows ends at WALK; the bays run from it to road B's kerb line */
@@ -137,6 +138,13 @@ export default defineMod({
       });
     }
 
+    // two small trees in the open corner between the bays and road A's sidewalk, each in a grated pit flush with
+    // the paving — clear of the way round the corner and the photo spot
+    for (const [kind, x, z, size] of [['maple', WALK + 0.4, COURT.z1 - 0.7, 0.9], ['hanamizuki', ROAD - 0.7, COURT.z1 - 0.6, 0.85]] as const) {
+      boxE(root, x - 0.55, x + 0.55, COURT_Y, COURT_Y + 0.008, z - 0.55, z + 0.55, mat('#4a4c4e', { roughness: 0.6, metalness: 0.4 }), { cast: false, plain: true });
+      plantTree(ctx, root, kind, x, z, { y: COURT_Y, size });
+    }
+
     // ---------------------------------------------------------------- the bays beside the shop
     // asphalt flush with road B, lines between the bays, a wheel stop in each and a bollard in front of each nose
     const lot = new THREE.Group();
@@ -222,7 +230,7 @@ export default defineMod({
     N.addEdge('street.b.crossing', 'shop.corner', { width: 1.0 });
     // the photo spot: the shop's corner and its sign behind whoever poses
     N.addNode('shop.photo.model', WALK + 1.4, STORE.z1 + 1.0, { heading: 0.9 });
-    N.addNode('shop.photo.camera', ROAD - 1.0, COURT.z1 - 0.55, { heading: Math.PI + 0.9 });
+    N.addNode('shop.photo.camera', ROAD - 2.0, COURT.z1 - 0.6, { heading: Math.PI + 0.9 });
     N.addEdge('shop.corner', 'shop.photo.model');
     N.addEdge('shop.corner', 'shop.photo.camera');
   },

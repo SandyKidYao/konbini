@@ -53,7 +53,7 @@ const SCENES = [
   { name: 'winter-street', q: 'weather=cloudy&time=0800&date=2027-01-20&warp=90&cam=-2,4,19,-2,0.9,9' },
   { name: 'furin-summer', q: 'weather=partly&time=1400&season=summer&mods=mods/furin.js&cam=2.8,3.2,10.5,2.8,2.1,6' },
   // stepping the date with ] at runtime: bare branches on 3-20, blossom five days later (snow cover re-bakes)
-  { name: 'date-keys', q: 'weather=snow&time=1200&date=2026-03-20&cam=-9,7,14,-16,3,4', setup: `
+  { name: 'date-keys', q: 'weather=snow&time=1200&date=2026-03-20&cam=-3,4.5,-32.5,9.2,2.4,-22.5,32', setup: `
     for (let i = 0; i < 5; i++) dispatchEvent(new KeyboardEvent('keydown', { key: ']' }));` },
   // a line-up of figures in every outfit, on the sidewalk in front of the shop
   { name: 'outfits', q: 'weather=clear&time=1100&cam=-1,2.6,13.5,-1,1,8.8', setup: `

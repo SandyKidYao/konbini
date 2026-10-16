@@ -27,7 +27,8 @@ export const SIDEWALKS: [number, number, number, number][] = [
   [-28, 14, COAST.z1, COAST.z1 + 1.2], [21, 28, COAST.z1, COAST.z1 + 1.2], [-28, 28, SHORE.promenade, COAST.z0],
 ];
 
-export const SHOP_ROW = { x0: 23.3, x1: 27.9, z0: TRACK.z + TRACK.fence + 0.5, z1: -2.5, h: 7 };
+/** the row across road B: three narrow buildings, north to south, stepping down towards road A */
+export const SHOP_ROW = { x0: 23.3, x1: 27.9, z0: TRACK.z + TRACK.fence + 1.0, z1: -2.5 };
 
 export const SIDEWALK_Y = 0.15;
 export const LAND_Y = 0.08;

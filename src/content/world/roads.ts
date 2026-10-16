@@ -138,6 +138,16 @@ export default defineMod({
     const railway = () => ctx.services.get<Railway>('world.railway');
     /** someone in this rectangle not driving along x: turning, in or out of a side road */
     const turningIn = (r: Rect, self?: Vehicle) => traffic.vehicles.some((o) => o !== self && !o.done && !o.parked && Math.abs(Math.sin(o.pose.heading)) < 0.9 && inRect(r)(o));
+    /** past road B's stop line on the way up into the junction (a long truck is still out here when its nose is in) */
+    const UP_B: Rect = { x0: B.north - 1.5, x1: B.north + 1.5, z0: 3.6, z1: 9.5 };
+    const enteringFromB = (self: Vehicle) => traffic.vehicles.some((o) => o !== self && !o.done && !o.parked && Math.cos(o.pose.heading) > 0.9 && inRect(UP_B)(o));
+    /** turning up road B off the coast road from the east: once it swings round, its tail sweeps the eastbound lane */
+    const upFromEast = (p: Path) => p.start.x > 0 && p.start.z < COAST.z1 && p.end.z > COAST.z1;
+    const swingingUp = (self: Vehicle) => traffic.vehicles.some((o) => o !== self && !o.done && !o.parked && !!o.leg && upFromEast(o.leg.path)
+      && inRect({ x0: B.north - 2, x1: B.north + 3.2, z0: COAST.z0, z1: COAST.z1 + 2 })(o));
+    /** gone over road B's stop line at the T and turning out along the shore (not those still waiting at it) */
+    const turningOut = (self: Vehicle) => traffic.vehicles.some((o) => o !== self && !o.done && !o.parked && !!o.leg && o.leg.path.start.z > COAST.z1
+      && o.leg.path.end.z < COAST.z1 && inRect({ x0: B.south - 6, x1: B.south + 1.8, z0: COAST.z0, z1: T_STOP + 1 })(o));
     const JUNCTION: Rect = { x0: 13, x1: 23, z0: 9.5, z1: 16.8 }, T_ZONE: Rect = { x0: 12, x1: 24, z0: COAST.z0, z1: COAST.z1 + 2 };
     /** anyone slow (queueing, stopped) in this rectangle, but me */
     const queued = (r: Rect, self: Vehicle) => traffic.vehicles.some((o) => o !== self && !o.done && !o.parked && o.v < 1.5 && inRect(r)(o));
@@ -151,9 +161,13 @@ export default defineMod({
       { at: [B.south, BACK_LANE.z1 + 0.3], near: 1.2, commit: false, open: (v) => !queued({ x0: 14.5, x1: 17.5, z0: XING.z1 + 0.5, z1: BACK_LANE.z0 - 0.2 }, v) },
       // coming up road B from the sea: hold short of the bays while someone backs out across the lane
       { at: [B.north, -11.6], near: 1.2, commit: false, open: nobodyBacking },
-      // road A's lights — and on the green, still wait for anyone left turning in the junction
-      { at: [12.9, LANE.east], near: 1.2, open: (v, t) => signals()?.vehicle(t) === 'g' && !turningIn(JUNCTION, v) },
-      { at: [22.2, LANE.west], near: 1.2, open: (v, t) => signals()?.vehicle(t) === 'g' && !turningIn(JUNCTION, v) },
+      // road A's lights — and on the green, still wait for anyone turning in the junction, or on their way into it
+      // from road B
+      { at: [12.9, LANE.east], near: 1.2, open: (v, t) => signals()?.vehicle(t) === 'g' && !turningIn(JUNCTION, v) && !enteringFromB(v) },
+      { at: [22.2, LANE.west], near: 1.2, open: (v, t) => signals()?.vehicle(t) === 'g' && !turningIn(JUNCTION, v) && !enteringFromB(v) },
+      // eastbound along the shore: hold short of the T while someone swings round into or out of road B — a
+      // truck's nose or tail sweeps over this lane on the turn
+      { at: [13.4, COAST_LANE.east], near: 1.2, commit: false, open: (v) => !swingingUp(v) && !turningOut(v) },
       // 止まれ at the end of road B, then wait for its turn in the signal cycle
       { at: [B.north, 2.9], near: 1.2, halt: 0.8, open: (v, t) => signals()?.side(t) === 'g' && boxClear(v) },
       // turning into road B: people on the crossing go first
@@ -254,8 +268,10 @@ export default defineMod({
       if (down.off < 1.2 && p.end.z < COAST.z1) {
         const left = p.end.x < 0;
         g.push({ at: [B.south, T_STOP], near: 1.2, halt: 0.8, commit: false,
-          open: (v) => !alongShore('west', B.south - 2, 4, v) && (left || !alongShore('east', B.south + 4, 4, v)) });
+          open: (v) => !alongShore('west', B.south - 2, 4, v) && (left ? !alongShore('east', B.south - 1, 2.5, v) : !alongShore('east', B.south + 4, 4, v)) });
       }
+      // a left turn up from the east waits for the eastbound lane to clear the T before it swings round
+      if (upFromEast(p)) g.push({ at: [B.north + 3.4, COAST_LANE.west], near: 1.2, commit: false, open: (v) => !alongShore('east', B.north + 6, 2.5, v) });
       if (p.start.z < COAST.z1 && p.start.x < 0 && p.end.z > COAST.z1) {
         const c = crossing(p, (COAST.z0 + COAST.z1) / 2, 1);
         if (c) g.push({ at: Math.max(0, c.s - 0.5), commit: false, open: (v) => !alongShore('west', c.x + 2, 4, v) });

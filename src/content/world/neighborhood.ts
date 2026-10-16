@@ -1,5 +1,5 @@
-// The rest of the block: the lilac shop row, coin parking, a bus stop and the far-side hedge. Registers roofs so
-// rain stops on them.
+// The rest of the block: the row across road B — a fishmonger, a barber and a bicycle shop in three narrow
+// buildings with flats above — the coin parking, a bus stop and the far-side hedge. Registers roofs so rain stops on them.
 import * as THREE from 'three';
 import { defineMod } from '../../engine/mod';
 import { mat, box, boxE, cyl, canvasTex, groundPlane, FONT_JP as JP, FONT_LATIN as LATIN } from '../../engine/kit/build';
@@ -22,29 +22,82 @@ export default defineMod({
       parent.add(u);
     };
     const S = ctx.surfaces;
-    S.addRoof({ x0: SHOP_ROW.x0, x1: SHOP_ROW.x1, z0: SHOP_ROW.z0, z1: SHOP_ROW.z1 }, SHOP_ROW.h);
     // on the map: the roofs as they look from above; lit windows glow at night
-    ctx.plan.add({ kind: 'building', rect: { x0: SHOP_ROW.x0 - 0.1, x1: SHOP_ROW.x1 + 0.1, z0: SHOP_ROW.z0 - 0.1, z1: SHOP_ROW.z1 + 0.1 }, h: SHOP_ROW.h, color: '#d6d1de', glow: 'window' });
     ctx.plan.add({ kind: 'green', rect: { x0: -28, x1: 28, z0: 19.6, z1: 20.6 }, color: '#86ad6a' });
 
-    // --- shop row across road B, coin parking and a bus stop ---
+    // --- the row across road B: three narrow buildings, the coin parking and a bus stop ---
     {
       const g = new THREE.Group();
-      const { x0, x1, z0, z1, h } = SHOP_ROW;
-      boxE(g, x0, x1, 0.08, h, z0, z1, mat('#d4cfdb', { map: sidingTex, roughness: 0.85 }), { uv: 1 });
-      boxE(g, x0 - 0.1, x1 + 0.1, h, h + 0.25, z0 - 0.1, z1 + 0.1, M.coping);
-      shutterTex.repeat.set(1, 4);
-      [['そば処', '#3a332d', '#f4e3c3'], ['たばこ', '#d7383b', '#fff'], ['クリーニング', '#2756b0', '#fff']].forEach(([t, bg, fg], i) => {
-        const w = (z1 - z0) / 3, zc = z0 + w * (i + 0.5);
-        boxE(g, x0 - 0.06, x0, 0.08, 2.7, zc - w / 2 + 0.25, zc + w / 2 - 0.25, mat('#ffffff', { map: shutterTex, roughness: 0.6 }), { cast: false, plain: true });
-        const tex = shopSignTex(t, bg, fg);
-        const sign = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.4, 0.78), ctx.glow.add(new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: '#fff', roughness: 0.5 }), 'window', 0.6));
-        sign.rotation.y = -Math.PI / 2; sign.position.set(x0 - 0.135, 3.15, zc); g.add(sign);
-        boxE(g, x0 - 0.12, x0, 2.72, 3.6, zc - w / 2 + 0.3, zc + w / 2 - 0.3, M.darkMetal, { cast: false, plain: true });
-        boxE(g, x0 - 0.06, x0, 4.4, 6.0, zc - 1.4, zc + 1.4, i % 2 === 0 ? windowPane(ctx, 'warm') : M.darkGlass, { cast: false, plain: true });
+      const { x0: X0, x1: X1, z0: Z0, z1: Z1 } = SHOP_ROW, IN = X0 + 0.8, third = (Z1 - Z0) / 3;
+      // north to south, stepping down: anything over about 6 m at the south end would hide the level crossing
+      // from the overview
+      const units = [
+        { z0: Z0, z1: Z0 + third, h: 9.4, color: '#d9cbb8', trim: '#b4a088', sign: ['鮮魚 浜田', '#1f4f7a', '#f3eee3'], awning: '#2f6b9a' },
+        { z0: Z0 + third, z1: Z0 + third * 2, h: 6.2, color: '#cad8d1', trim: '#97afa5', sign: ['BARBER 潮', '#f3eee3', '#2d4a44'], awning: '#c94a3f' },
+        { z0: Z0 + third * 2, z1: Z1, h: 6.2, color: '#e6cfc4', trim: '#c09a8a', sign: ['サイクル 灯台', '#f2c14e', '#3a3a36'], awning: '#3c8a5a' },
+      ];
+      const cloth = ['#f2f0ea', '#8fb4d9', '#f2b5a5', '#f5d76e', '#a8d5ba', '#ffffff'];
+      for (const u of units) {
+        const zc = (u.z0 + u.z1) / 2, zA = u.z0 + 0.03, zB = u.z1 - 0.03, body = mat(u.color, { roughness: 0.85 }), trim = mat(u.trim, { roughness: 0.8 });
+        // the shop at street level is set back under the floors above, on two slim columns
+        boxE(g, IN, X1, 0.08, 3.0, zA, zB, body);
+        boxE(g, X0, X1, 3.0, u.h, zA, zB, body);
+        for (const z of [zA + 0.12, zB - 0.12]) boxE(g, X0, X0 + 0.22, 0.15, 3.0, z - 0.1, z + 0.1, trim);
+        boxE(g, X0 - 0.06, X1 + 0.06, u.h, u.h + 0.18, u.z0, u.z1, trim);
+        boxE(g, X0 - 0.05, X0, 2.95, 3.12, zA, zB, trim, { cast: false, plain: true });
+        const tex = shopSignTex(u.sign[0], u.sign[1], u.sign[2]);
+        const sign = new THREE.Mesh(new THREE.PlaneGeometry(u.z1 - u.z0 - 1.0, 0.55), ctx.glow.add(new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: '#fff', roughness: 0.5 }), 'window', 0.6));
+        sign.rotation.y = -Math.PI / 2; sign.position.set(X0 - 0.07, 2.62, zc); g.add(sign);
+        const aw = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.05, u.z1 - u.z0 - 0.6), mat(u.awning, { roughness: 0.8 }));
+        aw.position.set(X0 + 0.2, 2.22, zc); aw.rotation.z = -0.3; aw.castShadow = true; g.add(aw);
+        // upstairs: a window and a little balcony per floor, air conditioners, washing on some
+        for (let y = 3.5; y < u.h - 1.6; y += 3.0) {
+          boxE(g, X0 - 0.05, X0, y + 0.2, y + 2.0, u.z0 + 0.7, u.z1 - 0.7, rand() < 0.45 ? windowPane(ctx, rand() < 0.7 ? 'warm' : 'cool') : M.darkGlass, { cast: false, plain: true });
+          boxE(g, X0 - 0.75, X0, y - 0.05, y + 0.1, u.z0 + 0.5, u.z1 - 0.5, trim);
+          boxE(g, X0 - 0.77, X0 - 0.69, y + 0.1, y + 1.0, u.z0 + 0.5, u.z1 - 0.5, mat('#ecebe6', { roughness: 0.4 }));
+          if (rand() < 0.8) box(g, 0.45, 0.5, 0.7, mat('#eeeeea'), X0 - 0.38, y + 0.1, u.z1 - 1.05);
+          if (rand() < 0.6) for (let z = u.z0 + 0.9; z < zc - 0.2; z += 0.4 + rand() * 0.2) {
+            const h = 0.3 + rand() * 0.3;
+            boxE(g, X0 - 0.42, X0 - 0.38, y + 1.88 - h, y + 1.88, z, z + 0.3, mat(cloth[Math.floor(rand() * cloth.length)], { roughness: 0.9 }), { cast: false, plain: true });
+          }
+        }
+        S.addRoof({ x0: X0 - 0.1, x1: X1 + 0.1, z0: u.z0, z1: u.z1 }, u.h + 0.2);
+        ctx.plan.add({ kind: 'building', rect: { x0: X0 - 0.1, x1: X1 + 0.1, z0: u.z0, z1: u.z1 }, h: u.h, color: u.color, glow: 'window' });
+      }
+      const [fish, barber, cycle] = units;
+      // what each shop puts out stays in its set-back front, never on the sidewalk
+      const wood = mat('#7b5a44');
+      boxE(g, X0 + 0.05, IN - 0.05, 0.08, 0.75, fish.z0 + 0.6, fish.z1 - 0.6, wood);
+      for (let z = fish.z0 + 0.7; z < fish.z1 - 0.8; z += 0.62) {
+        boxE(g, X0 + 0.12, IN - 0.12, 0.75, 0.98, z, z + 0.52, mat('#f4f6f8', { roughness: 0.6 }));
+        boxE(g, X0 + 0.18, IN - 0.18, 0.98, 1.0, z + 0.06, z + 0.46, mat('#bfe3ec', { roughness: 0.2 }), { cast: false, plain: true });
+      }
+      boxE(g, IN - 0.02, IN, 0.3, 2.6, barber.z0 + 0.5, barber.z1 - 0.5, windowPane(ctx, 'cool'), { cast: false, plain: true });
+      {
+        // the barber's pole, its stripes turning
+        const t = canvasTex(64, 128, (c, w) => { const cols = ['#d23a32', '#f4f4f0', '#2a5fb0', '#f4f4f0']; for (let i = -8; i < 16; i++) { c.fillStyle = cols[((i % 4) + 4) % 4]; c.beginPath(); c.moveTo(0, i * 16); c.lineTo(w, i * 16 - 32); c.lineTo(w, i * 16 - 16); c.lineTo(0, i * 16 + 16); c.fill(); } }, true);
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.8, 16), ctx.glow.add(new THREE.MeshStandardMaterial({ map: t, emissiveMap: t, emissive: '#ffffff', roughness: 0.3 }), 'window', 0.3));
+        pole.position.set(X0 + 0.25, 1.55, barber.z1 - 0.45); pole.userData.skyIgnore = true; g.add(pole);
+        for (const dy of [-0.45, 0.45]) { const c = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 8), M.chrome); c.position.set(X0 + 0.25, 1.55 + dy, barber.z1 - 0.45); g.add(c); }
+        ctx.onFrame((dt) => { t.offset.y -= dt * 0.35; });
+      }
+      boxE(g, IN - 0.02, IN, 2.0, 2.9, cycle.z0 + 0.4, cycle.z1 - 0.4, mat('#ffffff', { map: shutterTex, roughness: 0.6 }), { cast: false, plain: true });
+      ['#c44a4a', '#3d6fa8', '#e7e3d8', '#2d5b6e', '#f2c14e'].forEach((color, i) => {
+        const b = ctx.prefabs.create('bicycle', { color }).root;
+        b.position.set(X0 + 0.45, 0.15, cycle.z0 + 0.75 + i * 0.72); b.rotation.y = Math.PI / 2 - 0.25;
+        g.add(b);
       });
-      boxE(g, 24.5, 26.8, 4.4, 6.0, z1, z1 + 0.06, windowPane(ctx, 'cool'), { cast: false, plain: true });
-      boxE(g, 24.5, 26.8, 1.0, 2.6, z1, z1 + 0.06, M.darkGlass, { cast: false, plain: true });
+      // the south wall over the coin parking: windows, an air conditioner, the drainpipe, the bicycle shop's board
+      boxE(g, 24.6, 26.6, 3.9, 5.0, Z1, Z1 + 0.05, windowPane(ctx, 'warm'), { cast: false, plain: true });
+      box(g, 0.8, 0.55, 0.3, mat('#eeeeea'), 27.2, 3.6, Z1 + 0.15);
+      cyl(g, 0.05, 0.05, 6.1, mat('#b9b4a8'), X0 + 0.25, 0.08, Z1 + 0.08, 6);
+      {
+        const tex = shopSignTex('サイクル 灯台', '#f2c14e', '#3a3a36');
+        const board = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 0.9), ctx.glow.add(new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: '#fff', roughness: 0.5 }), 'window', 0.6));
+        board.position.set((X0 + X1) / 2, cycle.h + 0.75, Z1 - 0.5); g.add(board);
+        for (const x of [X0 + 0.8, X1 - 0.8]) box(g, 0.08, 0.3, 0.08, M.darkMetal, x, cycle.h + 0.18, Z1 - 0.5, { plain: true });
+      }
+      cyl(g, 0.7, 0.7, 1.1, mat('#c9ccd0', { roughness: 0.4, metalness: 0.2 }), X1 - 1.3, fish.h + 0.18, (fish.z0 + fish.z1) / 2, 14);
 
       const pTex = canvasTex(128, 160, (c, w) => {
         c.fillStyle = '#2756b0'; c.fillRect(0, 0, w, 160); c.fillStyle = '#fff'; c.textAlign = 'center'; c.textBaseline = 'middle';
