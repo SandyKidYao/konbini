@@ -151,12 +151,32 @@ export default defineMod({
     const JUNCTION: Rect = { x0: 13, x1: 23, z0: 9.5, z1: 16.8 }, T_ZONE: Rect = { x0: 12, x1: 24, z0: COAST.z0, z1: COAST.z1 + 2 };
     /** anyone slow (queueing, stopped) in this rectangle, but me */
     const queued = (r: Rect, self: Vehicle) => traffic.vehicles.some((o) => o !== self && !o.done && !o.parked && o.v < 1.5 && inRect(r)(o));
+    /**
+     * Room beyond the level crossing for all of me, so I never stop on it: from its far edge to the tail of whoever
+     * is nearest ahead in my lane (moving or not — a car rolling off may stop a moment later), or, going down with
+     * nobody ahead, to the T's stop line; going up, to where someone backing out of a bay would hold me.
+     */
+    const roomBeyond = (v: Vehicle, down: boolean) => {
+      const lane = down ? B.south : B.north;
+      let room = down ? XING.z0 - T_STOP : backing.size > 0 ? -11.6 - XING.z1 : Infinity, ahead = false;
+      for (const o of traffic.vehicles) {
+        if (o === v || o.done || o.parked || Math.abs(o.pose.x - lane) > 2.2) continue;
+        if (down ? o.pose.z > XING.z1 + 1 || o.pose.z < COAST.z0 - 2 : o.pose.z < XING.z0 - 1 || o.pose.z > 9.5) continue;
+        room = Math.min(room, down ? XING.z0 - (o.pose.z + o.half) : o.pose.z - o.half - XING.z1);
+        ahead = true;
+      }
+      const need = 2 * v.half + 0.6;
+      if (room >= need) return true;
+      // too long to wait between the crossing and the T (a truck): only go with nobody ahead and the coast road
+      // clear, so it can turn out without stopping
+      return down && !ahead && !alongShore('west', B.south - 2, 7, v) && !alongShore('east', B.south + 4, 7, v);
+    };
     /** gates every path is checked against (each applies only where the path passes it) */
     const standard: Gate[] = [
       // the level crossing: everyone stops before it, then goes only if it is open and there is room beyond
       // (never stop on the tracks): one car's length between the crossing and the T, or beyond it on the way up
-      { at: [B.south, XING.z1 + 0.75], near: 1.2, halt: 0.8, open: (v) => !railway()?.closed() && !queued({ x0: 14.5, x1: 17.5, z0: T_STOP - 0.5, z1: XING.z0 - 0.3 }, v) },
-      { at: [B.north, XING.z0 - 0.75], near: 1.2, halt: 0.8, open: (v) => !railway()?.closed() && !queued({ x0: 17.5, x1: 20.5, z0: XING.z1 + 0.3, z1: XING.z1 + 6.3 }, v) },
+      { at: [B.south, XING.z1 + 0.75], near: 1.2, halt: 0.8, open: (v) => !railway()?.closed() && roomBeyond(v, true) },
+      { at: [B.north, XING.z0 - 0.75], near: 1.2, halt: 0.8, open: (v) => !railway()?.closed() && roomBeyond(v, false) },
       // 停止禁止: going down, don't stop across the back lane's mouth — wait short of it while the stretch beyond is full
       { at: [B.south, BACK_LANE.z1 + 0.3], near: 1.2, commit: false, open: (v) => !queued({ x0: 14.5, x1: 17.5, z0: XING.z1 + 0.5, z1: BACK_LANE.z0 - 0.2 }, v) },
       // coming up road B from the sea: hold short of the bays while someone backs out across the lane
@@ -395,8 +415,9 @@ export default defineMod({
         const offGates = [...gatesFor(off), ...(e === 'west' ? [roomWestGate] : [])];
         // the gap: nobody in the lanes it backs across, nobody about to arrive there; the longer the wait, the
         // smaller the gap that will do
+        // (going up, nobody on the crossing either: they would be held there while it backs out)
         const clear = (v: Vehicle, secs: number) => !inB(B.south, f.z - 6, f.z + 7, v) && !comingDown(f.z, secs, v)
-          && (down || (!inB(B.north, f.z - 8, f.z + 4, v) && !comingUp(f.z, secs, v)));
+          && (down || (!inB(B.north, Math.min(f.z - 8, XING.z0 - 0.5), f.z + 4, v) && !comingUp(f.z, secs, v)));
         let since = -1;
         return [
           until((v, t) => {
