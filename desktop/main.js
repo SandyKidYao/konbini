@@ -17,7 +17,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const SIZES = { small: [400, 330], medium: [560, 460], large: [760, 625] };
 // the map form: the page draws the map at the chosen size (small / medium / large) on the window's lower edge; the
 // window keeps room above it for the settings, and is click-through wherever there's nothing
-const PLAN_WINDOW = [380, 470];
+const PLAN_WINDOW = [380, 540];
 const SIZE_LABEL = { small: '小', medium: '中', large: '大' };
 const FORMS = [['model', '模型'], ['plan', '俯视图']];
 

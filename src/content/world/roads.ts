@@ -1,15 +1,17 @@
-// The roads as drivers see them: lanes on road A (both ways) and road B, the six ways through the junction,
-// the signals and stop lines, and how to pull off road A into a plot and back out. Offers the 'world.roads'
-// service; events decide what drives and when. Japan drives on the left.
+// The roads as drivers see them: lanes on road A (both ways), road B down to the sea and the coast road along the
+// shore; the ways through the junction, the T at the bottom of road B and the level crossing on the way down; the
+// signals and stop lines; how to pull off road A into a plot and back out, and into the bays and the back lane on
+// road B's west side. Offers the 'world.roads' service; events decide what drives and when. Japan drives on the left.
 import * as THREE from 'three';
 import { defineMod } from '../../engine/mod';
 import { Traffic, path, drive, choose, until, run, through as via, type Gate, type Waypoint, type Path, type PathBuilder, type Pose, type Vehicle, type VehicleBody, type VehicleOptions, type VehicleSteps } from '../../engine/agents/vehicle';
 import type { Rect } from '../../engine/surfaces';
 import type { Signals } from './furniture';
-import { BLOCK, SIDEWALKS, LANE as BACK_LANE } from './layout';
+import type { Railway } from './railway';
+import { BLOCK, SIDEWALKS, LANE as BACK_LANE, TRACK, COAST } from './layout';
 
-/** Where the roads leave the model: road A's west and east ends, road B's south end. */
-export type RoadEnd = 'west' | 'east' | 'south';
+/** Where the roads leave the model: road A's west and east ends, the coast road's (down road B, along the shore). */
+export type RoadEnd = 'west' | 'east' | 'shore-west' | 'shore-east';
 
 export interface RoadService {
   readonly traffic: Traffic;
@@ -41,7 +43,7 @@ export interface RoadService {
   pullIn(from: 'west' | 'east', to: Pose, o?: { enter?(v: Vehicle): boolean }): VehicleSteps;
   /**
    * Back out of a bay on road B's west side (the pose it is parked in) and drive off towards `to`: on down road B
-   * ('south'), or up to the junction and round onto road A ('east' | 'west'). It first waits for a gap in the
+   * and along the shore ('shore-west' | 'shore-east'), or up to the junction and round onto road A ('east' | 'west'). It first waits for a gap in the
    * lanes it will back across, then asks `ready` (take a lock, say: true to go now). `onRoad` is told once it has
    * backed out and is driving off.
    */
@@ -52,7 +54,12 @@ export interface RoadService {
   alongLane(): VehicleSteps;
 }
 
-const EDGE = 34, B_END = -31;
+const EDGE = 34;
+/** the coast road's lanes: eastbound keeps left (the sea side) */
+const COAST_LANE = { east: COAST.z0 + 1.25, west: COAST.z1 - 1.25 } as const;
+/** where road B meets the coast road (its stop line), and the level crossing's deck */
+const T_STOP = COAST.z1 + 0.25, XING = { z0: TRACK.z - 1.9, z1: TRACK.z + 1.9 };
+const shore = (e: RoadEnd): e is 'shore-west' | 'shore-east' => e === 'shore-west' || e === 'shore-east';
 const LANE = { east: 11.9, west: 15.1 } as const;       // road A: eastbound keeps left (the shop side)
 const B = { north: 19.0, south: 16.0 } as const;        // road B: northbound keeps left (the east side)
 const SPEED = { a: 8.5, b: 6.5, turn: 4.5, lot: 3 };
@@ -109,15 +116,18 @@ export default defineMod({
         return d > -1 && (v.v < 0.8 ? d < 9 : d < Math.max(8, v.v * secs + 4));
       });
     };
-    /** on its way down road B off road A: its drive ends down there, and it is not yet in road B */
-    const downB = (p: Path) => p.end.z < 8 && p.end.x < B.south + 1.6 && p.start.z > 8;
+    /** on its way down road B off road A: its drive starts on road A and ends down there (a bay, the lane, the shore) */
+    const downB = (p: Path) => p.end.z < 8 && p.start.z > 8;
     // eastbound traffic coming towards a right-turner: moving, or already close to where it crosses — or, when the
     // right turn goes down road B, anyone about to turn left down there too while they have the green (left first)
     const oncomingClear = (x: number, self: Vehicle, reach = 26, t = -1) => !traffic.vehicles.some((v) => v !== self && !v.parked
       && Math.sin(v.pose.heading) > 0.5 && inRect({ x0: x - reach, x1: x + 3.5, z0: 10.2, z1: 13.6 })(v)
       && (v.v > 0.5 || v.pose.x > x - 7 || (t >= 0 && !!v.leg && downB(v.leg.path) && self.leg !== null && downB(self.leg.path) && signals()?.vehicle(t) === 'g')));
-    // nobody still in the junction itself (road B waits for it to empty before its turn)
-    const boxClear = (self: Vehicle) => !traffic.vehicles.some((v) => v !== self && !v.parked && inRect({ x0: 13, x1: 23, z0: 9.5, z1: 16.8 })(v));
+    // nobody still in the junction itself (road B waits for it to empty before its turn) — nor about to be: someone
+    // on road A who went on through the amber and will be in the box within a few seconds
+    const boxClear = (self: Vehicle) => !traffic.vehicles.some((v) => v !== self && !v.parked && (inRect({ x0: 13, x1: 23, z0: 9.5, z1: 16.8 })(v)
+      || (v.v > 2 && Math.abs(v.pose.z - LANE.east) < 1.7 && Math.sin(v.pose.heading) > 0.5 && v.pose.x < 13 && (13 - v.pose.x) / v.v < 3.5)
+      || (v.v > 2 && Math.abs(v.pose.z - LANE.west) < 1.7 && Math.sin(v.pose.heading) < -0.5 && v.pose.x > 23 && (v.pose.x - 23) / v.v < 3.5)));
     // don't block the box: only head into the junction towards the westbound lane if there is room beyond it
     const roomWest = (self: Vehicle) => !traffic.vehicles.some((v) => v !== self && !v.parked && v.v < 1.5
       && inRect({ x0: 5, x1: 17, z0: LANE.west - 1.7, z1: LANE.west + 1.7 })(v));
@@ -125,12 +135,25 @@ export default defineMod({
     /** who is backing out of a bay on road B's west side right now (they have the road there to themselves) */
     const backing = new Set<Vehicle>();
     const nobodyBacking = (v: Vehicle) => backing.size === 0 || (backing.size === 1 && backing.has(v));
+    const railway = () => ctx.services.get<Railway>('world.railway');
+    /** someone in this rectangle not driving along x: turning, in or out of a side road */
+    const turningIn = (r: Rect, self?: Vehicle) => traffic.vehicles.some((o) => o !== self && !o.done && !o.parked && Math.abs(Math.sin(o.pose.heading)) < 0.9 && inRect(r)(o));
+    const JUNCTION: Rect = { x0: 13, x1: 23, z0: 9.5, z1: 16.8 }, T_ZONE: Rect = { x0: 12, x1: 24, z0: COAST.z0, z1: COAST.z1 + 2 };
+    /** anyone slow (queueing, stopped) in this rectangle, but me */
+    const queued = (r: Rect, self: Vehicle) => traffic.vehicles.some((o) => o !== self && !o.done && !o.parked && o.v < 1.5 && inRect(r)(o));
     /** gates every path is checked against (each applies only where the path passes it) */
     const standard: Gate[] = [
+      // the level crossing: everyone stops before it, then goes only if it is open and there is room beyond
+      // (never stop on the tracks): one car's length between the crossing and the T, or beyond it on the way up
+      { at: [B.south, XING.z1 + 0.75], near: 1.2, halt: 0.8, open: (v) => !railway()?.closed() && !queued({ x0: 14.5, x1: 17.5, z0: T_STOP - 0.5, z1: XING.z0 - 0.3 }, v) },
+      { at: [B.north, XING.z0 - 0.75], near: 1.2, halt: 0.8, open: (v) => !railway()?.closed() && !queued({ x0: 17.5, x1: 20.5, z0: XING.z1 + 0.3, z1: XING.z1 + 6.3 }, v) },
+      // 停止禁止: going down, don't stop across the back lane's mouth — wait short of it while the stretch beyond is full
+      { at: [B.south, BACK_LANE.z1 + 0.3], near: 1.2, commit: false, open: (v) => !queued({ x0: 14.5, x1: 17.5, z0: XING.z1 + 0.5, z1: BACK_LANE.z0 - 0.2 }, v) },
       // coming up road B from the sea: hold short of the bays while someone backs out across the lane
       { at: [B.north, -11.6], near: 1.2, commit: false, open: nobodyBacking },
-      { at: [12.9, LANE.east], near: 1.2, open: (_v, t) => signals()?.vehicle(t) === 'g' },
-      { at: [22.2, LANE.west], near: 1.2, open: (_v, t) => signals()?.vehicle(t) === 'g' },
+      // road A's lights — and on the green, still wait for anyone left turning in the junction
+      { at: [12.9, LANE.east], near: 1.2, open: (v, t) => signals()?.vehicle(t) === 'g' && !turningIn(JUNCTION, v) },
+      { at: [22.2, LANE.west], near: 1.2, open: (v, t) => signals()?.vehicle(t) === 'g' && !turningIn(JUNCTION, v) },
       // 止まれ at the end of road B, then wait for its turn in the signal cycle
       { at: [B.north, 2.9], near: 1.2, halt: 0.8, open: (v, t) => signals()?.side(t) === 'g' && boxClear(v) },
       // turning into road B: people on the crossing go first
@@ -157,7 +180,8 @@ export default defineMod({
     const starts: Record<RoadEnd, Pose> = {
       west: { x: -EDGE, z: LANE.east, heading: R },
       east: { x: EDGE, z: LANE.west, heading: -R },
-      south: { x: B.north, z: B_END, heading: 0 },
+      'shore-west': { x: -EDGE, z: COAST_LANE.east, heading: R },
+      'shore-east': { x: EDGE, z: COAST_LANE.west, heading: -R },
     };
     const from = (e: RoadEnd) => { const s = starts[e]; return path(s.x, s.z, s.heading); };
     /** off road A at end `e` and round into road B, heading down it (−z) in the lane towards the sea */
@@ -168,14 +192,24 @@ export default defineMod({
     const outOfB = (b: PathBuilder, e: 'west' | 'east') => e === 'east'
       ? b.speed(SPEED.b).line(B.north, 8.9).curve(22, LANE.east, R).speed(SPEED.a).line(EDGE, LANE.east)
       : b.speed(SPEED.b).line(B.north, 11.1).curve(15, LANE.west, -R).speed(SPEED.a).line(-EDGE, LANE.west);
+    /** on down road B (heading −z in the lane towards the sea), over the crossing, and at the T left or right along the shore */
+    const toShore = (b: PathBuilder, e: 'shore-west' | 'shore-east') => e === 'shore-west'
+      ? b.speed(SPEED.b).line(B.south, COAST_LANE.west + 3).speed(SPEED.turn).curve(B.south - 3, COAST_LANE.west, -R).speed(SPEED.a).line(-EDGE, COAST_LANE.west)
+      : b.speed(SPEED.b).line(B.south, COAST_LANE.east + 4.4).speed(SPEED.turn).curve(B.south + 4.4, COAST_LANE.east, R).speed(SPEED.a).line(EDGE, COAST_LANE.east);
+    /** along the shore from end `e` and up road B (+z), over the crossing: a left turn from the east, a right turn from the west */
+    const fromShore = (e: 'shore-west' | 'shore-east') => e === 'shore-east'
+      ? from(e).speed(SPEED.a).line(B.north + 3, COAST_LANE.west).speed(SPEED.turn).curve(B.north, COAST_LANE.west + 3, 0).speed(SPEED.b)
+      : from(e).speed(SPEED.a).line(B.north - 5, COAST_LANE.east).speed(SPEED.turn).curve(B.north, COAST_LANE.east + 5, 0).speed(SPEED.b);
     const ways = new Map<string, Path>([
       ['west>east', from('west').speed(SPEED.a).line(EDGE, LANE.east).build()],
       ['east>west', from('east').speed(SPEED.a).line(-EDGE, LANE.west).build()],
-      ['west>south', intoB('west').line(B.south, B_END).build()],
-      ['east>south', intoB('east').line(B.south, B_END).build()],
-      ['south>east', outOfB(from('south'), 'east').build()],
-      ['south>west', outOfB(from('south'), 'west').build()],
+      ['shore-west>shore-east', from('shore-west').speed(SPEED.a).line(EDGE, COAST_LANE.east).build()],
+      ['shore-east>shore-west', from('shore-east').speed(SPEED.a).line(-EDGE, COAST_LANE.west).build()],
     ]);
+    for (const a of ['west', 'east'] as const) for (const b of ['shore-west', 'shore-east'] as const) {
+      ways.set(`${a}>${b}`, toShore(intoB(a), b).build());
+      ways.set(`${b}>${a}`, outOfB(fromShore(b), a).build());
+    }
     /**
      * Heading down road B off road A: wait at the junction's edge, in its lane on road A (never in the junction
      * itself, where it would hold up road B's turn), while someone backs out of a bay down there.
@@ -183,6 +217,9 @@ export default defineMod({
     // a right turn in waits for anyone about to turn left in (both held here, they would meet in road B's mouth)
     const leftTurnerWaiting = (self: Vehicle) => traffic.vehicles.some((o) => o !== self && !o.done && !!o.leg && downB(o.leg.path)
       && inRect({ x0: 3, x1: 14, z0: LANE.east - 1.7, z1: LANE.east + 1.7 })(o));
+    // and a left turn in waits for anyone already in the junction, turning right down there
+    const rightTurnerTurning = (self: Vehicle) => traffic.vehicles.some((o) => o !== self && !o.done && !!o.leg && downB(o.leg.path)
+      && o.leg.path.start.x > 0 && inRect({ x0: 13, x1: 23, z0: 7.6, z1: 16.8 })(o));
     const turnGate = (p: Path, may?: (v: Vehicle) => boolean): Gate[] => {
       if (!downB(p)) return [];
       const w = p.start.x < 0, at = p.project(w ? 10.6 : 23.4, w ? LANE.east : LANE.west);
@@ -194,15 +231,42 @@ export default defineMod({
         && (o.pose.x - v.pose.x) * sx > 0 && (hold.x - o.pose.x) * sx > -4);
       return [{
         at: at.s, commit: false,
-        open: (v) => nobodyBacking(v) && (w || !leftTurnerWaiting(v))
+        open: (v) => nobodyBacking(v) && (w ? !rightTurnerTurning(v) : !leftTurnerWaiting(v))
           && (!may || Math.hypot(v.pose.x - hold.x, v.pose.z - hold.z) > 15 || (first(v) && may(v))),
       }];
     };
-    const gatesFor = (p: Path) => [...standard, ...yieldGate(p), ...turnGate(p)];
+    /** coming along the coast road towards x within `secs` (eastbound from −x, westbound from +x) */
+    const alongShore = (lane: 'east' | 'west', x: number, secs: number, self: Vehicle) => {
+      const z = COAST_LANE[lane], dir = lane === 'east' ? 1 : -1;
+      return traffic.vehicles.some((v) => {
+        if (v === self || v.done || v.parked || Math.abs(v.pose.z - z) > 1.7) return false;
+        const d = (x - v.pose.x) * dir;
+        return d > -3 && (v.v < 0.8 ? d < 7 : d < Math.max(8, v.v * secs + 5));
+      });
+    };
+    /**
+     * The T at the bottom of road B: stop at the line, then out when there is a gap — left: in the near lane, from
+     * the east; right: both lanes. And up from the shore, a right turn waits for westbound traffic.
+     */
+    const shoreGates = (p: Path): Gate[] => {
+      const g: Gate[] = [];
+      const down = p.project(B.south, T_STOP);
+      if (down.off < 1.2 && p.end.z < COAST.z1) {
+        const left = p.end.x < 0;
+        g.push({ at: [B.south, T_STOP], near: 1.2, halt: 0.8, commit: false,
+          open: (v) => !alongShore('west', B.south - 2, 4, v) && (left || !alongShore('east', B.south + 4, 4, v)) });
+      }
+      if (p.start.z < COAST.z1 && p.start.x < 0 && p.end.z > COAST.z1) {
+        const c = crossing(p, (COAST.z0 + COAST.z1) / 2, 1);
+        if (c) g.push({ at: Math.max(0, c.s - 0.5), commit: false, open: (v) => !alongShore('west', c.x + 2, 4, v) });
+      }
+      return g;
+    };
+    const gatesFor = (p: Path) => [...standard, ...yieldGate(p), ...turnGate(p), ...shoreGates(p)];
     const wayGates = new Map([...ways].map(([k, p]) => [k, gatesFor(p)]));
     wayGates.get('east>west')!.push({ at: [22.2, LANE.west], near: 1.2, open: roomWest });
     const roomWestGate: Gate = { at: [B.north, 2.9], near: 1.2, open: roomWest };
-    wayGates.get('south>west')!.push(roomWestGate);
+    for (const b of ['shore-west', 'shore-east']) wayGates.get(`${b}>west`)!.push(roomWestGate);
 
     // ---------------------------------------------------------------- road B's west side: bays and the back lane
     /** someone in road B's lane at x, between z0 and z1 (moving or not) */
@@ -212,9 +276,8 @@ export default defineMod({
     const comingDown = (z: number, secs: number, self: Vehicle) => traffic.vehicles.some((o) => {
       if (o === self || o.done || o.parked) return false;
       const inLane = Math.abs(o.pose.x - B.south) < 1.8 && Math.cos(o.pose.heading) < -0.2;
-      // where its drive ends tells whether it is on its way down road B (to the sea, a bay, the back lane)
-      const end = o.leg?.path.end;
-      const turning = !!end && end.z < 8 && end.x < B.south + 1.6 && o.pose.z > 7 && Math.hypot(o.pose.x - B.south, o.pose.z - 9) < 30;
+      // where its drive starts and ends tells whether it is on its way down road B (to the shore, a bay, the lane)
+      const turning = !!o.leg && downB(o.leg.path) && o.pose.z > 7 && Math.hypot(o.pose.x - B.south, o.pose.z - 9) < 30;
       const d = o.pose.z - z;
       return (inLane || turning) && d > -2 && (o.v < 0.8 ? d < 9 : d < Math.max(9, o.v * secs + 5) || turning);
     });
@@ -231,8 +294,10 @@ export default defineMod({
       ways: [...ways.keys()].map((k) => k.split('>') as [RoadEnd, RoadEnd]),
       free(e) {
         const s = starts[e];
-        const r = e === 'south' ? { x0: s.x - 1.5, x1: s.x + 1.5, z0: s.z - 6, z1: s.z + 10 }
-          : { x0: Math.min(s.x, s.x + Math.sin(s.heading) * 10) - 6, x1: Math.max(s.x, s.x + Math.sin(s.heading) * 10) + 6, z0: s.z - 1.5, z1: s.z + 1.5 };
+        const r = { x0: Math.min(s.x, s.x + Math.sin(s.heading) * 10) - 6, x1: Math.max(s.x, s.x + Math.sin(s.heading) * 10) + 6, z0: s.z - 1.5, z1: s.z + 1.5 };
+        // the east ends are only a dozen metres from a junction: nobody turns up there while someone turns across it
+        if (e === 'east' && turningIn(JUNCTION)) return false;
+        if (e === 'shore-east' && turningIn(T_ZONE)) return false;
         return !traffic.occupied(r);
       },
       spawn(body, e, o = {}) { return traffic.spawn(body, { at: starts[e], ...o }); },
@@ -308,10 +373,10 @@ export default defineMod({
       backOut(f, e, o = {}) {
         // the tail leads out into road B and swings round, so the nose ends up along the lane it drives off in:
         // down road B in the near lane, or across into the far lane and up to the junction
-        const down = e === 'south', r = 3, lane = down ? B.south : B.north, z = f.z + (down ? r : -r);
+        const down = shore(e), r = 3, lane = down ? B.south : B.north, z = f.z + (down ? r : -r);
         const back = path(f.x, f.z, R).speed(1.6).line(lane - r, f.z).curve(lane, z, down ? 0 : Math.PI, 0.4).build();
-        const off = (down ? path(lane, z, Math.PI).speed(SPEED.b).line(B.south, B_END) : outOfB(path(lane, z, 0), e as 'west' | 'east')).build();
-        const offGates = down ? standard : [...gatesFor(off), ...(e === 'west' ? [roomWestGate] : [])];
+        const off = (shore(e) ? toShore(path(lane, z, Math.PI), e) : outOfB(path(lane, z, 0), e)).build();
+        const offGates = [...gatesFor(off), ...(e === 'west' ? [roomWestGate] : [])];
         // the gap: nobody in the lanes it backs across, nobody about to arrive there; the longer the wait, the
         // smaller the gap that will do
         const clear = (v: Vehicle, secs: number) => !inB(B.south, f.z - 6, f.z + 7, v) && !comingDown(f.z, secs, v)
@@ -334,7 +399,8 @@ export default defineMod({
       intoLane(e, x) {
         const r = 3.5;
         const p = intoB(e).line(B.south, BACK_Z + r).speed(SPEED.turn).curve(B.south - r, BACK_Z, -R, 0.45).speed(5).line(x, BACK_Z).build();
-        return drive(p, { speed: SPEED.a, gates: gatesFor(p) });
+        // it turns off before the stretch the 停止禁止 box keeps clear for, so that gate isn't its business
+        return drive(p, { speed: SPEED.a, gates: gatesFor(p).filter((g) => !(Array.isArray(g.at) && g.at[1] === BACK_LANE.z1 + 0.3)) });
       },
       alongLane() {
         return drive((v) => path(v.pose.x, v.pose.z, -R).speed(5).line(-EDGE, BACK_Z).build(), { speed: 5, through: true });

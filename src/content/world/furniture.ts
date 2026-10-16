@@ -57,6 +57,8 @@ export default defineMod({
       return { g, pts, low: V(x, 6.9, z) };
     }
     const P1 = pole(-13, 8.8, 'z'), P2 = pole(12.9, 8.9, 'x'), P3 = pole(12.9, -12.2, 'x');   // P3 stands clear of the back lane's mouth
+    // P4 between the level crossing and the coast road; from it a single line runs off west along the verge
+    const P4 = pole(12.9, -24.4, 'x');
     cyl(P1.g, 0.36, 0.36, 1.1, mat('#b3b8bd', { roughness: 0.5, metalness: 0.3 }), 0, 6.4, -0.45, 16);
     box(P3.g, 0.5, 0.7, 0.3, mat('#9ea3a9'), 0, 5.6, 0.3);
     box(P2.g, 0.12, 0.12, 1.9, M.darkMetal, 0, 8.55, 0);
@@ -72,11 +74,12 @@ export default defineMod({
     wireSet(P1.pts, P2z, 0.9);
     wireSet(P1.pts, P1.pts.map((p) => p.clone().setX(-28)), 0.5);
     wireSet(P2.pts, P3.pts, 0.7);
-    wireSet(P3.pts, P3.pts.map((p) => p.clone().setZ(-24)), 0.6);
+    wireSet(P3.pts, P4.pts, 0.7);
     wireSet(P2z, P2z.map((p) => p.clone().setX(28)), 0.9);
     wire(P1.low, P2.low, 0.8, 0.045); wire(P2.low, P3.low, 0.7, 0.045);
     wire(P1.low, P1.low.clone().setX(-28), 0.4, 0.045);
-    wire(P3.low, P3.low.clone().setZ(-24), 0.4, 0.045);
+    wire(P3.low, P4.low, 0.6, 0.045);
+    wire(P4.low, P4.low.clone().setX(-28), 0.4, 0.045);
     wire(V(12.9, 6.6, 8.9), V(7.7, 4.4, 2.6), 0.5, 0.018);   // the drop to the shop
 
     // ------------------------------------------------ street lamps (warm, cosier than cold LED in a miniature)

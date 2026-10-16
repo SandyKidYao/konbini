@@ -5,7 +5,8 @@ import { defineMod, type SitePlot } from '../../engine/mod';
 import { boxE, cyl, mat, groundPlane } from '../../engine/kit/build';
 import { materials } from '../common/materials';
 import { roadTomareTex, roadStopBoxTex } from '../common/signage';
-import { BLOCK, PLOT, LANE, SIDEWALKS, SIDEWALK_Y, LAND_Y } from './layout';
+import { BLOCK, PLOT, LANE, TRACK, COAST, SHORE, SIDEWALKS, SIDEWALK_Y, LAND_Y } from './layout';
+import type { Railway } from './railway';
 import type { Signals } from './furniture';
 
 export default defineMod({
@@ -17,11 +18,12 @@ export default defineMod({
     const M = materials(ctx), root = ctx.root, S = ctx.surfaces;
 
     // land and verges
-    boxE(root, -28, 11.5, 0, LAND_Y, -24, 7.5, M.concrete, { uv: 3.5, cast: false, r: 0.02 });
-    boxE(root, 23, 28, 0, LAND_Y, -24, 7.5, M.concrete, { uv: 3.5, cast: false, r: 0.02 });
+    const LAND_A = { x0: -28, x1: 11.5, z0: COAST.z1, z1: 7.5 }, LAND_B = { x0: 23, x1: 28, z0: COAST.z1, z1: 7.5 };
+    boxE(root, LAND_A.x0, LAND_A.x1, 0, LAND_Y, LAND_A.z0, LAND_A.z1, M.concrete, { uv: 3.5, cast: false, r: 0.02 });
+    boxE(root, LAND_B.x0, LAND_B.x1, 0, LAND_Y, LAND_B.z0, LAND_B.z1, M.concrete, { uv: 3.5, cast: false, r: 0.02 });
     boxE(root, -28, 28, 0, 0.06, 19.2, 24, M.grass, { uv: 3, cast: false, r: 0.02 });
-    S.addWalk({ x0: -28, x1: 11.5, z0: -24, z1: 7.5 }, LAND_Y);
-    S.addWalk({ x0: 23, x1: 28, z0: -24, z1: 7.5 }, LAND_Y);
+    S.addWalk(LAND_A, LAND_Y);
+    S.addWalk(LAND_B, LAND_Y);
     S.addWalk({ x0: -28, x1: 28, z0: 19.2, z1: 24 }, 0.06);
 
     // sidewalks + curbs
@@ -30,17 +32,24 @@ export default defineMod({
       S.addWalk({ x0, x1, z0, z1 }, SIDEWALK_Y, 1);
     }
     boxE(root, -28, 14, 0, 0.17, 9.8, 10, M.curb, { cast: false });
-    boxE(root, 13.8, 14, 0, 0.17, -24, LANE.z0, M.curb, { cast: false });
+    const XING = { z0: TRACK.z - 1.9, z1: TRACK.z + 1.9 };   // the crossing deck: no kerbs across it
+    boxE(root, 13.8, 14, 0, 0.17, COAST.z1, XING.z0, M.curb, { cast: false });
+    boxE(root, 13.8, 14, 0, 0.17, XING.z1, LANE.z0, M.curb, { cast: false });
     boxE(root, 13.8, 14, 0, 0.17, PLOT.z1, 10, M.curb, { cast: false });
-    boxE(root, 21, 21.2, 0, 0.17, -24, 10, M.curb, { cast: false });
+    boxE(root, 21, 21.2, 0, 0.17, COAST.z1, XING.z0, M.curb, { cast: false });
+    boxE(root, 21, 21.2, 0, 0.17, XING.z1, 10, M.curb, { cast: false });
+    // the coast road: kerbs along its land side (open where road B comes down) and along the promenade
+    boxE(root, -28, 14, 0, 0.17, COAST.z1, COAST.z1 + 0.2, M.curb, { cast: false });
+    boxE(root, 21, 28, 0, 0.17, COAST.z1, COAST.z1 + 0.2, M.curb, { cast: false });
+    boxE(root, -28, 28, 0, 0.17, COAST.z0 - 0.2, COAST.z0, M.curb, { cast: false });
     boxE(root, 21, 28, 0, 0.17, 9.8, 10, M.curb, { cast: false });
     boxE(root, -28, 28, 0, 0.17, 17, 17.2, M.curb, { cast: false });
 
     // the plan (the map form): asphalt under everything, land and verges, sidewalks; the paint goes on as it's laid
     const plan = ctx.plan;
     plan.add({ kind: 'road', rect: BLOCK });
-    plan.add({ kind: 'land', rect: { x0: -28, x1: 11.5, z0: -24, z1: 7.5 } });
-    plan.add({ kind: 'land', rect: { x0: 23, x1: 28, z0: -24, z1: 7.5 } });
+    plan.add({ kind: 'land', rect: LAND_A });
+    plan.add({ kind: 'land', rect: LAND_B });
     plan.add({ kind: 'green', rect: { x0: -28, x1: 28, z0: 19.2, z1: 24 } });
     for (const [x0, x1, z0, z1] of SIDEWALKS) plan.add({ kind: 'walk', rect: { x0, x1, z0, z1 } });
 
@@ -54,8 +63,27 @@ export default defineMod({
     paint(-28, 13.6, 10.35, 10.5); paint(-28, 13.6, 16.5, 16.65);
     paint(21.4, 28, 10.35, 10.5); paint(21.4, 28, 16.5, 16.65);
     paint(13.0, 13.4, 10.5, 13.4); paint(21.6, 22.0, 13.6, 16.5);
-    for (let z = -23.5; z < 1.5; z += 4) paint(17.42, 17.58, z, z + 2.2);
-    paint(14.35, 14.5, -24, LANE.z0); paint(14.35, 14.5, LANE.z1, 3); paint(20.5, 20.65, -24, 3);
+    // road B: its centre line and edge lines, broken by the crossing and the back lane's mouth
+    const B0 = COAST.z1 + 0.6;
+    for (let z = B0; z < 1.5; z += 4) if (z + 2.2 < XING.z0 - 1.2 || z > XING.z1 + 1.2) paint(17.42, 17.58, z, z + 2.2);
+    paint(14.35, 14.5, B0, XING.z0 - 1.1); paint(14.35, 14.5, XING.z1 + 1.1, LANE.z0); paint(14.35, 14.5, LANE.z1, 3);
+    paint(20.5, 20.65, B0, XING.z0 - 1.1); paint(20.5, 20.65, XING.z1 + 1.1, 3);
+    // everyone stops before the level crossing (and down at the T, before the coast road)
+    paint(14.5, 17.4, XING.z1 + 0.75, XING.z1 + 1.1); paint(17.6, 20.5, XING.z0 - 1.1, XING.z0 - 0.75);
+    paint(14.5, 17.4, COAST.z1 + 0.25, COAST.z1 + 0.6);
+    {
+      const t = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.4), new THREE.MeshStandardMaterial({
+        map: roadTomareTex, transparent: true, roughness: 0.8, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+      }));
+      t.rotation.set(-Math.PI / 2, 0, 0); t.position.set(15.95, 0.013, COAST.z1 + 2.2); t.receiveShadow = true;
+      root.add(t);
+    }
+    // the coast road: a dashed centre line, edge lines, and a zebra crossing over to the promenade
+    const CZ = (COAST.z0 + COAST.z1) / 2;
+    for (let x = -27.5; x < 28; x += 4) if (x + 2.2 < 13.5 || x > 21.5) paint(x, Math.min(x + 2.2, 28), CZ - 0.08, CZ + 0.08);
+    paint(-28, 13.6, COAST.z1 - 0.5, COAST.z1 - 0.35); paint(21.4, 28, COAST.z1 - 0.5, COAST.z1 - 0.35);
+    paint(-28, 28, COAST.z0 + 0.35, COAST.z0 + 0.5);
+    for (let z = COAST.z0 + 0.65; z < COAST.z1 - 0.65; z += 0.9) paint(2.6, 6.2, z, z + 0.45);
     for (let x = 14.6; x < 20.6; x += 0.9) paint(x, x + 0.45, 4.0, 7.6);
     paint(17.6, 20.5, 3.0, 3.4);
     const tomare = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.6), new THREE.MeshStandardMaterial({
@@ -105,9 +133,9 @@ export default defineMod({
     for (const [x, z] of [[2, 13.5], [-15, 12], [17.5, -10]]) cyl(root, 0.42, 0.42, 0.02, manhole, x, 0, z, 24, { cast: false });
 
     // wet weather: sheen on every outdoor surface, puddles in the dips
-    ctx.fx.addSheen(BLOCK, 0);
-    ctx.fx.addSheen({ x0: -28, x1: 11.5, z0: -24, z1: 7.5 }, LAND_Y);
-    ctx.fx.addSheen({ x0: 23, x1: 28, z0: -24, z1: 7.5 }, LAND_Y);
+    ctx.fx.addSheen({ ...BLOCK, z0: COAST.z0 }, 0);   // the roads (the sea has its own surface)
+    ctx.fx.addSheen(LAND_A, LAND_Y);
+    ctx.fx.addSheen(LAND_B, LAND_Y);
     for (const [x0, x1, z0, z1] of SIDEWALKS) ctx.fx.addSheen({ x0, x1, z0, z1 }, SIDEWALK_Y);
     for (const [x, z, r, sx, sz] of [
       [-9, 12.2, 1.6, 1.8, 0.8], [3.8, 15.0, 1.2, 1.6, 0.7], [-20, 14.6, 1.3, 1.6, 0.7], [17.2, 14.0, 1.8, 1.2, 1.1],
@@ -122,9 +150,9 @@ export default defineMod({
     N.addNode('street.a.front', 2.5, A);
     N.addNode('street.corner', BX, A);
     N.addNode('street.b.crossing', BX, XW);   // on the site's corner, now road B's sidewalk is gone there
-    N.addNode('street.b.south', BX, -23.6, { tags: ['spawn'] });
+    N.addNode('street.b.south', BX, COAST.z1 + 0.6);
     N.addNode('street.b2.crossing', B2X, XW);
-    N.addNode('street.b2.south', B2X, -23.6, { tags: ['spawn'] });
+    N.addNode('street.b2.south', B2X, COAST.z1 + 0.6);
     N.addNode('street.b2.corner', B2X, A);
     N.addNode('street.a2.east', 27.6, A, { tags: ['spawn'] });
     N.addNode('street.far.west', -27.6, 18.1, { tags: ['spawn', 'far'] });
@@ -133,8 +161,31 @@ export default defineMod({
     // road B's sidewalk on this side starts beyond the back lane; between here and the crossing the site's
     // frontage carries people (the active site links 'street.b.side' to 'street.b.crossing')
     N.addNode('street.b.side', BX, LANE.z0 - 0.6);
-    N.addPath(['street.b.side', 'street.b.south'], { width: 1.0 });
-    N.addPath(['street.b2.south', 'street.b2.crossing', 'street.b2.corner', 'street.a2.east'], { width: 1.0 });
+    // over the level crossing on either sidewalk: wait while it is closed
+    const open = () => !ctx.services.get<Railway>('world.railway')?.closed();
+    const rail = { width: 1.0, tags: ['level-crossing'], gate: open };
+    for (const [x, id] of [[BX, 'b'], [B2X, 'b2']] as const) {
+      N.addNode(`street.${id}.rail.n`, x, XING.z1 + 1.0);
+      N.addNode(`street.${id}.rail.s`, x, XING.z0 - 1.0);
+      N.addEdge(`street.${id}.rail.n`, `street.${id}.rail.s`, rail);
+    }
+    N.addPath(['street.b.side', 'street.b.rail.n'], { width: 1.0 });
+    N.addPath(['street.b.rail.s', 'street.b.south'], { width: 1.0 });
+    N.addPath(['street.b2.crossing', 'street.b2.corner', 'street.a2.east'], { width: 1.0 });
+    N.addPath(['street.b2.rail.n', 'street.b2.crossing'], { width: 1.0 });
+    N.addPath(['street.b2.south', 'street.b2.rail.s'], { width: 1.0 });
+    // the coast road's sidewalk on the land side, out to either edge; a zebra over to the promenade
+    const CW = COAST.z1 + 0.6, PW = (SHORE.promenade + COAST.z0) / 2;
+    N.addNode('coast.west', -27.6, CW, { tags: ['spawn'] });
+    N.addNode('coast.zebra.n', 4.4, CW);
+    N.addNode('coast.east', 27.6, CW, { tags: ['spawn'] });
+    N.addPath(['coast.west', 'coast.zebra.n', 'street.b.south'], { width: 1.0 });
+    N.addPath(['street.b2.south', 'coast.east'], { width: 1.0 });
+    N.addNode('coast.zebra.s', 4.4, PW);
+    N.addEdge('coast.zebra.n', 'coast.zebra.s', { width: 2.6, tags: ['crosswalk'] });
+    N.addNode('coast.prom.west', -27.6, PW, { tags: ['spawn'] });
+    N.addNode('coast.prom.east', 27.6, PW, { tags: ['spawn'] });
+    N.addPath(['coast.prom.west', 'coast.zebra.s', 'coast.prom.east'], { width: 0.8 });
     N.addPath(['street.far.west', 'street.far.east'], { width: 0.8 });
     // the zebra crossing over road B: wait for the green man
     N.addEdge('street.b.crossing', 'street.b2.crossing', {

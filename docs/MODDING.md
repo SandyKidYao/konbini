@@ -75,14 +75,15 @@ ctx.director.define({
 - 行驶中自动做的事：在路径终点和关着的闸门（`Gate`：红灯、停车让行、人行横道上有人）前停下；跟车；给挡在路上的车和人让路；拐弯前打转向灯；刹车灯、倒车灯；天暗、下雨、起雾时开大灯
 - 人也会让车：走路时看前方一步，正在开或马上要开的车（车身外加上它一秒内要开到的地方）挡着就先停一下；车如果正是在等这个人，那人先走
 - 世界模组 `konbini.world.roads` 提供服务 `world.roads`（类型见 `src/content/world/roads.ts`）：
-  - `spawn(body, 'west' | 'east' | 'south')`：在道路尽头（模型外）放一辆车
-  - `through(from, to)`：穿过路口开走，遵守信号灯；能直行，也能左转、右转进出 B 路
+  - `spawn(body, 'west' | 'east' | 'shore-west' | 'shore-east')`：在道路尽头（模型外）放一辆车：A 路的两头，或者海边公路的两头
+  - `through(from, to)`：开过去，遵守信号灯和停车让行：沿 A 路直行；从 A 路拐进 B 路，过踏切，到下面的丁字路口转上海边公路（反过来也行）；或者沿海边公路开过去。过踏切前一律先停一下，警报响着、栏杆没抬起、或者对面没有一辆车的空位时不过去
   - `arrive(from, pose, onward, { enter, balk })`：沿 A 路开来、拐进路边某处（比如停车场出入口），再慢慢开过 `onward`；拐弯前问 `enter` 有没有空位，没有就直接开过去（`balk`）。`onward` / `via` 里的点写 `[x, z]` 是直线开过去，写 `{ x, z, heading }` 是转弯过去
   - `depart(pose, 'east' | 'west', { via })`：先慢慢开过 `via` 这些点（比如沿停车场车道开到出入口），在人行道前等空当，再汇入 A 路开走
   - `pullIn(from, pose, { enter })`：沿 A 路开来、拐进 B 路，再车头朝前拐进 B 路西侧的车位（`pose` 是停好的位置，车头朝 −x）。拐下 A 路之前在路口边上等 `enter` 说可以（比如拿到车位前的锁），不会开到 B 路里再放弃
   - `backOut(pose, to, { ready, onRoad })`：从 B 路西侧的车位倒车出来开走：`'south'` 顺着 B 路开下去，`'east'` / `'west'` 倒进对面车道、开上路口转回 A 路。先等要倒过去的车道都有空当，再问 `ready`（比如拿锁），倒车期间其他车在车位两头停下等它
   - `intoLane(from, x)` / `alongLane()`：从 A 路拐进 B 路、再左转进店后的小巷，停在 x 处；之后顺着小巷往西开出模型（送货卡车用）
   - `clip`：车身要用的裁切平面。用素材库造的车身带上它，还会在离模型边缘最后几米里整体淡出（开进来时淡入），到边缘时已经完全消失，不会露出被切开的截面。自己写车身时，实现 `VehicleBody.fade(presence)` 就能得到同样的效果，`presence` 由引擎每帧给出（0–1），交给 `ctx.kit.fader(root).set` 即可
+- 世界模组 `konbini.world.railway` 提供服务 `world.railway`：`closed()` 踏切是不是关着（警报在响，或者栏杆还没完全抬起来），`z` 铁路中线，`crossing` 踏切的范围，`send(1 | -1)` 马上发一班车（往 +x 或 −x，没有车在跑的时候）。电车从 5:30 到 23:50 大约每两分钟一班，往返交替；行人走到踏切前、车开到停止线前都会看 `closed()`
 - 车身素材：`car`（形状见 `CAR_MODELS`：kei、hatch、sedan、minivan、taxi）、`truck`（`kei` 小货车、`box` 箱式送货车）、`bus`；都实现 `VehicleBody`，也可以自己做车身
 
 ```js

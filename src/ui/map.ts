@@ -81,7 +81,9 @@ export function initMap(app: App, bounds: Rect): MapView {
   const g = canvas.getContext('2d')!;
   const base = document.createElement('canvas'), bg = base.getContext('2d')!;
   const shade = document.createElement('canvas'), sg = shade.getContext('2d')!;
-  const W = bounds.x1 - bounds.x0;
+  const W = bounds.x1 - bounds.x0, D = bounds.z1 - bounds.z0;
+  // the tile is the model's shape (the stylesheet sizes the box by this)
+  box.style.setProperty('--map-aspect', String(W / D));
 
   /** art pixels: across, down the tile (without the walnut edge); and per metre */
   let N = 0, M = 0, ppm = 1, boxW = 0;
@@ -94,7 +96,7 @@ export function initMap(app: App, bounds: Rect): MapView {
     // a whole number of device pixels per art pixel (at least two, so it reads as pixels), as many art pixels as fit
     const k = Math.max(2, Math.ceil((r.width * dpr) / ART_W));
     N = Math.max(28, Math.floor((r.width * dpr) / k / 7) * 7);
-    M = (N / 7) * 6;
+    M = Math.round((N * D) / W);
     ppm = N / W;
     for (const c of [canvas, base]) { c.width = N; c.height = M + EDGE; }
     shade.width = N; shade.height = M;

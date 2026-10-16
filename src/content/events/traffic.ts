@@ -86,9 +86,12 @@ const STREET_DAYOFF = [[0, 3], [2, 1.5], [5, 1.2], [7, 3], [9, 5], [11, 7], [16,
 const streetRate = (c: Conditions, d: Drivers) => byHour(c.hour, c.dayOff ? STREET_DAYOFF : STREET_WEEKDAY)
   * (1 - 0.45 * d.snow) * (1 - 0.25 * d.thunder) * (1 + 0.15 * d.rain);
 
+// mostly along road A; some down road B to the shore and up from it; a steady trickle along the coast road
 const WAYS: [readonly [RoadEnd, RoadEnd], number][] = [
-  [['west', 'east'], 0.33], [['east', 'west'], 0.33], [['west', 'south'], 0.07],
-  [['east', 'south'], 0.06], [['south', 'east'], 0.1], [['south', 'west'], 0.11],
+  [['west', 'east'], 0.27], [['east', 'west'], 0.27],
+  [['west', 'shore-west'], 0.035], [['west', 'shore-east'], 0.035], [['east', 'shore-west'], 0.03], [['east', 'shore-east'], 0.03],
+  [['shore-west', 'east'], 0.04], [['shore-west', 'west'], 0.04], [['shore-east', 'east'], 0.04], [['shore-east', 'west'], 0.04],
+  [['shore-west', 'shore-east'], 0.085], [['shore-east', 'shore-west'], 0.085],
 ];
 
 export const trafficMod = defineMod({
@@ -154,15 +157,15 @@ function parkedPose(bay: ParkingBay, body: Car): Pose {
   const front = Math.max(...body.wheels.map((w) => w.position.x)), r = body.wheels[0].position.y;
   return { x: bay.stop + r + front, z: bay.z, heading: -PI / 2 };
 }
-/** where they drive off to: on down road B, or back up to road A and away either way */
-const AWAY: [RoadEnd, number][] = [['south', 0.45], ['east', 0.28], ['west', 0.27]];
+/** where they drive off to: on down road B and along the shore, or back up to road A and away either way */
+const AWAY: [RoadEnd, number][] = [['shore-west', 0.22], ['shore-east', 0.23], ['east', 0.28], ['west', 0.27]];
 
 /**
  * Back out onto road B, once there is a gap and the frontage is free, and drive off. From the bays nearest the
  * junction nobody heads for the sea: backing out that way would swing the tail up onto the crossing.
  */
 function leaveBay(roads: RoadService, lot: ParkingService, i: number, park: Pose, body: Car, who: string): V.VehicleSteps {
-  const away = park.z + 3 + body.len / 2 < CROSSING_Z ? AWAY : AWAY.filter(([e]) => e !== 'south');
+  const away = park.z + 3 + body.len / 2 < CROSSING_Z ? AWAY : AWAY.filter(([e]) => e === 'east' || e === 'west');
   // the frontage is only taken once there is a gap and it really goes: waiting for one, it holds nobody up
   return [
     V.wait(R(0.6, 1.2)),

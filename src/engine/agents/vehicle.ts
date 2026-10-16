@@ -363,8 +363,11 @@ export class Vehicle {
     const hit = this.traffic.ahead(this, P, s, o.reverse ?? false);
     this.blocker = hit?.what ?? null;
     if (hit) want = Math.min(want, Math.max(0, Math.min(Math.sqrt(2 * BRAKE * Math.max(0, hit.d - hit.gap)), (hit.d - hit.gap) * 1.4)));
+    // a jam nobody can untangle — vehicles waiting on each other round in a circle — is broken by squeezing past.
+    // Queueing behind someone who waits at a light or a gate is not a jam, however long the wait (but after a
+    // couple of minutes of that, squeeze past anyway: something is waiting on something that will never come).
     if (this.blocker instanceof Vehicle && this.v < 0.05) this.stuck += dt; else this.stuck = 0;
-    if (this.stuck > 40) { this.ghost = 3; this.stuck = 0; }   // a jam nobody can untangle: squeeze past
+    if ((this.stuck > 40 && this.waitsInCircle()) || this.stuck > 120) { this.ghost = 3; this.stuck = 0; }
     this.ghost = Math.max(0, this.ghost - dt);
 
     const before = this.v;
@@ -385,6 +388,16 @@ export class Vehicle {
     } else this.lamps.blink = null;
     if (o.through && ns >= P.length) return true;
     return !o.through && ns >= P.length - 0.01 && this.v < 0.4;
+  }
+
+  /** Following who blocks whom from here comes back round to this vehicle. */
+  private waitsInCircle() {
+    let b = this.blocker;
+    for (let i = 0; i < 12 && b instanceof Vehicle; i++) {
+      if (b === this) return true;
+      b = b.blocker;
+    }
+    return false;
   }
 
   private apply(heading: number) {
