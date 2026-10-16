@@ -28,7 +28,7 @@ export default defineMod({
     });
 
     // ---------------------------------------------------------------- the house
-    boxE(root, B.x0, B.x1, 0.08, H1 + 0.2, B.z0, zf, wood);
+    boxE(root, B.x0, B.x1, 0.08, H1, B.z0, zf, wood);
     boxE(root, B.x0, B.x1, H1, H, B.z0, B.z1, plaster);
     boxE(root, B.x0 - 0.04, B.x1 + 0.04, H1 - 0.05, H1 + 0.2, B.z1 - 0.06, B.z1 + 0.04, wood);
     for (const x of [B.x0 + 0.1, -25, -22.6, -20.2, B.x1 - 0.1]) boxE(root, x - 0.09, x + 0.09, 0.08, H1, B.z1 - 0.2, B.z1 - 0.02, wood);

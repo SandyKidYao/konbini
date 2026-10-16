@@ -40,7 +40,10 @@ export default defineMod({
 
     // ---------------------------------------------------------------- the track bed
     const BED = { x0: BLOCK.x0, x1: BLOCK.x1 };
-    const segs: [number, number][] = [[BED.x0, XING.x0], [XING.x1, BED.x1]];
+    // the ballast, sleepers and rails stop a little way into each tunnel's darkness, out of sight (run on to the
+    // edge, their ends would fight with the tunnel's)
+    const END = HIDE + 0.3;
+    const segs: [number, number][] = [[-END, XING.x0], [XING.x1, END]];
     const ballast = mat('#9a9286', { roughness: 1 }), sleeperM = mat('#6a5646', { roughness: 0.9 });
     const railM = mat('#a5abb1', { roughness: 0.35, metalness: 0.7 });
     for (const [a, b] of segs) {
@@ -51,7 +54,7 @@ export default defineMod({
     }
     {
       const xs: number[] = [];
-      for (let x = BED.x0 + 0.3; x < BED.x1; x += 0.62) if (x < XING.x0 - 0.1 || x > XING.x1 + 0.1) xs.push(x);
+      for (let x = -END + 0.3; x < END; x += 0.62) if (x < XING.x0 - 0.1 || x > XING.x1 + 0.1) xs.push(x);
       const sl = new THREE.InstancedMesh(new THREE.BoxGeometry(0.22, 0.07, 2.1), sleeperM, xs.length);
       const m4 = new THREE.Matrix4();
       xs.forEach((x, i) => { m4.makeTranslation(x, 0.255, Z); sl.setMatrixAt(i, m4); });
@@ -103,9 +106,10 @@ export default defineMod({
     rod(root, V(BED.x0 + 1, 5.66, Z - 0.2), V(BED.x1 - 1, 5.66, Z - 0.2), 0.022, wireM, 4, false);
 
     // ---------------------------------------------------------------- a short tunnel at each edge
-    // (the train is cut off inside, behind the dark, so it is never seen sliced at the edge of the model)
+    // (the train is cut off inside, behind the dark, so it is never seen sliced at the edge of the model; the far
+    // end is filled in, so from outside the model the tunnel is a closed block, not a hole)
     {
-      const concrete = mat('#bdb8ad', { roughness: 0.9 }), dark = mat('#141619', { roughness: 1 });
+      const concrete = mat('#bdb8ad', { roughness: 0.9 }), dark = mat('#141619', { roughness: 1 }), fill = mat('#a9a498', { roughness: 0.95 });
       const grass = M.grass, H = 5.9, W = 2.4;
       for (const side of [-1, 1]) {
         const xo = side * BLOCK.x1, xi = side * (BLOCK.x1 - TUNNEL);
@@ -121,9 +125,12 @@ export default defineMod({
         // the portal face, with the darkness behind it
         const face = side < 0 ? [xi, xi + 0.3] : [xi - 0.3, xi];
         boxE(root, face[0], face[1], 4.9, H, Z - W - 0.6, Z + W + 0.6, concrete);
-        const inner = side < 0 ? [xo, HIDE * side] : [HIDE * side, xo];
-        boxE(root, inner[0], inner[1], 0.06, H - 0.5, Z - W, Z + W, dark, { cast: false, plain: true });
-        boxE(root, side < 0 ? xo : xi, side < 0 ? xi : xo, 0.05, 0.06, Z - W, Z + W, dark, { cast: false, plain: true });
+        // the darkness: a hair inside the walls and the roof, so where they meet it is the dark that shows
+        const xe = xo - side * 0.3;
+        const inner = side < 0 ? [xe, HIDE * side] : [HIDE * side, xe];
+        boxE(root, inner[0], inner[1], 0.06, H - 0.51, Z - W + 0.01, Z + W - 0.01, dark, { cast: false, plain: true });
+        boxE(root, side < 0 ? xe : xi, side < 0 ? xi : xe, 0.05, 0.06, Z - W, Z + W, dark, { cast: false, plain: true });
+        boxE(root, Math.min(xo, xe), Math.max(xo, xe), 0, H - 0.5, Z - W, Z + W, fill, { cast: false });
         ctx.plan.add({ kind: 'building', rect: { x0: a, x1: b, z0: Z - W - 0.8, z1: Z + W + 0.8 }, h: H, color: '#7d9a6a' });
         S.addRoof({ x0: a, x1: b, z0: Z - W - 0.8, z1: Z + W + 0.8 }, H + 0.25);
       }

@@ -48,11 +48,12 @@ export default defineMod({
       ctx.plan.add({ kind: 'land', rect: { x0: BLOCK.x0, x1: BLOCK.x1, z0: SHORE.waterline, z1: SHORE.promenade }, color: '#e8d8b0' });
     }
 
-    // the water, out to the edge; its cut faces deeper, like resin
+    // the water, out to the edge; its cut faces deeper, like resin. A hair in from the sides, so the sand's cut
+    // face shows below it there instead of the two fighting
     {
       const face = mat('#4a8fa8', { roughness: 0.1, metalness: 0.15, envMap: ctx.fx.envMap, envMapIntensity: 0.9 });
       const cut = mat('#2f6f86', { roughness: 0.3 });
-      const sea = box(root, W, SHORE.water - SEABED, SHORE.promenade - 0.6 - BLOCK.z0, [cut, cut, face, cut, cut, cut],
+      const sea = box(root, W - 0.04, SHORE.water - SEABED, SHORE.promenade - 0.6 - BLOCK.z0, [cut, cut, face, cut, cut, cut],
         (BLOCK.x0 + BLOCK.x1) / 2, SEABED, (SHORE.promenade - 0.6 + BLOCK.z0) / 2, { plain: true, cast: false });
       sea.userData.noSnow = true;
       ctx.plan.add({ kind: 'land', rect: { x0: BLOCK.x0, x1: BLOCK.x1, z0: BLOCK.z0, z1: SHORE.waterline }, color: '#6aa9c0' });
