@@ -292,8 +292,9 @@ export const deliveryMod = defineMod({
       if (!roads!.free('west')) return;
       busy = true;
       const m = makeVehicle(ctx, roads!, 'box-truck');
-      // facing −x along the lane, its back doors just past the opening
-      const openX = (yard!.opening.x0 + yard!.opening.x1) / 2, x = openX - m.body.len / 2 + 0.4;
+      // facing −x along the lane, its back doors just short of the middle of the opening: the driver unloads standing
+      // behind it, right where the way in through the opening starts (the yard's lane node), not inside the box
+      const openX = (yard!.opening.x0 + yard!.opening.x1) / 2, x = openX - m.body.len / 2 - 0.55;
       const from = 'west';
       const v = roads!.spawn(m.body, from, { kind: 'box-truck', label: '送货卡车', accel: m.accel });
       let done = false;
@@ -308,7 +309,9 @@ export const deliveryMod = defineMod({
 
       function driver() {
         const fig = ctx.prefabs.create('figure', { shirt: '#2f6db5', pants: '#2f3540', skirt: null, hat: 'cap', shortSleeve: ctx.atmosphere.drivers.temperature > 22 });
-        const p = v.pose, cab: [number, number] = [p.x - m.body.len / 2 + 1.0, p.z - 1.05];
+        // out of the cab on the driver's side, and along it clear of the body, round to the back doors
+        const p = v.pose, side = p.z - m.body.width / 2 - 0.4;
+        const cab: [number, number] = [p.x - m.body.len / 2 + 1.0, side];
         const rear: [number, number] = [p.x + m.body.len / 2 + 0.5, p.z];
         const a = ctx.director.spawn(fig, { x: cab[0], z: cab[1], heading: PI, label: '送货员' });
         for (let k = 0; k < 2; k++) {
