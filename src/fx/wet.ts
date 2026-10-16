@@ -95,10 +95,14 @@ export class Wet {
             float a = uStrength * smoothstep(1.0, 0.7, vEdge);
             gl_FragColor = vec4((refl * uTint * 0.6 + uRing * rip * 0.16) * a, a * 0.4);
           #else
+            // smeared into a vertical streak, as wet asphalt does. A few taps at fixed offsets drew a small bright
+            // light as a ladder of separate dots: the taps are jittered per pixel, so they blur into one streak
             vec3 refl = vec3(0.0); float tw = 0.0;
-            for (int k = -4; k <= 4; k++) {
-              float wk = 1.0 - abs(float(k)) / 5.0;
-              vec4 q = p; q.y += float(k) * 0.014 * p.w; q.x += float(k) * 0.002 * p.w;
+            float j = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+            for (int k = 0; k < 14; k++) {
+              float o = ((float(k) + j) / 14.0) * 2.0 - 1.0;
+              float wk = 1.0 - abs(o) * 0.85;
+              vec4 q = p; q.y += o * 0.056 * p.w; q.x += o * 0.008 * p.w;
               refl += texture2DProj(tRefl, q).rgb * wk; tw += wk;
             }
             refl /= tw;
