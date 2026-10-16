@@ -177,8 +177,11 @@ export default defineMod({
     const om = mat('#ee7a35', { roughness: 0.45 });
     cyl(root, 0.055, 0.055, 2.9, om, 11.95, 0.15, 9.5, 12);
     const mirror = new THREE.Group();
-    const glass = new THREE.Mesh(new THREE.CircleGeometry(0.42, 32), new THREE.MeshStandardMaterial({ color: '#ffffff', metalness: 1, roughness: 0.02, envMap: ctx.fx.envMap }));
-    glass.position.z = 0.03; mirror.add(glass);
+    // the glass: a shallow convex cap, its rim just in front of the backing (flush with it, the two fight), so it
+    // shows a wide view round the corner as a real one does
+    const CAP_R = 1.2, CAP_T = Math.asin(0.42 / CAP_R);
+    const glass = new THREE.Mesh(new THREE.SphereGeometry(CAP_R, 32, 6, 0, Math.PI * 2, 0, CAP_T), new THREE.MeshStandardMaterial({ color: '#ffffff', metalness: 1, roughness: 0.02, envMap: ctx.fx.envMap }));
+    glass.rotation.x = Math.PI / 2; glass.position.z = 0.04 - CAP_R * Math.cos(CAP_T); mirror.add(glass);
     mirror.add(new THREE.Mesh(new THREE.TorusGeometry(0.44, 0.04, 10, 32), om));
     const back = new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.44, 0.06, 32), om); back.rotation.x = Math.PI / 2; mirror.add(back);
     mirror.traverse((o) => { o.castShadow = true; });

@@ -51,13 +51,14 @@ export default defineMod({
     root.add(pent);
     {
       const face = ctx.glow.add(mat('#ffffff', { map: label('さくら堂', '#5b3f2e', '#f3e7cf'), emissive: '#ffe6c0', emissiveIntensity: 0 }), 'window', 0.25);
-      const board = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.75, 0.1), [wood, wood, wood, wood, face, wood]);
-      board.position.set(-23.5, H1 + 1.15, B.z1 - 0.05); board.castShadow = true; root.add(board);
+      const board = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.7, 0.1), [wood, wood, wood, wood, face, wood]);
+      // in front of the plaster, its foot just clear of the pent roof's top edge, below the upstairs windows
+      board.position.set(-23.5, H1 + 0.99, B.z1 + 0.07); board.castShadow = true; root.add(board);
     }
     // upstairs: two lattice windows, the main tiled roof with its ridge
     for (const x of [-25.7, -21.3]) {
-      boxE(root, x - 1.1, x + 1.1, H1 + 1.0, H1 + 2.2, B.z1, B.z1 + 0.04, windowPane(ctx, 'warm'), { cast: false, plain: true });
-      for (let k = -1.05; k < 1.1; k += 0.16) boxE(root, x + k, x + k + 0.05, H1 + 1.0, H1 + 2.2, B.z1 + 0.04, B.z1 + 0.09, slat, { cast: false, plain: true });
+      boxE(root, x - 1.1, x + 1.1, H1 + 1.5, H1 + 2.5, B.z1, B.z1 + 0.04, windowPane(ctx, 'warm'), { cast: false, plain: true });
+      for (let k = -1.05; k < 1.1; k += 0.16) boxE(root, x + k, x + k + 0.05, H1 + 1.5, H1 + 2.5, B.z1 + 0.04, B.z1 + 0.09, slat, { cast: false, plain: true });
     }
     {
       const w = B.z1 - B.z0 + 0.9, len = B.x1 - B.x0 + 0.9, rh = 2.1;
