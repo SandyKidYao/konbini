@@ -299,9 +299,10 @@ body.pet .bar { transform: none; }
 body.pet-grab #stage canvas, body.pet-grab .plan canvas { cursor: grab !important; }
 body.pet-grabbing, body.pet-grabbing #stage canvas, body.pet-grabbing .plan canvas { cursor: grabbing !important; }
 body.pet .panel { box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1), inset 0 0 0 1px var(--line); }
-/* the model's canvas and the map, at the size the slider gives them (pet.ts), on the window's lower edge */
-body.pet #stage { inset: auto; left: 50%; bottom: 0; translate: -50% 0; width: var(--pet-box-w, 100vw); height: var(--pet-box-h, 100vh); }
-body.pet .plan { top: auto; bottom: 8px; translate: -50% 0; }
+/* the model's canvas and the map, at the size the slider gives them (pet.ts), on the window's lower edge — or, while
+   the window is held larger round them, off its middle by --pet-dx / --pet-dy, where they stand on the screen */
+body.pet #stage { inset: auto; left: calc(50% + var(--pet-dx, 0px)); bottom: var(--pet-dy, 0px); translate: -50% 0; width: var(--pet-box-w, 100vw); height: var(--pet-box-h, 100vh); }
+body.pet .plan { top: auto; left: calc(50% + var(--pet-dx, 0px)); bottom: calc(8px + var(--pet-dy, 0px)); translate: -50% 0; }
 /* its window is narrow, but it isn't a phone: the panels keep their size */
 body.pet .tray { width: 340px; }
 body.pet .cal, body.pet .mods { width: 300px; }

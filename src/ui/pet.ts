@@ -36,8 +36,8 @@ interface DesktopBridge {
   drag(on: boolean): void;
   showMenu(): void;
   setState(state: PetState): void;
-  /** the window's size; the shell keeps its foot where it stands, and keeps it on the screen */
-  setWindow(width: number, height: number): void;
+  /** the window's size, with its foot (bottom centre, screen px) here; the shell keeps it on the screen */
+  setWindow(width: number, height: number, footX: number, footY: number): void;
   onAction(fn: (a: PetAction) => void): void;
   /** the cursor over the window, or null once it has left (older shells don't have it) */
   onPointer?(fn: (p: { x: number; y: number } | null) => void): void;
@@ -54,15 +54,30 @@ const windowFor = (form: Form, sizes: Sizes): [number, number] => {
   return form === 'model' && w >= FILL_W ? [w, h] : [Math.max(SMALL_WINDOW[0], form === 'model' ? w : 0), SMALL_WINDOW[1]];
 };
 
-/**
- * The largest window that keeps its foot where it is on the screen (bottom centre) and stays on it: a window that has
- * to grow while held goes straight there (below), without moving anything.
- */
-const roomAtFoot = (): [number, number] => {
+/** a point on the screen (px): where the model or the map stands, the middle of its bottom edge */
+type Foot = [number, number];
+
+/** the screen's work area (without the menu bar and the Dock) */
+const workArea = () => {
   const s = screen as Screen & { availLeft?: number; availTop?: number };
-  const left = s.availLeft ?? 0, top = s.availTop ?? 0;
-  const footX = screenX + innerWidth / 2, footY = screenY + innerHeight;
-  return [Math.floor(2 * Math.min(footX - left, left + s.availWidth - footX)), Math.floor(footY - top)];
+  return { x: s.availLeft ?? 0, y: s.availTop ?? 0, w: s.availWidth, h: s.availHeight };
+};
+
+/** Where a window this size with its foot at `foot` ends up: moved onto the screen, as the shell does (main.js: onScreen). */
+const footOnScreen = (foot: Foot, w: number, h: number): Foot => {
+  const a = workArea();
+  const x = Math.max(a.x, Math.min(a.x + a.w - w, Math.round(foot[0] - w / 2)));
+  const y = Math.max(a.y, Math.min(a.y + a.h - h, Math.round(foot[1] - h)));
+  return [x + w / 2, y + h];
+};
+
+/**
+ * The largest window that keeps this foot where it is and stays on the screen: a window that has to grow while held
+ * goes straight there (below), without moving anything.
+ */
+const roomAt = ([x, y]: Foot): [number, number] => {
+  const a = workArea();
+  return [Math.floor(2 * Math.min(x - a.x, a.x + a.w - x)), Math.floor(y - a.y)];
 };
 
 /** Size the model's canvas (at the foot of the window) before the renderer first measures it. */
@@ -175,10 +190,14 @@ export function initPet(app: App, hud: HudActions, map: MapView) {
     el.setPointerCapture(e.pointerId);
     dragging = true;
     document.body.classList.add('pet-grabbing');
+    clearTimeout(moved.done);
+    moved = { x: screenX, y: screenY, home, done: 0 };
     bridge?.drag(true);
     const end = () => {
       dragging = false;
       document.body.classList.remove('pet-grabbing');
+      // (the window's last steps may reach the page a little after the button's release)
+      moved.done = window.setTimeout(() => { moved.home = null; }, 500);
       bridge?.drag(false);
       el.removeEventListener('pointerup', end);
       el.removeEventListener('pointercancel', end);
@@ -218,25 +237,68 @@ export function initPet(app: App, hud: HudActions, map: MapView) {
   });
 
   // --- the window follows the size: it only grows while the settings are open or the form is changing ---
-  let win: [number, number] = [0, 0];
+  // The model and the map stand on a foot kept in screen coordinates, not on the window's: at rest the window is
+  // theirs and they stand at its foot, but a window held open for the settings may grow round them as far as the
+  // whole screen, and they must not go with its foot (to the screen's bottom middle). `home` is where they belong;
+  // they stand there unless the screen's edge pushes them off it, and go back once they are small enough again.
+  // Moving the window by hand moves home with it.
+  let home: Foot = [screenX + innerWidth / 2, screenY + innerHeight];
+  let stand: Foot = home;
+  let moved: { x: number; y: number; home: Foot | null; done: number } = { x: 0, y: 0, home: null, done: 0 };
+  let win: [number, number] = [0, 0], wasHeld = false, offset = '';
+  /**
+   * The window's place on the screen. A window that has just changed size and place tells the page its new size a
+   * frame before its new place (screenX lags behind): until it catches up, the place the shell was asked for stands in,
+   * or that first frame would show everything placed from the old one.
+   */
+  let asked: { x: number; y: number; w: number; h: number; until: number } | null = null;
+  const origin = (): Foot => {
+    if (asked && (performance.now() > asked.until || (screenX === asked.x && screenY === asked.y))) asked = null;
+    return asked && innerWidth === asked.w && innerHeight === asked.h ? [asked.x, asked.y] : [screenX, screenY];
+  };
+  /** the model's canvas and the map, moved off the window's foot onto their own (style.css: --pet-dx, --pet-dy) */
+  const placeStand = () => {
+    // a window at rest is theirs: its foot is theirs too (whatever the shell made of it); without a shell (a browser
+    // tab with ?pet=1) the window is whatever it is, and nothing holds it open
+    const rest = !bridge || (!wasHeld && innerWidth === win[0] && innerHeight === win[1]);
+    const [x, y] = origin();
+    const dx = rest ? 0 : stand[0] - (x + innerWidth / 2);
+    const dy = rest ? 0 : y + innerHeight - stand[1];
+    const key = `${dx.toFixed(1)} ${dy.toFixed(1)}`;
+    if (key === offset) return;
+    offset = key;
+    document.body.style.setProperty('--pet-dx', `${dx}px`);
+    document.body.style.setProperty('--pet-dy', `${dy}px`);
+  };
   const fitWindow = () => {
+    if (moved.home) home = [moved.home[0] + screenX - moved.x, moved.home[1] + screenY - moved.y];
     setBox(hud.shownModel);
     // (big enough for the model as shown, too, while it glides to its size)
-    let want = windowFor(hud.form, { ...hud.sizes, model: Math.max(hud.sizes.model, hud.shownModel) });
-    if (hud.trayOpen || hud.morphing) {
+    const rest = windowFor(hud.form, { ...hud.sizes, model: Math.max(hud.sizes.model, hud.shownModel) });
+    stand = footOnScreen(home, ...rest);
+    const held = hud.trayOpen || hud.morphing;
+    const [x, y] = origin(), foot: Foot = [x + innerWidth / 2, y + innerHeight];
+    let want = rest;
+    if (held) {
       // a window that grows a little at a time jumps at every step (the page catches up with it a frame late): once
       // it has to grow at all, it grows as far as it can with its foot in place, in one go — the extra room is
       // see-through. A size larger still has to move it (towards the whole screen): then once, straight to all of it.
       if (want[0] > win[0] || want[1] > win[1]) {
-        const room = roomAtFoot();
+        const room = roomAt(foot);
         const all: [number, number] = [screen.availWidth, screen.availHeight];
         const to = want[0] > room[0] || want[1] > room[1] ? all : room;
         want = [Math.max(want[0], win[0], to[0]), Math.max(want[1], win[1], to[1])];
       } else want = [win[0], win[1]];
     }
-    if (want[0] === win[0] && want[1] === win[1]) return;
+    const release = wasHeld && !held;
+    wasHeld = held;
+    placeStand();
+    if (dragging || (want[0] === win[0] && want[1] === win[1] && !release)) return;
     win = want;
-    bridge?.setWindow(...want);
+    // at rest the shell puts it at home (or as near as the screen allows: where `stand` already is)
+    const to = footOnScreen(held ? foot : home, ...want);
+    asked = { x: to[0] - want[0] / 2, y: to[1] - want[1], w: want[0], h: want[1], until: performance.now() + 500 };
+    bridge?.setWindow(...want, ...(held ? foot : home));
   };
   fitWindow();   // now, before the scene loads: the window opens at its size
   app.onFrameUI(fitWindow);
@@ -248,19 +310,23 @@ export function initPet(app: App, hud: HudActions, map: MapView) {
   // coordinates — a slider sliding away under the pointer would change the size by itself.
   const bar = document.querySelector<HTMLElement>('.bar')!;
   let spot: [number, number] = [0, 0], barAt = '';
-  app.onFrameUI(() => {
+  const placeBar = () => {
     // (kept up to date while the panel is closed, so it opens straight at the right place)
+    const [x, y] = origin();
     if (!hud.trayOpen) {
       const plan = document.body.dataset.form === 'plan';
       const r = (plan ? map.canvas : stageEl).getBoundingClientRect();
-      spot = [screenX + innerWidth / 2, screenY + (!plan && r.height >= innerHeight - 1 ? -50 : r.top)];
+      spot = [x + r.left + r.width / 2, y + (!plan && r.height >= innerHeight - 1 ? -50 : r.top)];
     }
-    const at = `${Math.round(spot[0] - screenX)}px ${Math.round(spot[1] - screenY)}px`;
+    const at = `${Math.round(spot[0] - x)}px ${Math.round(spot[1] - y)}px`;
     if (at === barAt) return;
     barAt = at;
     [bar.style.left, bar.style.top] = at.split(' ');
     hud.layout();
-  });
+  };
+  app.onFrameUI(placeBar);
+  // (a window that has just changed size is laid out before the next frame's callbacks: place them right away)
+  addEventListener('resize', () => { placeStand(); placeBar(); });
 
   // keep the shell's copy of the state current, so the menu opens instantly with the right checks
   let sent = '';

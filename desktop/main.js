@@ -133,20 +133,16 @@ function setLayer(layer) {
   savePrefs();
 }
 
-/** where the window's foot belongs while the screen's edge holds the window elsewhere (null: where it is) */
-let home = null;
-
 /**
- * Change size around the bottom centre, so the model stays where it stands on the desk. A window too big to stand
- * there is moved onto the screen (as far as the whole screen, at the slider's top); once it is small enough again it
- * goes back to where it stood.
+ * Change size around the window's foot (bottom centre), where the page says the model stands on the desk (by default
+ * where the window's foot is now). A window too big to stand there is moved onto the screen, as far as the whole
+ * screen at the slider's top; the page keeps where the model belongs (pet.ts: home), so it goes back there once it is
+ * small enough again.
  */
-function setWindowSize(w, h) {
+function setWindowSize(w, h, foot) {
   const [x, y] = win.getPosition(), [w0, h0] = win.getSize();
-  const foot = home ?? [x + w0 / 2, y + h0];
-  const want = { x: Math.round(foot[0] - w / 2), y: Math.round(foot[1] - h), width: w, height: h };
-  const b = onScreen(want);
-  home = b.x !== want.x || b.y !== want.y ? foot : null;
+  foot ??= [x + w0 / 2, y + h0];
+  const b = onScreen({ x: Math.round(foot[0] - w / 2), y: Math.round(foot[1] - h), width: w, height: h });
   [prefs.w, prefs.h] = [w, h];
   if (w !== w0 || h !== h0 || b.x !== x || b.y !== y) win.setBounds(b);
   savePosition();
@@ -188,12 +184,12 @@ ipcMain.on('pet:state', (_e, s) => {
   refreshDockMenu();
 });
 // the page sizes the window to its size slider
-ipcMain.on('pet:window', (_e, w, h) => {
-  if (Number.isInteger(w) && Number.isInteger(h) && w >= 100 && h >= 100 && w <= 4000 && h <= 4000) setWindowSize(w, h);
+ipcMain.on('pet:window', (_e, w, h, footX, footY) => {
+  if (!(Number.isInteger(w) && Number.isInteger(h) && w >= 100 && h >= 100 && w <= 4000 && h <= 4000)) return;
+  setWindowSize(w, h, Number.isFinite(footX) && Number.isFinite(footY) ? [footX, footY] : null);
 });
 ipcMain.on('pet:menu', () => buildMenu().popup({ window: win }));
 ipcMain.on('pet:drag', (_e, on) => {
-  home = null;   // moved by hand: where it stands now is its place
   clearInterval(dragTimer);
   dragTimer = null;
   if (!on) { savePosition(); return; }
