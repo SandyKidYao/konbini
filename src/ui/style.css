@@ -38,25 +38,32 @@ body {
   -webkit-font-smoothing: antialiased;
   transition: color 0.8s var(--ease);
 }
-#stage, #stage canvas { position: fixed; inset: 0; display: block; }
-#stage { transition: opacity 0.5s var(--ease); }
+/* the canvas fills the stage: the whole page, or on the desk the model's box at the window's foot (pet.ts) */
+#stage { position: fixed; inset: 0; container-type: size; transition: opacity 0.5s var(--ease); }
+#stage canvas { position: absolute; inset: 0; display: block; }
 
 /* --- the map form: the street from straight above, a small pixel-art tile (its walnut edge is drawn in it) --- */
 .plan {
   /* not too big: the tile is a few dozen pixels across, and blown up further they turn into blocks */
   --map-w: min(392px, 84vw, calc((100vh - 150px) * var(--map-aspect, 0.86)));
-  position: fixed; left: 50%; top: 50%; z-index: 1; translate: -50% -54%;
+  /* --lift: up out of the open tray's way (hud.ts) */
+  position: fixed; left: 50%; top: 50%; z-index: 1; translate: -50% calc(-54% - var(--lift, 0px));
   width: var(--map-w); aspect-ratio: var(--map-aspect, 0.86); display: grid; place-items: end center; pointer-events: none;
   opacity: 0; visibility: hidden; transform: scale(0.97);
-  transition: opacity 0.5s var(--ease), transform 0.5s var(--ease), visibility 0s linear 0.5s;
+  transition: opacity 0.5s var(--ease), transform 0.5s var(--ease), translate 0.5s var(--ease), visibility 0s linear 0.5s;
 }
 /* whole device pixels per art pixel (set in map.ts), never smoothed; a hard shadow, as pixel art would draw it */
 .plan canvas {
   display: block; pointer-events: auto; image-rendering: pixelated;
   filter: drop-shadow(0 calc(var(--map-w) * 0.035) 0 rgba(30, 40, 62, 0.16));
 }
-body[data-form="plan"] .plan { opacity: 1; visibility: visible; transform: none; transition: opacity 0.5s var(--ease), transform 0.5s var(--ease), visibility 0s; }
+body[data-form="plan"] .plan { opacity: 1; visibility: visible; transform: none; transition: opacity 0.5s var(--ease), transform 0.5s var(--ease), translate 0.5s var(--ease), visibility 0s; }
 body[data-form="plan"] #stage { opacity: 0; pointer-events: none; }
+/* the model turning into the map or back (morph.ts sets the opacities frame by frame): the tile laid out where it ends */
+body[data-morph] .plan { visibility: visible; transform: none; transition: none; }
+body[data-morph] #stage { transition: none; }
+/* the pixelated picture between the two, over the tile */
+.morph { position: fixed; z-index: 2; pointer-events: none; image-rendering: pixelated; }
 svg { fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 button { font: inherit; color: inherit; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -116,6 +123,21 @@ body.chrome-on .chrome { opacity: 1; visibility: visible; transform: none; trans
 /* in a short window a card opened from the tray lies over it (see hud.ts: place); and too tall a panel scrolls */
 body.chrome-on .tray.covered { opacity: 0; visibility: hidden; }
 .tray, .cal, .mods { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+/* size: dots of pixels for the map's end of the track, a line for the model's; the knob turns square on the map's */
+.size { display: flex; align-items: center; gap: 9px; padding: 0 4px 8px; border-bottom: 1px dashed var(--line); }
+.size > svg { flex: none; color: var(--muted); }
+.size .lo { width: 14px; height: 14px; stroke-width: 2; }
+.size .hi { width: 20px; height: 20px; }
+.size-track { position: relative; flex: 1; height: 22px; --plan: 39.5%; }
+.size-track::before, .size-track::after { content: ""; position: absolute; top: 9px; height: 4px; opacity: 0.55; }
+.size-track::before { left: 0; width: calc(var(--plan) - 3px); background: repeating-linear-gradient(90deg, var(--muted) 0 3px, transparent 3px 6px); }
+.size-track::after { left: calc(var(--plan) + 3px); right: 0; border-radius: 2px; background: var(--muted); }
+.size-track input { position: absolute; inset: 0; width: 100%; margin: 0; opacity: 0; cursor: grab; }
+.size-track input:active { cursor: grabbing; }
+.size-track input:focus-visible + .knob { outline: 2px solid var(--orange); outline-offset: 2px; }
+.size-track .knob { width: 18px; height: 18px; top: 2px; margin-left: -9px; transition: border-radius 0.25s var(--ease); }
+.size-track .knob.plan { border-radius: 4px; }
+
 /* the top row: the views, and the close button at the end */
 .tray-head { display: flex; align-items: center; gap: 4px; padding-bottom: 8px; border-bottom: 1px dashed var(--line); }
 .views { flex: 1; display: flex; align-items: center; justify-content: space-between; padding: 0 2px; }
@@ -252,7 +274,7 @@ body.pet, body.pet .veil { background: transparent; }
    (The web keeps its sky behind the model, and a crop there looks natural.) pet.ts lets clicks through where the
    fade is nearly clear, and frames the overview inside it — keep views.ts's PET_FADE in step */
 body.pet #stage canvas {
-  --fade: calc(min(100vw, 100vh) * 0.09);
+  --fade: calc(min(100cqw, 100cqh) * 0.09);
   --edge: transparent 0, rgba(0, 0, 0, 0.25) calc(var(--fade) * 0.5), #000 var(--fade), #000 calc(100% - var(--fade)), rgba(0, 0, 0, 0.25) calc(100% - var(--fade) * 0.5), transparent 100%;
   mask-image: linear-gradient(to right, var(--edge)), linear-gradient(to bottom, var(--edge));
   mask-composite: intersect;
@@ -268,8 +290,9 @@ body.pet.chrome-on .chrome { transform: none; }
 body.pet-grab #stage canvas, body.pet-grab .plan canvas { cursor: grab !important; }
 body.pet-grabbing, body.pet-grabbing #stage canvas, body.pet-grabbing .plan canvas { cursor: grabbing !important; }
 body.pet .panel { box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1), inset 0 0 0 1px var(--line); }
-/* the map form, at the size chosen in the pet's menu, on the window's lower edge */
-body.pet .plan { --map-w: var(--pet-map, 160px); top: auto; bottom: 8px; translate: -50% 0; }
+/* the model's canvas and the map, at the size the slider gives them (pet.ts), on the window's lower edge */
+body.pet #stage { inset: auto; left: 50%; bottom: 0; translate: -50% 0; width: var(--pet-box-w, 100vw); height: var(--pet-box-h, 100vh); }
+body.pet .plan { top: auto; bottom: 8px; translate: -50% 0; }
 /* its window is narrow, but it isn't a phone: the panels keep their size */
 body.pet .tray { width: 340px; }
 body.pet .cal, body.pet .mods { width: 300px; }

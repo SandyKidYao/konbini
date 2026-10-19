@@ -179,6 +179,15 @@ const SCENES = [
   { name: 'plan-spring', q: 'view=plan&weather=clear&time=0930&date=2026-04-03&warp=90' },
   { name: 'plan-tray', q: 'view=plan&weather=clear&time=1600&date=2026-10-14&warp=60', act: async (p) => { await openTray(p); } },
   { name: 'plan-narrow', q: 'view=plan&weather=cloudy&time=0800&date=2026-10-14&warp=90', viewport: { width: 390, height: 844 } },
+  // the size slider: a small model (the camera zooms out), the smallest map, the slider in the tray
+  { name: 'size-model-small', q: 'size=45&weather=clear&time=1100&date=2026-10-14&warp=60' },
+  { name: 'size-plan-tiny', q: 'view=plan&size=0&weather=clear&time=1100&date=2026-10-14&warp=60' },
+  { name: 'ui-size', q: 'size=70&weather=clear&time=1100&date=2026-10-13', act: async (p) => { await openTray(p); } },
+  { name: 'ui-size-night', q: 'view=plan&size=20&weather=clear&time=2200&date=2026-10-13', act: async (p) => { await openTray(p); } },
+  // half-way from the model to the map (with motion): straight overhead, the picture coarsening over the tile
+  { name: 'morph-mid', q: 'weather=clear&time=1100&date=2026-10-14&warp=60', motion: true, wait: 0, act: async (p) => {
+    await p.evaluate(() => { const r = document.getElementById('sizeRange'); r.value = '39'; r.dispatchEvent(new Event('input')); });
+    await p.waitForFunction(() => !document.querySelector('canvas.morph').hidden, null, { timeout: 8000 }); await p.waitForTimeout(250); } },
   // the desktop pet's page (no shell here): the settings button comes out over the model, and opens the same tray
   // the desk shows only the model: no button even with the pointer on it (a double-click opens the panel)
   { name: 'pet-hover', q: 'pet=1&weather=clear&time=1600', viewport: { width: 560, height: 460 }, setup: DESK, wait: 900, act: async (p) => {
@@ -193,21 +202,26 @@ const SCENES = [
     await p.mouse.move(190, 400); await p.mouse.move(195, 405); await p.waitForTimeout(400); await p.mouse.dblclick(195, 405); } },
   { name: 'pet-plan-tiny', q: 'pet=1&view=plan&size=small&weather=clear&time=1215&date=2026-10-14&warp=150', viewport: { width: 380, height: 540 } },
   // on the desk the views are the web's; where the model runs past the window's edge it fades into the desk
+  // (size=64 is the old 小, a 400×330 window; without a size the desk opens at the old 中)
   { name: 'pet-view-facade', q: 'pet=1&weather=clear&time=1600', viewport: { width: 560, height: 460 }, setup: DESK, act: async (p) => {
     await p.mouse.move(270, 250); await p.mouse.move(280, 240); await p.waitForTimeout(400); await p.mouse.dblclick(280, 240);
     await p.click('[data-view="facade"]'); await p.keyboard.press('Escape'); await p.waitForTimeout(500); } },
-  { name: 'pet-view-bird', q: 'pet=1&weather=partly&time=1600', viewport: { width: 400, height: 330 }, setup: DESK, act: async (p) => {
+  { name: 'pet-view-bird', q: 'pet=1&size=64&weather=partly&time=1600', viewport: { width: 400, height: 330 }, setup: DESK, act: async (p) => {
     await p.mouse.move(190, 160); await p.mouse.move(200, 150); await p.waitForTimeout(400); await p.mouse.dblclick(200, 150);
     await p.click('[data-view="bird"]'); await p.keyboard.press('Escape'); await p.waitForTimeout(500); } },
   { name: 'pet-facade-close', q: 'pet=1&weather=clear&time=1830&view=facade', viewport: { width: 560, height: 460 }, setup: DESK, wait: 3000 },
-  { name: 'pet-corner-rain', q: 'pet=1&weather=rain&time=2100&view=corner', viewport: { width: 400, height: 330 }, setup: DESK, wait: 3000 },
+  { name: 'pet-corner-rain', q: 'pet=1&size=64&weather=rain&time=2100&view=corner', viewport: { width: 400, height: 330 }, setup: DESK, wait: 3000 },
   { name: 'pet-zoom', q: 'pet=1&weather=clear&time=1000', viewport: { width: 560, height: 460 }, setup: DESK, wait: 3000, act: async (p) => {
     await p.mouse.move(280, 230); for (let i = 0; i < 12; i++) { await p.mouse.wheel(0, -400); await p.waitForTimeout(60); } } },
+  // a small model on the desk: it stands at the foot of a window with room for the settings above it
+  { name: 'pet-small', q: 'pet=1&size=45&weather=clear&time=1600&date=2026-10-14', viewport: { width: 380, height: 540 }, setup: DESK, wait: 1500 },
+  { name: 'pet-small-tray', q: 'pet=1&size=45&weather=clear&time=1600&date=2026-10-14', viewport: { width: 380, height: 540 }, setup: DESK, act: async (p) => {
+    await p.mouse.move(190, 440); await p.mouse.move(195, 445); await p.waitForTimeout(400); await p.mouse.dblclick(195, 445); } },
   // the pet with its sky drawn (the menu's 显示天空, remembered in the page): it fades into the desk at the edges
   { name: 'pet-sky', q: 'pet=1&weather=partly&time=1700&date=2026-10-14', viewport: { width: 560, height: 460 }, setup: DESK, act: async (p) => {
     await p.evaluate(() => localStorage.setItem('konbini.pet.sky', '1'));
     await p.reload(); await p.waitForSelector('#veil.done', { timeout: 180000 }); await p.evaluate(DESK); } },
-  { name: 'pet-picker-small', q: 'pet=1&weather=clear&time=2000', viewport: { width: 400, height: 330 }, setup: DESK, act: async (p) => {
+  { name: 'pet-picker-small', q: 'pet=1&size=64&weather=clear&time=2000', viewport: { width: 400, height: 330 }, setup: DESK, act: async (p) => {
     await p.mouse.move(190, 200); await p.mouse.move(200, 190); await p.waitForTimeout(400); await p.mouse.dblclick(200, 190); await p.click('#dateBtn'); } },
 ];
 
@@ -237,11 +251,11 @@ const browser = await chromium.launch({
 
 let failed = 0;
 for (const s of scenes) {
-  // reduced motion: no turntable, weather and time jump straight to their targets
+  // reduced motion: no turntable, weather and time jump straight to their targets (a scene with `motion` keeps it)
   const context = await browser.newContext({
     viewport: s.viewport ?? { width: 1280, height: 800 },
     deviceScaleFactor: 1,
-    reducedMotion: 'reduce',
+    reducedMotion: s.motion ? 'no-preference' : 'reduce',
     hasTouch: !!s.touch,
     locale: 'zh-CN',
     timezoneId: 'Asia/Tokyo',

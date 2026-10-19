@@ -61,6 +61,8 @@ export class App {
   elapsed = 0;
   /** at most this many frames a second (0: every display frame) — saves power when nobody is looking closely */
   maxFps = 0;
+  /** every display frame regardless of maxFps, while something on screen is moving on purpose (a form change) */
+  fullRate = false;
   /**
    * What is on screen: the model, or the plan (the UI draws it as a flat map). Either way the street lives on; with
    * the plan showing, the model isn't drawn at all — the whole cost of a frame is the simulation.
@@ -69,6 +71,8 @@ export class App {
 
   private frameFns: FrameFn[] = [];
   private uiFns: (() => void)[] = [];
+  private renderedFns: (() => void)[] = [];
+  private resizeFns: (() => void)[] = [];
   private clock = new THREE.Clock();
   private frame = 0;
   private baseCtx: ModContext;
@@ -101,8 +105,9 @@ export class App {
       setTimeout(() => this.audio.play(distance < 0.4 ? 'thunder' : 'thunder-far'), 400 + distance * 2600);
     });
     // applied just before the next render: resizing clears the canvas, and a cleared canvas that gets shown
-    // before it is drawn again flashes the page background
-    addEventListener('resize', () => { this.resizePending = true; });
+    // before it is drawn again flashes the page background. The container, not the window: on the desk the model
+    // can change size inside a window that stays put
+    new ResizeObserver(() => { this.resizePending = true; }).observe(config.container);
   }
 
   private contextFor(id: string, root: THREE.Group): ModContext {
@@ -182,6 +187,12 @@ export class App {
   /** Interface updates, run once per rendered frame (not during warp). */
   onFrameUI(fn: () => void) { this.uiFns.push(fn); }
 
+  /** Just after the model is drawn, while the canvas still holds the frame (it is cleared once it reaches the screen). */
+  onRendered(fn: () => void) { this.renderedFns.push(fn); }
+
+  /** The canvas changed size (applied before the next render). */
+  onResize(fn: () => void) { this.resizeFns.push(fn); }
+
   /** Advance everything that moves, without rendering. */
   simulate(dt: number) {
     this.elapsed += dt;
@@ -203,7 +214,7 @@ export class App {
     this.onFirstFrame = onFirstFrame ?? null;
     const tick = () => {
       this.owed += this.clock.getDelta();
-      if (this.maxFps && this.owed < 1 / this.maxFps - 0.004) { requestAnimationFrame(tick); return; }
+      if (this.maxFps && !this.fullRate && this.owed < 1 / this.maxFps - 0.004) { requestAnimationFrame(tick); return; }
       const dt = Math.min(this.owed, 0.05);
       this.owed = 0;
       this.simulate(dt);
@@ -215,6 +226,7 @@ export class App {
         if (this.resizePending) this.resize();
         this.batcher.update();
         this.fx.render();
+        for (const f of this.renderedFns) f();
       }
       this.frame++;
       if (this.frame === 3) this.onFirstFrame?.();
@@ -263,5 +275,6 @@ export class App {
     this.resizePending = false;
     this.stage.resize();
     this.fx.resize();
+    for (const f of this.resizeFns) f();
   }
 }

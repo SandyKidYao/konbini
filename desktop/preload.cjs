@@ -8,5 +8,7 @@ contextBridge.exposeInMainWorld('konbiniDesktop', {
   drag: (on) => ipcRenderer.send('pet:drag', !!on),
   showMenu: () => ipcRenderer.send('pet:menu'),
   setState: (state) => ipcRenderer.send('pet:state', state),
+  /** the window's size (the page's size slider); the shell keeps its foot in place and keeps it on the screen */
+  setWindow: (w, h) => ipcRenderer.send('pet:window', Math.round(w), Math.round(h)),
   onAction: (fn) => { ipcRenderer.on('pet:action', (_e, action) => fn(action)); },
 });

@@ -2,8 +2,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-/** fov: vertical field of view in degrees (default 30) */
-export interface CameraPose { position: [number, number, number]; target: [number, number, number]; fov?: number }
+/** fov: vertical field of view in degrees (default 30); zoom: the camera's zoom (left as it is when not given) */
+export interface CameraPose { position: [number, number, number]; target: [number, number, number]; fov?: number; zoom?: number }
 /** transparent: the canvas clears to nothing (the desktop shows through); lowPower: prefer the integrated GPU */
 export interface StageOptions { transparent?: boolean; lowPower?: boolean }
 
@@ -15,13 +15,15 @@ export class Stage {
   readonly controls: OrbitControls;
   private flight: Flight | null = null;
 
-  constructor(container: HTMLElement, pose: CameraPose, opts: StageOptions = {}) {
+  /** The canvas fills the container, which is the window except on the desk (the model can be smaller than it). */
+  constructor(private container: HTMLElement, pose: CameraPose, opts: StageOptions = {}) {
     const r = this.renderer = new THREE.WebGLRenderer({
       antialias: false, alpha: !!opts.transparent, powerPreference: opts.lowPower ? 'low-power' : 'high-performance',
     });
     if (opts.transparent) r.setClearColor(0x000000, 0);
     r.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
-    r.setSize(innerWidth, innerHeight);
+    const [w, h] = this.size;
+    r.setSize(w, h);
     r.shadowMap.enabled = true;
     r.shadowMap.type = THREE.PCFSoftShadowMap;
     r.toneMapping = THREE.ACESFilmicToneMapping;
@@ -32,7 +34,9 @@ export class Stage {
     this.world.name = 'world';
     this.scene.add(this.world);
 
-    this.camera = new THREE.PerspectiveCamera(pose.fov ?? 30, innerWidth / innerHeight, 0.5, 900);
+    this.camera = new THREE.PerspectiveCamera(pose.fov ?? 30, w / h, 0.5, 900);
+    this.camera.zoom = pose.zoom ?? 1;
+    this.camera.updateProjectionMatrix();
     this.camera.position.set(...pose.position);
     const c = this.controls = new OrbitControls(this.camera, r.domElement);
     c.target.set(...pose.target);
@@ -44,6 +48,11 @@ export class Stage {
     c.autoRotateSpeed = 0.3;
     c.update();
     c.addEventListener('start', () => { this.flight = null; });   // grabbing the model ends a flight
+  }
+
+  /** The canvas's size in CSS pixels. */
+  get size(): [number, number] {
+    return [this.container.clientWidth || innerWidth, this.container.clientHeight || innerHeight];
   }
 
   /** Is the camera on its way to a pose? */
@@ -67,6 +76,7 @@ export class Stage {
       from: a, dTheta, to: b,
       lift: Math.min(0.32, swing * 0.22),
       fromFov: this.camera.fov, toFov: pose.fov ?? 30,
+      fromZoom: this.camera.zoom, toZoom: pose.zoom ?? this.camera.zoom,
     };
     this.flight = f;
     if (seconds <= 0) this.step(1);
@@ -90,6 +100,7 @@ export class Stage {
     this.controls.target.lerpVectors(f.fromTarget, f.toTarget, k);
     this.camera.position.setFromSpherical(s).add(this.controls.target);
     this.camera.fov = THREE.MathUtils.lerp(f.fromFov, f.toFov, k);
+    this.camera.zoom = f.fromZoom * (f.toZoom / f.fromZoom) ** k;
     this.camera.updateProjectionMatrix();
     if (f.t >= 1) this.flight = null;
   }
@@ -97,9 +108,10 @@ export class Stage {
   get fog() { return this.scene.fog as THREE.FogExp2; }
 
   resize() {
-    this.camera.aspect = innerWidth / innerHeight;
+    const [w, h] = this.size;
+    this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(innerWidth, innerHeight);
+    this.renderer.setSize(w, h);
   }
 }
 
@@ -108,4 +120,5 @@ interface Flight {
   fromTarget: THREE.Vector3; toTarget: THREE.Vector3;
   from: THREE.Spherical; to: THREE.Spherical; dTheta: number; lift: number;
   fromFov: number; toFov: number;
+  fromZoom: number; toZoom: number;
 }

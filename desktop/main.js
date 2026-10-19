@@ -1,8 +1,9 @@
 // Desktop pet shell (macOS first): a transparent, frameless, floating window that shows only the model
 // (the web app with ?pet=1). Clicks fall through wherever the model isn't — the page reports when the pointer
-// is on it. The scene's settings are the page's own (a button under the model); right-click on the model, the menu-bar
-// icon or the Dock icon opens the native menu, which keeps the window's: size, the sky, floating, icons, power saving. Whether
-// the menu-bar and Dock icons show is a preference (at least one of them stays).
+// is on it. The scene's settings are the page's own (a double-click opens them), its size too: the page sizes the
+// window to it. Right-click on the model, the menu-bar icon or the Dock icon opens the native menu, which keeps the
+// window's: form, the sky, floating, icons, power saving. Whether the menu-bar and Dock icons show is a preference (at
+// least one of them stays).
 //
 //   npm run pet                 build, then open dist/index.html
 //   npm run dev + npm run pet:dev   load the Vite dev server instead (live reload)
@@ -14,31 +15,36 @@ import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const SIZES = { small: [400, 330], medium: [560, 460], large: [760, 625] };
-// the map form: the page draws the map at the chosen size (small / medium / large) on the window's lower edge; the
-// window keeps room above it for the settings, and is click-through wherever there's nothing
-const PLAN_WINDOW = [380, 540];
-const SIZE_LABEL = { small: '小', medium: '中', large: '大' };
 const FORMS = [['model', '模型'], ['plan', '俯视图']];
+// the window until the page says what its size wants (pet.json keeps the last one)
+const FIRST_WINDOW = [560, 460];
 
 const probe = process.argv.find((a) => a.startsWith('--probe'))?.split('=')[1] ?? (process.argv.includes('--probe') ? 'pet-probe.png' : null);
 
 // --- preferences: size, floating, where the window was ---
+// size: the page's size slider (0–100; before it, 'small' / 'medium' / 'large', which the page still reads)
 const prefsFile = path.join(app.getPath('userData'), 'pet.json');
-const prefs = { size: 'medium', form: 'model', onTop: true, x: null, y: null, tray: true, dock: false };
+const prefs = { size: 'medium', form: 'model', onTop: true, x: null, y: null, w: null, h: null, tray: true, dock: false };
 try { Object.assign(prefs, JSON.parse(fs.readFileSync(prefsFile, 'utf8'))); } catch { /* first run */ }
-if (!SIZES[prefs.size]) prefs.size = 'medium';
 if (!FORMS.some(([k]) => k === prefs.form)) prefs.form = 'model';
-const windowSize = () => (prefs.form === 'plan' ? PLAN_WINDOW : SIZES[prefs.size]);
+const windowSize = () => (prefs.w > 0 && prefs.h > 0 ? [prefs.w, prefs.h] : FIRST_WINDOW);
 if (!prefs.tray && !prefs.dock) prefs.tray = true;
-const savePrefs = () => {
+// written a moment later (dragging the size slider changes the window every frame), and at quit
+let saveTimer = null;
+const writePrefs = () => {
+  clearTimeout(saveTimer);
+  saveTimer = null;
   try { fs.writeFileSync(prefsFile, JSON.stringify(prefs)); } catch { /* read-only */ }
+};
+const savePrefs = () => {
+  if (!saveTimer) saveTimer = setTimeout(writePrefs, 400);
   refreshDockMenu();   // every preference shows in the menu; the Dock's copy is static, so rebuild it
 };
+app.on('will-quit', () => { if (saveTimer) writePrefs(); });
 
 /** @type {BrowserWindow} */ let win;
 /** @type {Tray} */ let tray;
-let state = { saver: false, sky: false, form: prefs.form };
+let state = { saver: false, sky: false, form: prefs.form, size: prefs.size };
 let dragTimer = null;
 
 if (!app.requestSingleInstanceLock()) app.quit();
@@ -68,7 +74,7 @@ function createWindow() {
   win.once('ready-to-show', () => win.showInactive());
   win.on('moved', savePosition);
 
-  const query = { pet: '1', size: prefs.size, ...(prefs.form === 'plan' ? { view: 'plan' } : {}) };
+  const query = { pet: '1', size: String(prefs.size), ...(prefs.form === 'plan' ? { view: 'plan' } : {}) };
   const dev = process.env.KONBINI_DEV_URL;
   if (dev) void win.loadURL(`${dev}${dev.includes('?') ? '&' : '?'}${new URLSearchParams(query)}`);
   else void win.loadFile(path.join(here, '..', 'dist', 'index.html'), { query });
@@ -96,14 +102,9 @@ function applyOnTop() {
 }
 
 /** Change size around the bottom centre, so the model stays where it stands on the desk. */
-function setSize(size) {
-  prefs.size = size;
-  send({ type: 'size', value: size });
-  fitWindow();
-}
-
-function fitWindow() {
-  const [x, y] = win.getPosition(), [w0, h0] = win.getSize(), [w, h] = windowSize();
+function setWindowSize(w, h) {
+  const [x, y] = win.getPosition(), [w0, h0] = win.getSize();
+  [prefs.w, prefs.h] = [w, h];
   if (w !== w0 || h !== h0) win.setBounds(onScreen({ x: Math.round(x + (w0 - w) / 2), y: y + h0 - h, width: w, height: h }));
   savePosition();
 }
@@ -119,9 +120,13 @@ function onScreen(b) {
 ipcMain.on('pet:hit', (_e, over) => { if (!dragTimer) win.setIgnoreMouseEvents(!over, { forward: true }); });
 ipcMain.on('pet:state', (_e, s) => {
   state = s;
-  // the form is chosen in the page (or this menu): the window follows it
-  if (s.form && s.form !== prefs.form) { prefs.form = s.form; fitWindow(); }
+  // the form and the size are chosen in the page (or this menu), and kept here for the next start
+  if (s.form !== prefs.form || s.size !== prefs.size) { prefs.form = s.form; prefs.size = s.size; savePrefs(); }
   refreshDockMenu();
+});
+// the page sizes the window to its size slider
+ipcMain.on('pet:window', (_e, w, h) => {
+  if (Number.isInteger(w) && Number.isInteger(h) && w >= 100 && h >= 100 && w <= 4000 && h <= 4000) setWindowSize(w, h);
 });
 ipcMain.on('pet:menu', () => buildMenu().popup({ window: win }));
 ipcMain.on('pet:drag', (_e, on) => {
@@ -152,7 +157,6 @@ function buildMenu({ dock = false } = {}) {
     { type: 'separator' },
     { label: '省电（降低帧率）', type: 'checkbox', checked: s.saver, click: () => send({ type: 'saver' }) },
     { type: 'separator' },
-    { label: '大小', submenu: Object.keys(SIZES).map((k) => ({ label: SIZE_LABEL[k], type: 'radio', checked: prefs.size === k, click: () => setSize(k) })) },
     { label: '浮在最上层', type: 'checkbox', checked: prefs.onTop, click: () => { prefs.onTop = !prefs.onTop; applyOnTop(); savePrefs(); } },
     // the last icon left can't be turned off: with neither, the model's right-click would be the only way in
     { label: '显示图标', submenu: [

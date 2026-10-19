@@ -115,8 +115,8 @@ export class Wet {
   }
 
   private reflSize(): [number, number] {
-    const pr = this.renderer.getPixelRatio();
-    return [Math.round(innerWidth * pr * 0.5), Math.round(innerHeight * pr * 0.5)];
+    const s = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+    return [Math.round(s.x * 0.5), Math.round(s.y * 0.5)];
   }
 
   /** Darken and gloss a material as the ground gets wet. */

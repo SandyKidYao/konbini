@@ -68,8 +68,16 @@ const css = (c: RGB, a = 1) => `rgba(${Math.round(c[0])},${Math.round(c[1])},${M
 
 export interface MapView {
   readonly canvas: HTMLCanvasElement;
+  /** the part of the world the tile shows */
+  readonly bounds: Rect;
+  /** the tile's width over its depth (without the walnut edge) */
+  readonly aspect: number;
   /** is the tile under this point (client coordinates)? */
   hit(x: number, y: number): boolean;
+  /** the tile's width on the page (px); it snaps to whole art pixels inside that */
+  setWidth(px: number): void;
+  /** Where the ground's art pixels are on the page: n × m of them over `rect` (the walnut edge below it left out). */
+  grid(): { n: number; m: number; rect: DOMRect } | null;
 }
 
 export function initMap(app: App, bounds: Rect): MapView {
@@ -257,7 +265,8 @@ export function initMap(app: App, bounds: Rect): MapView {
 
   // ---------------------------------------------------------------- one frame
   let last = performance.now();
-  const shown = () => document.body.dataset.form === 'plan';
+  // (and while the model turns into the map or back, see morph.ts)
+  const shown = () => document.body.dataset.form === 'plan' || !!document.body.dataset.morph;
   // under a roof people can't be seen — except in the shop (the site): the map looks in, so you can count the customers
   const underRoof = (x: number, z: number) => plan.shapes.some((s) => {
     if (!s.rect || (s.h ?? 0) < 2 || s.kind === 'site') return false;
@@ -423,6 +432,14 @@ export function initMap(app: App, bounds: Rect): MapView {
 
   return {
     canvas,
+    bounds,
+    aspect: W / D,
+    setWidth(px) { box.style.setProperty('--map-w', `${Math.round(px)}px`); },
+    grid() {
+      if (!fit()) return null;
+      const r = canvas.getBoundingClientRect();
+      return { n: N, m: M, rect: new DOMRect(r.left, r.top, r.width, (r.height * M) / (M + EDGE)) };
+    },
     hit(x, y) {
       if (!shown()) return false;
       const r = canvas.getBoundingClientRect();

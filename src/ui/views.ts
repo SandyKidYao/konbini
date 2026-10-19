@@ -107,6 +107,18 @@ function wholeOverview(v: ViewPreset, width: number, height: number): CameraPose
   return { position: [p.x, p.y, p.z], target: [CENTRE.x, CENTRE.y, CENTRE.z], fov };
 }
 
+/** How wide the model looks (px) from this pose in a canvas this size, at zoom 1. */
+export function modelSpan(pose: CameraPose, width: number, height: number) {
+  probe.fov = pose.fov ?? 30; probe.aspect = width / height; probe.near = 0.5; probe.far = 3000; probe.zoom = 1;
+  probe.updateProjectionMatrix();
+  probe.position.set(...pose.position);
+  probe.lookAt(...pose.target);
+  probe.updateMatrixWorld(true);
+  let lo = Infinity, hi = -Infinity;
+  for (const c of CORNERS) { const x = tmp.copy(c).project(probe).x; lo = Math.min(lo, x); hi = Math.max(hi, x); }
+  return ((Math.min(1, hi) - Math.max(-1, lo)) / 2) * width;
+}
+
 /** Where a preset puts the camera in this window: as on the web, except the pet's overview, which shows it all. */
 export function viewPose(v: ViewPreset, width: number, height: number, pet = false): CameraPose {
   return pet && v.id === 'overview' ? wholeOverview(v, width, height) : fitView(v, width / height);

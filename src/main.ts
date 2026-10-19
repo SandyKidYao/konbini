@@ -3,6 +3,7 @@
 //   ?weather=clear|partly|cloudy|fog|drizzle|rain|storm|snow   ?time=1130
 //   ?date=2026-07-07 | 07-07   ?season=spring|summer|autumn|winter (a typical date in that season)
 //   ?view=overview|facade|bird|corner|yard|fumikiri (a camera preset) | plan (the map form)   ?cam=x,y,z,tx,ty,tz[,fov] (any camera)
+//   ?size=0…100 (the size slider: 0–39 the map, 40–100 the model; see ui/size.ts)
 //   ?site=konbini   ?mods=url1,url2   ?disable=mod.id,…   ?warp=60
 //   ?pet=1 (desktop pet: only the model, on a transparent window — see desktop/)
 import './ui/style.css';
@@ -15,7 +16,8 @@ import { builtinMods } from './content';
 import { BLOCK } from './content/world/layout';
 import { initHud, revealStage } from './ui/hud';
 import { initMap } from './ui/map';
-import { initPet } from './ui/pet';
+import { initPet, preparePet } from './ui/pet';
+import { readSizes } from './ui/size';
 import { VIEWS, findView, viewPose } from './ui/views';
 
 const q = new URLSearchParams(location.search);
@@ -24,9 +26,14 @@ const list = (k: string) => (q.get(k) ?? '').split(',').map((s) => s.trim()).fil
 // external mods: same-origin relative paths only, unless remote loading is asked for explicitly
 const external = list('mods').filter((u) => !/^[a-z]+:\/\//i.test(u) || q.has('allowRemoteMods'));
 
+const sizes = readSizes(q, pet);
+// on the desk the model's canvas takes the size the slider gives it, before the renderer measures it
+const stageEl = document.getElementById('stage')!;
+if (pet) preparePet(sizes);
+
 // start on a preset (?view=…, the overview by default; on the desk it shows the whole model) or on a hand-placed ?cam
 const preset = findView(q.get('view'));
-let camera: CameraPose = viewPose(preset ?? VIEWS[0], innerWidth, innerHeight, pet);
+let camera: CameraPose = viewPose(preset ?? VIEWS[0], stageEl.clientWidth || innerWidth, stageEl.clientHeight || innerHeight, pet);
 const cam = q.get('cam')?.split(',').map(Number);
 const hasCam = (cam?.length === 6 || cam?.length === 7) && cam.every(Number.isFinite);
 if (cam && hasCam) camera = { position: [cam[0], cam[1], cam[2]], target: [cam[3], cam[4], cam[5]], fov: cam[6] };
@@ -34,7 +41,7 @@ if (cam && hasCam) camera = { position: [cam[0], cam[1], cam[2]], target: [cam[3
 // the model's footprint, from the world's street plan: weather, snow cover and the map cover this
 const bounds = { ...BLOCK };
 const app = new App({
-  container: document.getElementById('stage')!,
+  container: stageEl,
   site: q.get('site') ?? 'konbini',
   bounds,
   camera,
@@ -67,7 +74,7 @@ if (wantLive) void live.start();   // applies cached weather synchronously, refr
 app.atmosphere.settle();
 
 const map = initMap(app, bounds);
-const hud = initHud(app, live, q.get('view') === 'plan' ? 'plan' : hasCam ? null : (preset ?? VIEWS[0]).id, { pet });
+const hud = initHud(app, live, q.get('view') === 'plan' ? 'plan' : hasCam ? null : (preset ?? VIEWS[0]).id, { pet, sizes, map });
 const petUi = pet ? initPet(app, hud, map) : null;
 
 await app.load();
