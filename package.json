@@ -9,6 +9,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
+    "check:aircraft": "node scripts/check-aircraft.mjs",
     "preview": "vite preview",
     "shots": "node scripts/shots.mjs",
     "icons": "node scripts/icons.mjs",

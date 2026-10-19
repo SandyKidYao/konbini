@@ -7,7 +7,7 @@
 // Pixel art means no smoothing anywhere: shapes snap to whole pixels, circles and turned cars are rasterised by
 // hand, soft light is dithered, and the tile's corners are cut in steps.
 import type { App } from '../engine/app';
-import { PLAN_ORDER, type PlanKind, type PlanShape } from '../engine/plan';
+import { PLAN_ORDER, type PlanKind, type PlanMover, type PlanShape } from '../engine/plan';
 import type { Rect } from '../engine/surfaces';
 
 type RGB = [number, number, number];
@@ -24,6 +24,8 @@ const CAR_GROW = 1.25, CAR_MIN_W = 2, CAR_MIN_L = 3;
  *  colour — not the shop's orange band, not an autumn tree), at night light against the dark */
 const CAR_DAY: RGB = [44, 56, 98], CAR_NIGHT: RGB = [236, 238, 246];
 const PERSON_DAY: RGB = [226, 46, 104], PERSON_NIGHT: RGB = [255, 132, 172];
+const AIRCRAFT_DAY: RGB = [104, 124, 145], AIRCRAFT_NIGHT: RGB = [192, 205, 221];
+const CONTRAIL: RGB = [247, 248, 243];
 
 /** each kind's colour by day (a shape can bring its own) */
 const KIND: Record<PlanKind, string> = {
@@ -275,6 +277,42 @@ export function initMap(app: App, bounds: Rect): MapView {
     }
   };
 
+  const opacity = (m: PlanMover) => Math.max(0, Math.min(1, m.opacity ?? 1));
+
+  /** A plane needs wings and a tail at this scale; a larger silhouette keeps it distinct from road traffic. */
+  const aircraft = (m: PlanMover) => {
+    const cx = Math.round(X(m.x) - 0.5) + 0.5, cz = Math.round(Z(m.z) - 0.5) + 0.5;
+    const fx = Math.sin(m.heading), fz = Math.cos(m.heading);
+    const L = Math.max(2.5, ((m.len ?? 3.4) * ppm) / 2), Wd = Math.max(2.5, ((m.width ?? 3.1) * ppm) / 2);
+    const R = Math.ceil(Math.hypot(L, Wd));
+    for (let y = Math.max(0, Math.floor(cz - R)); y <= Math.min(M - 1, cz + R); y++) {
+      for (let x = Math.max(0, Math.floor(cx - R)); x <= Math.min(N - 1, cx + R); x++) {
+        const dx = x + 0.5 - cx, dz = y + 0.5 - cz;
+        const along = dx * fx + dz * fz, across = Math.abs(dx * fz - dz * fx);
+        const body = Math.abs(along) <= L && across <= 0.55;
+        const wing = across <= Wd && Math.abs(along - (0.15 - 0.3 * across / Wd) * L) <= 0.5;
+        const tail = across <= Wd * 0.55 && Math.abs(along + L * 0.72) <= 0.5;
+        if (body || wing || tail) g.fillRect(x, y, 1, 1);
+      }
+    }
+  };
+
+  /** Fixed screen-space dithering lets old vapour disperse without blur or a flickering random pattern. */
+  const contrail = (m: PlanMover) => {
+    const a = opacity(m);
+    if (a <= 0) return;
+    const cx = X(m.x), cz = Z(m.z), fx = Math.sin(m.heading), fz = Math.cos(m.heading);
+    const L = Math.max(0.6, ((m.len ?? 0.8) * ppm) / 2), Wd = Math.max(0.65, ((m.width ?? 0.3) * ppm) / 2);
+    const R = Math.ceil(Math.hypot(L, Wd));
+    g.fillStyle = css(CONTRAIL, 0.4 * a);
+    for (let y = Math.max(0, Math.floor(cz - R)); y <= Math.min(M - 1, cz + R); y++) {
+      for (let x = Math.max(0, Math.floor(cx - R)); x <= Math.min(N - 1, cx + R); x++) {
+        const dx = x + 0.5 - cx, dz = y + 0.5 - cz;
+        if (Math.abs(dx * fx + dz * fz) <= L && Math.abs(dx * fz - dz * fx) <= Wd && dither(x, y) < 0.7 * a) g.fillRect(x, y, 1, 1);
+      }
+    }
+  };
+
   const draw = () => {
     const now = performance.now(), dt = Math.min(0.1, (now - last) / 1000);
     last = now;
@@ -325,6 +363,14 @@ export function initMap(app: App, bounds: Rect): MapView {
       g.drawImage(cl.sprite, Math.round(cl.x * N - cl.sprite.width / 2), Math.round(cl.y * M - cl.sprite.height / 2));
       g.globalAlpha = 1;
     }
+    // The sky passes over rooftops and traffic; lingering vapour stays behind the plane.
+    for (const m of moving) if (m.kind === 'contrail') contrail(m);
+    g.fillStyle = css(mix(AIRCRAFT_DAY, AIRCRAFT_NIGHT, look.night));
+    for (const m of moving) if (m.kind === 'aircraft') {
+      g.globalAlpha = opacity(m);
+      aircraft(m);
+    }
+    g.globalAlpha = 1;
     // rain: short slanting streaks; snow: single flakes drifting down, swaying
     const nRain = Math.round(d.rain * drops.length);
     if (nRain) {

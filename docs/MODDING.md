@@ -66,6 +66,14 @@ ctx.director.define({
 
 事件的 `weight` 和 `run` 还会收到 `day`（今天的日期，见下文），比如 `weight: ({ drivers, day }) => day.dayOff ? 0.6 : 0.3` 让周末和节假日更热闹。
 
+内置飞机事件提供 `events.aircraft` 服务，供脚本和调试使用（没有界面按钮）：
+
+- `send(1 | -1)`：请求往 +x 或 −x 飞越，成功返回 `true`；已有飞机或尾云、或当前不是适合飞行的白天晴／少云天气时返回 `false`
+- `flying`：只读布尔值，飞机是否正在飞越；`lingering`：只读布尔值，飞机或尾云是否仍在场
+- 自动事件的起飞间隔为 240–420 模拟秒，首次也等待这个间隔；飞越约 38 秒，每段尾云保留约 60 秒后完全消散，上一架飞机及其尾云清完前不会再次起飞。夜晚、阴雨雪雾天气暂停出现，条件恢复后重新尝试，不积攒航班
+
+运行 `npm run check:aircraft` 可检查调度、尾云生命周期、天气切换、俯视图同步和长期资源稳定性；截图回归为 `npm run build && npm run shots -- aircraft`。
+
 ## 车辆与道路
 
 车和人一样是按脚本行动的角色，引擎部分在 `src/engine/agents/vehicle.ts`：
@@ -169,6 +177,7 @@ ctx.plan.movers(() => robots.map((r) => ({ kind: 'vehicle', x: r.x, z: r.z, head
 - `color` 可以是函数，每帧读取（季节里变色的树）。不写就用这一类的默认颜色。夜晚、积雪、雨后路湿的效果由地图统一加上，形状只要给白天的颜色
 - `glow` 是一个发光通道名（`window`、`interior`、`sign`…）：通道亮起来时，形状在夜里泛暖光
 - 车和人在图上都画得比实际大，而且各用一种颜色（所有车一个颜色，所有人一个颜色），小图上一眼能分清。行人由引擎自动画上；道路模组把 `traffic.vehicles` 报告给了 `movers`
+- `movers` 返回的 `PlanMover.kind` 可以是 `vehicle`、`person`、`aircraft` 或 `contrail`；`heading` 为弧度，0 朝 +z、π/2 朝 +x，`len` / `width` 是米制尺寸，`opacity` 为可选的 0–1 可见度（默认 1）。飞机以有机翼和尾翼的小图案画在地面对象之上；尾云按小段登记，使用浅色像素抖动，随 `opacity` 降低逐渐稀疏、淡去
 - 模组 `setup` 失败时，它加到俯视图上的东西会一并撤掉
 
 ## 静态合并（自动，不用声明）

@@ -17,10 +17,22 @@ const out = `${root}tmp/shots`;
 // the overview camera (the default view); close-ups pass their own ?cam or ?view
 // behind the pet's transparent window: a wallpaper, so its soft edges show as they would on a real desk
 const DESK = `document.documentElement.style.background = 'linear-gradient(135deg, #2f3e5e, #7a6488 55%, #d9a487)'`;
+// Trigger through the event's public service, then freeze only simulation so the chosen phase is reproducible.
+const aircraftAt = (seconds, direction = 1) => `
+  if (!konbini.services.get('events.aircraft').send(${direction})) throw new Error('Aircraft did not start');
+  for (let i = 0; i < ${seconds * 20}; i++) konbini.simulate(0.05);
+  konbini.simulate = () => {};`;
 
 const SCENES = [
   { name: 'clear-day', q: 'weather=clear&time=1130' },
   { name: 'clear-dusk', q: 'weather=clear&time=1750' },
+  { name: 'aircraft-day', q: 'weather=clear&time=1430&date=2026-10-14', setup: aircraftAt(20), wait: 400 },
+  { name: 'aircraft-wake', q: 'weather=clear&time=1430&date=2026-10-14', setup: aircraftAt(55), wait: 400 },
+  { name: 'aircraft-dusk', q: 'weather=partly&time=1700&date=2026-10-14', setup: aircraftAt(20, -1), wait: 400 },
+  { name: 'aircraft-close', q: 'weather=clear&time=1430&date=2026-10-14&cam=12,27,30,0,18,8,30', setup: aircraftAt(20), wait: 400 },
+  { name: 'aircraft-plan', q: 'view=plan&weather=clear&time=1430&date=2026-10-14', setup: aircraftAt(20), wait: 400 },
+  { name: 'pet-aircraft', q: 'pet=1&weather=clear&time=1430&date=2026-10-14', viewport: { width: 560, height: 460 },
+    setup: `${DESK}; ${aircraftAt(20)}`, wait: 400 },
   { name: 'rain-night', q: 'weather=rain&time=2230&mods=mods/chochin.js' },
   { name: 'storm-night', q: 'weather=storm&time=2200' },
   { name: 'snow-day', q: 'weather=snow&time=1300' },
