@@ -92,10 +92,15 @@ export function initHud(app: App, live: LiveSync, initialView: string | null, op
    * window (the desktop pet keeps it in a corner). Where the window is too short for that (a small desktop pet, a
    * phone on its side), a card opened from the tray is laid over the tray instead, and anything still too tall
    * scrolls. Returns whether the panel covers the one it was opened from.
+   *
+   * Which way the panels open is settled when the tray opens and kept until it closes: the desktop pet's window can
+   * grow round the settings (pet.ts), and the button, kept still on the screen, may then land in the other half of
+   * it — the tray must not flip over to the other side of the button, away from the pointer on its slider.
    */
+  let opensDown: boolean | null = null;
   const place = (panel: HTMLElement, under: HTMLElement, canCover: boolean) => {
     const u = under.getBoundingClientRect(), b = bar.getBoundingClientRect();
-    const down = b.top + b.height / 2 < innerHeight / 2;
+    const down = opensDown ??= b.top + b.height / 2 < innerHeight / 2;
     panel.style.maxHeight = '';
     const w = panel.offsetWidth, h = panel.offsetHeight;
     const cover = canCover && h > (down ? innerHeight - u.bottom - GAP - EDGE : u.top - GAP - EDGE);
@@ -116,7 +121,7 @@ export function initHud(app: App, live: LiveSync, initialView: string | null, op
   /** Lay out whatever is open: the tray next to the bar, the calendar or mods card beyond (or over) the tray. */
   const layout = () => {
     tray.classList.remove('covered');
-    if (tray.hidden) { liftMap(); return; }
+    if (tray.hidden) { opensDown = null; liftMap(); return; }
     place(tray, bar, false);
     liftMap();   // (once the tray has its place)
     const card = !calPanel.hidden ? calPanel : !modsPanel.hidden ? modsPanel : null;

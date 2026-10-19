@@ -290,6 +290,9 @@ body.pet #stage canvas {
 body.pet .bar { left: 50%; top: -50px; bottom: auto; translate: -50% 0; visibility: hidden !important; pointer-events: none; }
 body.pet .chrome { transform: translateY(-4px); }
 body.pet.chrome-on .chrome { transform: none; }
+/* the pet's bar is only the panels' anchor (hud.ts: place): it must not slide in and out with the rest, or a panel laid
+   out while the controls are coming out lands a few pixels off from one laid out later */
+body.pet .bar { transform: none; }
 @property --fade-k { syntax: "<number>"; inherits: true; initial-value: 1; }
 /* moving the window: a grab hand where a drag would move it, a closed hand while it does (the model's canvas
    sets its own cursor for things you can click, so these win) */
