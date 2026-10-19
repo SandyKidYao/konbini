@@ -119,7 +119,7 @@ export class App {
       prefabs: this.prefabs, director: this.director, audio: this.audio, glow: this.glow,
       fx: {
         get envMap() { return fx.envMap; },
-        transparent: !!this.config.transparent,
+        get transparent() { return !fx.sky; },
         wetable: (m) => fx.wet.wetable(m),
         addPuddle: (x, z, r, sx, sz) => fx.wet.addPuddle(x, z, surfaces.walkAt(x, z), r, sx, sz, hashSeed(`${id}:${x}:${z}`) % 1000),
         addSheen: (rect, y) => fx.wet.addSheen(rect, y),

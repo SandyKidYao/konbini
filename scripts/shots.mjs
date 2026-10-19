@@ -203,6 +203,10 @@ const SCENES = [
   { name: 'pet-corner-rain', q: 'pet=1&weather=rain&time=2100&view=corner', viewport: { width: 400, height: 330 }, setup: DESK, wait: 3000 },
   { name: 'pet-zoom', q: 'pet=1&weather=clear&time=1000', viewport: { width: 560, height: 460 }, setup: DESK, wait: 3000, act: async (p) => {
     await p.mouse.move(280, 230); for (let i = 0; i < 12; i++) { await p.mouse.wheel(0, -400); await p.waitForTimeout(60); } } },
+  // the pet with its sky drawn (the menu's 显示天空, remembered in the page): it fades into the desk at the edges
+  { name: 'pet-sky', q: 'pet=1&weather=partly&time=1700&date=2026-10-14', viewport: { width: 560, height: 460 }, setup: DESK, act: async (p) => {
+    await p.evaluate(() => localStorage.setItem('konbini.pet.sky', '1'));
+    await p.reload(); await p.waitForSelector('#veil.done', { timeout: 180000 }); await p.evaluate(DESK); } },
   { name: 'pet-picker-small', q: 'pet=1&weather=clear&time=2000', viewport: { width: 400, height: 330 }, setup: DESK, act: async (p) => {
     await p.mouse.move(190, 200); await p.mouse.move(200, 190); await p.waitForTimeout(400); await p.mouse.dblclick(200, 190); await p.click('#dateBtn'); } },
 ];

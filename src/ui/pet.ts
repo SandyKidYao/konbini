@@ -1,8 +1,8 @@
 // Desktop-pet mode (?pet=1, set by the Electron shell in desktop/): only the model — or the map — over a transparent
 // window. Nothing else shows: a double-click on the model (or the map) opens the web page's own settings panel, and
 // its close button (or Escape) puts it away. ⌥-drag on the model or the map moves the window.
-// The native menu (right-click, or the menu-bar icon) keeps what belongs to the window: form, size, floating,
-// icons, power saving. Everywhere the model, the map and the controls aren't, clicks fall through to the desktop.
+// The native menu (right-click, or the menu-bar icon) keeps what belongs to the window: form, size, the sky behind
+// the model, floating, icons, power saving. Everywhere the model, the map and the controls aren't, clicks fall through to the desktop.
 import type { App } from '../engine/app';
 import type { Form, HudActions } from './hud';
 import type { MapView } from './map';
@@ -15,11 +15,13 @@ const MAP_SIZE: Record<PetSize, number> = { small: 120, medium: 160, large: 220 
 /** What the shell's menu shows: the page's own settings. */
 export interface PetState {
   saver: boolean;
+  /** the sky behind the model (off: only the model, over the desk) */
+  sky: boolean;
   form: Form;
 }
 
 export type PetAction =
-  | { type: 'settings' | 'saver' }
+  | { type: 'settings' | 'saver' | 'sky' }
   | { type: 'form'; value: Form }
   | { type: 'size'; value: PetSize };
 
@@ -52,9 +54,11 @@ export function initPet(app: App, hud: HudActions, map: MapView) {
   document.body.classList.add('pet');
   app.stage.controls.enablePan = false;  // the right button opens the menu instead
   app.fx.post.gtao.enabled = false;      // ambient occlusion barely shows at this size
-  const SAVER_KEY = 'konbini.pet.saver';
-  let saver = false;
-  try { saver = localStorage.getItem(SAVER_KEY) === '1'; } catch { /* storage unavailable */ }
+  const SAVER_KEY = 'konbini.pet.saver', SKY_KEY = 'konbini.pet.sky';
+  let saver = false, sky = false;
+  try { saver = localStorage.getItem(SAVER_KEY) === '1'; sky = localStorage.getItem(SKY_KEY) === '1'; } catch { /* storage unavailable */ }
+  // some views look odd with the desk showing through where the sky would be (a busy wallpaper behind the street)
+  app.fx.sky = sky;
   const idleFps = () => (saver ? SAVER_FPS : IDLE_FPS);
   app.maxFps = idleFps();
 
@@ -102,8 +106,9 @@ export function initPet(app: App, hud: HudActions, map: MapView) {
       if (dragging || last.buttons) { setOver(true); return; }   // hold on to a drag that wanders off the model
       // hidden controls are invisible to the pointer, so any control under it is one that's showing
       const onChrome = !!(last.target as Element | null)?.closest?.('.chrome');
+      // with the sky drawn the whole window is the picture, not just the model
       const onModel = !onChrome && (hud.form === 'plan' ? map.hit(last.clientX, last.clientY)
-        : edgeAlpha(last.clientX, last.clientY) > FADE_HIT && app.interact.modelAt(last.clientX, last.clientY));
+        : edgeAlpha(last.clientX, last.clientY) > FADE_HIT && (sky || app.interact.modelAt(last.clientX, last.clientY)));
       setOver(onChrome || onModel);
       onShape = onModel;
       alt = last.altKey;
@@ -151,6 +156,10 @@ export function initPet(app: App, hud: HudActions, map: MapView) {
         try { localStorage.setItem(SAVER_KEY, saver ? '1' : '0'); } catch { /* storage unavailable */ }
         if (!active) app.maxFps = idleFps();
         break;
+      case 'sky':
+        sky = app.fx.sky = !sky;
+        try { localStorage.setItem(SKY_KEY, sky ? '1' : '0'); } catch { /* storage unavailable */ }
+        break;
     }
   });
 
@@ -177,7 +186,7 @@ export function initPet(app: App, hud: HudActions, map: MapView) {
   // keep the shell's copy of the state current, so the menu opens instantly with the right checks
   let sent = '';
   app.onFrameUI(() => {
-    const state: PetState = { saver, form: hud.form };
+    const state: PetState = { saver, sky, form: hud.form };
     const key = JSON.stringify(state);
     if (key !== sent) { sent = key; bridge?.setState(state); }
   });

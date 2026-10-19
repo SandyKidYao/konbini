@@ -40,7 +40,7 @@ export default defineMod({
 | `ctx.steps` | 角色脚本：`go` `walk` `wait` `until` `face` `pose` `sit` `stand` `place` `run` `leave` |
 | `ctx.services` | `provide(name, impl)` / `get(name)`：模组之间按名字协作，不互相 import |
 | `ctx.bus` | 松散的消息：`emit` / `on` |
-| `ctx.fx` | `envMap`、`transparent`（桌宠：只画模型，周围没有摄影棚地面和背景）、`wetable(mat)`、`addPuddle`、`addSheen`、`addPass`（自定义后期）、`skyChanged()`（挡雪的东西变了）、`warm(obj)`（预先编译着色器，见下） |
+| `ctx.fx` | `envMap`、`transparent`（桌宠：只画模型，周围没有摄影棚地面和背景；桌宠的「显示天空」会在运行中改变它，每帧读，不要只在 `setup` 里读一次）、`wetable(mat)`、`addPuddle`、`addSheen`、`addPass`（自定义后期）、`skyChanged()`（挡雪的东西变了）、`warm(obj)`（预先编译着色器，见下） |
 | `ctx.audio` | `define(name, recipe)` 定义音效、`play(name)` |
 | `ctx.interact.clickable(obj, fn, '名字')` | 可点击（悬停时光标变成手形；名字不显示在画面上） |
 | `ctx.plan` | 俯视图上的样子：`add(shape)` 加一块平面形状、`marker(m)` 加一个小灯、`movers(fn)` 报告会动的东西（见下文「俯视图」） |

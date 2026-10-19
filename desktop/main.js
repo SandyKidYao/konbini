@@ -1,7 +1,7 @@
 // Desktop pet shell (macOS first): a transparent, frameless, floating window that shows only the model
 // (the web app with ?pet=1). Clicks fall through wherever the model isn't — the page reports when the pointer
 // is on it. The scene's settings are the page's own (a button under the model); right-click on the model, the menu-bar
-// icon or the Dock icon opens the native menu, which keeps the window's: size, floating, icons, power saving. Whether
+// icon or the Dock icon opens the native menu, which keeps the window's: size, the sky, floating, icons, power saving. Whether
 // the menu-bar and Dock icons show is a preference (at least one of them stays).
 //
 //   npm run pet                 build, then open dist/index.html
@@ -38,7 +38,7 @@ const savePrefs = () => {
 
 /** @type {BrowserWindow} */ let win;
 /** @type {Tray} */ let tray;
-let state = { saver: false, form: prefs.form };
+let state = { saver: false, sky: false, form: prefs.form };
 let dragTimer = null;
 
 if (!app.requestSingleInstanceLock()) app.quit();
@@ -147,6 +147,8 @@ function buildMenu({ dock = false } = {}) {
     // weather, time, date, views… are in the page's own settings, the same as on the web
     { label: '设置…', click: () => { win.showInactive(); send({ type: 'settings' }); } },
     { label: '形态', submenu: FORMS.map(([k, label]) => ({ label, type: 'radio', checked: s.form === k, click: () => send({ type: 'form', value: k }) })) },
+    // the model alone over the desk, or with its sky behind it (some wallpapers make a lone model look odd)
+    { label: '显示天空', type: 'checkbox', checked: s.sky, enabled: s.form === 'model', click: () => send({ type: 'sky' }) },
     { type: 'separator' },
     { label: '省电（降低帧率）', type: 'checkbox', checked: s.saver, click: () => send({ type: 'saver' }) },
     { type: 'separator' },

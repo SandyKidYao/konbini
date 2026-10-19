@@ -34,8 +34,15 @@ export class Fx {
   private warmTarget: THREE.WebGLRenderTarget | null = null;
   private frame = 0;
 
-  /** transparent: no backdrop or distant lightning on screen — only the model, over whatever is behind the window */
+  /**
+   * Draw the sky (the studio backdrop and the distant lightning) on a transparent window too. Without it only the model
+   * is on screen, over whatever is behind the window; the desktop pet lets its owner choose.
+   */
+  sky: boolean;
+
+  /** transparent: the canvas has nothing behind it (desktop pet); the sky starts hidden there */
   constructor(private stage: Stage, private bounds: Rect, private transparent = false) {
+    this.sky = !transparent;
     const { scene, renderer, camera } = stage;
     skipUnlitLights();
     scene.add(this.hemi);
@@ -75,7 +82,7 @@ export class Fx {
     const backdrop = this.backdrop = new THREE.Mesh(new THREE.SphereGeometry(600, 48, 24), this.backdropMat);
     backdrop.frustumCulled = false;
     backdrop.renderOrder = -100;
-    backdrop.visible = !transparent;   // still captured into the reflections, so glass and paint keep their sky
+    backdrop.visible = this.sky;   // captured into the reflections either way, so glass and paint keep their sky
     scene.add(backdrop);
 
     this.post = new Post(renderer, scene, camera, transparent);
@@ -164,8 +171,8 @@ export class Fx {
     const fog = this.stage.fog;
     fog.color.copy(L.fog);
     fog.density = L.fogDensity;
-    // with nothing behind the model, fog fades it into a flat blob: thin it as if seen from closer up,
-    // so only the far side of the model goes misty
+    // the desk's camera stands back to take in the whole model, and with nothing behind it fog fades the model into a
+    // flat blob: thin it as if seen from closer up, so only the far side goes misty (with the pet's sky drawn too)
     if (this.transparent) fog.density *= Math.min(1, 45 / this.stage.camera.position.distanceTo(this.stage.controls.target));
     this.hemi.color.copy(L.hemiSky);
     this.hemi.groundColor.copy(L.hemiGround);
@@ -184,7 +191,8 @@ export class Fx {
     this.backdropMat.uniforms.uFlash.value = D.flash;
     this.hemi.intensity += D.flash * 2.2;
     this.flashLight.intensity = D.flash * 5;
-    this.bolt.visible = !this.transparent && this.boltLife > 0 && D.flash > 0.05;
+    this.bolt.visible = this.sky && this.boltLife > 0 && D.flash > 0.05;
+    this.backdrop.visible = this.sky;
     if (atm.isAnimating) this.envDirty = Math.max(this.envDirty, 6);
   }
 
@@ -210,7 +218,7 @@ export class Fx {
     }
     r.setRenderTarget(prev);
     hidden.forEach((o, i) => (o.visible = vis[i]));
-    this.backdrop.visible = !this.transparent;
+    this.backdrop.visible = this.sky;
   }
 
   render() {
