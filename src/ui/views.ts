@@ -123,3 +123,11 @@ export function modelSpan(pose: CameraPose, width: number, height: number) {
 export function viewPose(v: ViewPreset, width: number, height: number, pet = false): CameraPose {
   return pet && v.id === 'overview' ? wholeOverview(v, width, height) : fitView(v, width / height);
 }
+
+/** The farthest any view stands from what it looks at, in this window: a hand pulls the camera back no farther. */
+export function viewsReach(width: number, height: number, pet = false) {
+  return Math.max(...VIEWS.map((v) => {
+    const { position: p, target: t } = viewPose(v, width, height, pet);
+    return Math.hypot(p[0] - t[0], p[1] - t[1], p[2] - t[2]);
+  }));
+}

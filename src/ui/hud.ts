@@ -12,7 +12,7 @@ import type { MapView } from './map';
 import { initMorph } from './morph';
 import { PET_TILE_MAX, PLAN_TOP, SIZE_MAX, formOf, keepSizes, modelZoom, share, tileWidth, webTileMax, type Form, type Sizes } from './size';
 import { initTips } from './tips';
-import { VIEWS, findView, fitView, modelSpan, viewPose, type ViewPreset } from './views';
+import { VIEWS, findView, fitView, modelSpan, viewPose, viewsReach, type ViewPreset } from './views';
 
 export type { Form } from './size';
 
@@ -283,7 +283,14 @@ export function initHud(app: App, live: LiveSync, initialView: string | null, op
   viewBtns.forEach((b) => b.addEventListener('click', () => { tick(); setView(b.dataset.view!); }));
   // hand-turning the model leaves the preset
   controls.addEventListener('start', () => { if (view) { view = null; markView(); } });
-  app.onResize(() => { if (view && form === 'model' && !morph.busy && !stage.flying) stage.flyTo(viewPose(view, ...stage.size, opts.pet), 0); });
+  // A pinch (or the wheel) takes the camera nearer, or back out as far as the views stand, and no farther: making the
+  // model smaller is the size slider's (on the desk the model's window would be left round a speck).
+  const setReach = () => stage.setReach(viewsReach(...stage.size, opts.pet));
+  setReach();
+  app.onResize(() => {
+    setReach();
+    if (view && form === 'model' && !morph.busy && !stage.flying) stage.flyTo(viewPose(view, ...stage.size, opts.pet), 0);
+  });
   if (initialView && findView(initialView)) { view = findView(initialView)!; markView(); }
   body.dataset.form = form;
   // the map at first; the overview (where the camera stands) when the model comes back
