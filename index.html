@@ -22,7 +22,7 @@
     </button>
   </nav>
 
-  <!-- the tray: views; weather, time of day, date, real time; turntable, sound, mods -->
+  <!-- the tray: views; size; weather, time of day, date, real time; turntable, sound, mods -->
   <section class="tray panel chrome" id="tray" aria-label="设置" hidden>
     <div class="tray-head">
       <div class="views" id="views" role="group" aria-label="视角"></div>
@@ -30,6 +30,15 @@
       <button type="button" class="ico close" id="trayClose" aria-label="关闭" aria-keyshortcuts="Escape">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>
       </button>
+    </div>
+    <!-- size: the pixel map at the small end, then the model up to its largest -->
+    <div class="size">
+      <svg class="lo" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6h5v5H6zM13 13h5v5h-5z"/><path d="M13 6h5v5h-5zM6 13h5v5H6z" opacity=".45"/></svg>
+      <div class="size-track">
+        <input id="sizeRange" type="range" min="0" max="100" step="1" value="100" aria-label="大小">
+        <span class="knob" id="sizeKnob" aria-hidden="true"></span>
+      </div>
+      <svg class="hi" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 20 8v8l-8 4.5L4 16V8z"/><path d="M4 8l8 4.5L20 8M12 12.5v8"/></svg>
     </div>
     <div class="keys" id="weatherKeys" role="group" aria-label="天气"></div>
     <div class="time">

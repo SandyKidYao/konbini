@@ -1,8 +1,9 @@
 // Desktop pet shell (macOS first): a transparent, frameless, floating window that shows only the model
 // (the web app with ?pet=1). Clicks fall through wherever the model isn't — the page reports when the pointer
-// is on it. The scene's settings are the page's own (a button under the model); right-click on the model, the menu-bar
-// icon or the Dock icon opens the native menu, which keeps the window's: size, floating, icons, power saving. Whether
-// the menu-bar and Dock icons show is a preference (at least one of them stays).
+// is on it. The scene's settings are the page's own (a double-click opens them), its size too: the page sizes the
+// window to it. Right-click on the model, the menu-bar icon or the Dock icon opens the native menu, which keeps the
+// window's: form, the sky, floating (or sinking beneath every window), icons, power saving. Whether the menu-bar and
+// Dock icons show is a preference (at least one of them stays).
 //
 //   npm run pet                 build, then open dist/index.html
 //   npm run dev + npm run pet:dev   load the Vite dev server instead (live reload)
@@ -14,31 +15,38 @@ import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const SIZES = { small: [400, 330], medium: [560, 460], large: [760, 625] };
-// the map form: the page draws the map at the chosen size (small / medium / large) on the window's lower edge; the
-// window keeps room above it for the settings, and is click-through wherever there's nothing
-const PLAN_WINDOW = [380, 540];
-const SIZE_LABEL = { small: '小', medium: '中', large: '大' };
 const FORMS = [['model', '模型'], ['plan', '俯视图']];
+// the window until the page says what its size wants (pet.json keeps the last one)
+const FIRST_WINDOW = [560, 460];
 
 const probe = process.argv.find((a) => a.startsWith('--probe'))?.split('=')[1] ?? (process.argv.includes('--probe') ? 'pet-probe.png' : null);
 
 // --- preferences: size, floating, where the window was ---
+// size: the page's size slider (0–100; before it, 'small' / 'medium' / 'large', which the page still reads)
 const prefsFile = path.join(app.getPath('userData'), 'pet.json');
-const prefs = { size: 'medium', form: 'model', onTop: true, x: null, y: null, tray: true, dock: false };
+// onTop / onBottom: above every window, or beneath them all (at most one of the two)
+const prefs = { size: 'medium', form: 'model', onTop: true, onBottom: false, x: null, y: null, w: null, h: null, tray: true, dock: false };
 try { Object.assign(prefs, JSON.parse(fs.readFileSync(prefsFile, 'utf8'))); } catch { /* first run */ }
-if (!SIZES[prefs.size]) prefs.size = 'medium';
+if (prefs.onTop && prefs.onBottom) prefs.onBottom = false;
 if (!FORMS.some(([k]) => k === prefs.form)) prefs.form = 'model';
-const windowSize = () => (prefs.form === 'plan' ? PLAN_WINDOW : SIZES[prefs.size]);
+const windowSize = () => (prefs.w > 0 && prefs.h > 0 ? [prefs.w, prefs.h] : FIRST_WINDOW);
 if (!prefs.tray && !prefs.dock) prefs.tray = true;
-const savePrefs = () => {
+// written a moment later (dragging the size slider changes the window every frame), and at quit
+let saveTimer = null;
+const writePrefs = () => {
+  clearTimeout(saveTimer);
+  saveTimer = null;
   try { fs.writeFileSync(prefsFile, JSON.stringify(prefs)); } catch { /* read-only */ }
+};
+const savePrefs = () => {
+  if (!saveTimer) saveTimer = setTimeout(writePrefs, 400);
   refreshDockMenu();   // every preference shows in the menu; the Dock's copy is static, so rebuild it
 };
+app.on('will-quit', () => { if (saveTimer) writePrefs(); });
 
 /** @type {BrowserWindow} */ let win;
 /** @type {Tray} */ let tray;
-let state = { saver: false, form: prefs.form };
+let state = { saver: false, sky: false, form: prefs.form, size: prefs.size };
 let dragTimer = null;
 
 if (!app.requestSingleInstanceLock()) app.quit();
@@ -63,12 +71,13 @@ function createWindow() {
     skipTaskbar: true, acceptFirstMouse: true, show: false,
     webPreferences: { preload: path.join(here, 'preload.cjs'), sandbox: true, contextIsolation: true },
   });
-  applyOnTop();
+  applyLayer();
   win.setIgnoreMouseEvents(true, { forward: true });   // until the page says the pointer is on the model
   win.once('ready-to-show', () => win.showInactive());
+  watchCursor();
   win.on('moved', savePosition);
 
-  const query = { pet: '1', size: prefs.size, ...(prefs.form === 'plan' ? { view: 'plan' } : {}) };
+  const query = { pet: '1', size: String(prefs.size), ...(prefs.form === 'plan' ? { view: 'plan' } : {}) };
   const dev = process.env.KONBINI_DEV_URL;
   if (dev) void win.loadURL(`${dev}${dev.includes('?') ? '&' : '?'}${new URLSearchParams(query)}`);
   else void win.loadFile(path.join(here, '..', 'dist', 'index.html'), { query });
@@ -89,35 +98,84 @@ function savePosition() {
   savePrefs();
 }
 
-function applyOnTop() {
-  // 'floating' sits above normal windows; on every Space and over full-screen apps too
-  win.setAlwaysOnTop(prefs.onTop, 'floating');
-  win.setVisibleOnAllWorkspaces(prefs.onTop, { visibleOnFullScreen: true, skipTransformProcessType: true });
+function applyLayer() {
+  // 'floating' sits above normal windows, on every Space and over full-screen apps too. At the bottom: one level under
+  // 'normal', beneath every app's windows (even once it is clicked) but above the desktop and its icons, so it still
+  // takes clicks and drags (a 'desktop' type window sits under the Finder's desktop and gets none); on every Space,
+  // where full-screen apps cover it anyway
+  if (prefs.onTop) win.setAlwaysOnTop(true, 'floating');
+  else if (prefs.onBottom) win.setAlwaysOnTop(true, 'normal', -1);
+  else win.setAlwaysOnTop(false);
+  win.setVisibleOnAllWorkspaces(prefs.onTop || prefs.onBottom, { visibleOnFullScreen: prefs.onTop, skipTransformProcessType: true });
 }
 
-/** Change size around the bottom centre, so the model stays where it stands on the desk. */
-function setSize(size) {
-  prefs.size = size;
-  send({ type: 'size', value: size });
-  fitWindow();
+/** Above everything, beneath everything, or neither: the two menu switches turn each other off. */
+function setLayer(layer) {
+  prefs.onTop = layer === 'top';
+  prefs.onBottom = layer === 'bottom';
+  applyLayer();
+  savePrefs();
 }
 
-function fitWindow() {
-  const [x, y] = win.getPosition(), [w0, h0] = win.getSize(), [w, h] = windowSize();
-  if (w !== w0 || h !== h0) win.setBounds({ x: Math.round(x + (w0 - w) / 2), y: y + h0 - h, width: w, height: h });
+/** where the window's foot belongs while the screen's edge holds the window elsewhere (null: where it is) */
+let home = null;
+
+/**
+ * Change size around the bottom centre, so the model stays where it stands on the desk. A window too big to stand
+ * there is moved onto the screen (as far as the whole screen, at the slider's top); once it is small enough again it
+ * goes back to where it stood.
+ */
+function setWindowSize(w, h) {
+  const [x, y] = win.getPosition(), [w0, h0] = win.getSize();
+  const foot = home ?? [x + w0 / 2, y + h0];
+  const want = { x: Math.round(foot[0] - w / 2), y: Math.round(foot[1] - h), width: w, height: h };
+  const b = onScreen(want);
+  home = b.x !== want.x || b.y !== want.y ? foot : null;
+  [prefs.w, prefs.h] = [w, h];
+  if (w !== w0 || h !== h0 || b.x !== x || b.y !== y) win.setBounds(b);
   savePosition();
+}
+
+/** Bounds moved just far enough to lie inside the screen they are mostly on (growing near an edge would push past it). */
+function onScreen(b) {
+  const a = screen.getDisplayMatching(b).workArea;
+  const x = Math.max(a.x, Math.min(a.x + a.width - b.width, b.x)), y = Math.max(a.y, Math.min(a.y + a.height - b.height, b.y));
+  return { ...b, x, y };
+}
+
+// --- where the cursor is over the window ---
+// While the window lets clicks through, the page only hears the pointer through forwarded mouse moves, and macOS stops
+// sending those once another app is active (click the desktop or another app, and the pet no longer notices the
+// pointer on it, so it never takes the click). So the shell watches the cursor itself and tells the page where it
+// is while it is over the window, and that it left; the page decides whether that is on the model.
+let cursorAt = '';
+function watchCursor() {
+  setInterval(() => {
+    if (!win || win.isDestroyed() || !win.isVisible() || dragTimer) return;
+    const p = screen.getCursorScreenPoint(), b = win.getContentBounds();
+    const x = p.x - b.x, y = p.y - b.y, inside = x >= 0 && y >= 0 && x < b.width && y < b.height;
+    const at = inside ? `${x},${y}` : '';
+    if (at === cursorAt) return;
+    cursorAt = at;
+    win.webContents.send('pet:pointer', inside ? { x, y } : null);
+  }, 50);
 }
 
 // --- messages from the page (desktop/preload.cjs) ---
 ipcMain.on('pet:hit', (_e, over) => { if (!dragTimer) win.setIgnoreMouseEvents(!over, { forward: true }); });
 ipcMain.on('pet:state', (_e, s) => {
   state = s;
-  // the form is chosen in the page (or this menu): the window follows it
-  if (s.form && s.form !== prefs.form) { prefs.form = s.form; fitWindow(); }
+  // the form and the size are chosen in the page (or this menu), and kept here for the next start
+  if (s.form !== prefs.form || s.size !== prefs.size) { prefs.form = s.form; prefs.size = s.size; savePrefs(); }
   refreshDockMenu();
+});
+// the page sizes the window to its size slider
+ipcMain.on('pet:window', (_e, w, h) => {
+  if (Number.isInteger(w) && Number.isInteger(h) && w >= 100 && h >= 100 && w <= 4000 && h <= 4000) setWindowSize(w, h);
 });
 ipcMain.on('pet:menu', () => buildMenu().popup({ window: win }));
 ipcMain.on('pet:drag', (_e, on) => {
+  home = null;   // moved by hand: where it stands now is its place
   clearInterval(dragTimer);
   dragTimer = null;
   if (!on) { savePosition(); return; }
@@ -135,16 +193,18 @@ function buildMenu({ dock = false } = {}) {
   const s = state;
   return Menu.buildFromTemplate([
     // how to handle the pet, where anyone who has forgotten looks first (the desk itself shows no words)
-    { label: s.form === 'plan' ? '双击打开设置 · 拖动移动位置' : '双击打开设置 · ⌥ 拖动移动位置', enabled: false },
+    { label: '双击打开设置 · ⌥ 拖动移动位置', enabled: false },
     { type: 'separator' },
     // weather, time, date, views… are in the page's own settings, the same as on the web
     { label: '设置…', click: () => { win.showInactive(); send({ type: 'settings' }); } },
     { label: '形态', submenu: FORMS.map(([k, label]) => ({ label, type: 'radio', checked: s.form === k, click: () => send({ type: 'form', value: k }) })) },
+    // the model alone over the desk, or with its sky behind it (some wallpapers make a lone model look odd)
+    { label: '显示天空', type: 'checkbox', checked: s.sky, enabled: s.form === 'model', click: () => send({ type: 'sky' }) },
     { type: 'separator' },
     { label: '省电（降低帧率）', type: 'checkbox', checked: s.saver, click: () => send({ type: 'saver' }) },
     { type: 'separator' },
-    { label: '大小', submenu: Object.keys(SIZES).map((k) => ({ label: SIZE_LABEL[k], type: 'radio', checked: prefs.size === k, click: () => setSize(k) })) },
-    { label: '浮在最上层', type: 'checkbox', checked: prefs.onTop, click: () => { prefs.onTop = !prefs.onTop; applyOnTop(); savePrefs(); } },
+    { label: '浮在最上层', type: 'checkbox', checked: prefs.onTop, click: () => setLayer(prefs.onTop ? null : 'top') },
+    { label: '沉在最下层', type: 'checkbox', checked: prefs.onBottom, click: () => setLayer(prefs.onBottom ? null : 'bottom') },
     // the last icon left can't be turned off: with neither, the model's right-click would be the only way in
     { label: '显示图标', submenu: [
       { label: '菜单栏', type: 'checkbox', checked: prefs.tray, enabled: !prefs.tray || prefs.dock, click: () => togglePresence('tray') },
@@ -166,7 +226,7 @@ function applyPresence() {
   if (prefs.dock) void app.dock?.show().then(() => { if (!app.isPackaged) app.dock?.setIcon(path.join(here, 'icon.png')); });
   else app.dock?.hide();   // out of the Dock and the app switcher too
   // showing or hiding the Dock icon changes the process type; put the window back on its level after it
-  if (win) applyOnTop();
+  if (win) applyLayer();
   refreshDockMenu();
 }
 

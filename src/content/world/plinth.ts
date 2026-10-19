@@ -60,8 +60,8 @@ export default defineMod({
     for (const o of [top, plate]) o.userData.noSnow = true;
     root.children.forEach((o) => { if (o !== slab && o !== bed) o.userData.noSnow = true; });
 
-    // studio floor: a shadow catcher and a soft contact shadow (on a transparent window the desk is the floor)
-    if (ctx.fx.transparent) return;
+    // studio floor: a shadow catcher and a soft contact shadow (on a transparent window the desk is the floor; the pet
+    // can bring the sky back, and the floor with it)
     const floorShadow = new THREE.ShadowMaterial({ opacity: 0.2, transparent: true });
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), floorShadow);
     floor.rotation.x = -Math.PI / 2;
@@ -76,6 +76,7 @@ export default defineMod({
     ctx.scene.add(c);
 
     ctx.onFrame(() => {
+      floor.visible = c.visible = !ctx.fx.transparent;
       floorShadow.opacity = ctx.atmosphere.look.floorShadow;
       contact.opacity = ctx.atmosphere.look.contact;
     });

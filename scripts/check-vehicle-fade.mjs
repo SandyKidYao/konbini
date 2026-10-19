@@ -104,7 +104,9 @@ try {
       check(ms.length === 1, `Expected one map vehicle at the model's position, saw ${ms.length}`);
       return ms[0].opacity;
     };
-    window.vehicleFadeCheck = { app, V, roads, traffic, signal, clear, body, spawn, clearance, stopped, opaque, exit, step, check, mapped };
+    // x out past the west (−1) or east (+1) edge where roads spawn and retire vehicles, or `by` metres from there
+    const edge = (side, by = 0) => { const b = traffic.env.bounds; return side < 0 ? b.x0 - 6 - by : b.x1 + 6 + by; };
+    window.vehicleFadeCheck = { app, V, roads, traffic, signal, clear, body, spawn, clearance, stopped, opaque, exit, step, check, mapped, edge };
   });
 
   const red = await page.evaluate(() => {
@@ -134,7 +136,7 @@ try {
     const queue = await page.evaluate(() => {
       const C = window.vehicleFadeCheck;
       C.clear(); C.signal('g');
-      const p = C.V.path(18, 15.1, -Math.PI / 2).line(-34, 15.1).build();
+      const p = C.V.path(18, 15.1, -Math.PI / 2).line(-43, 15.1).build();
       const leader = C.traffic.spawn(C.body(), { at: p.start }).then(C.V.drive(p, { through: true, gates: [{ at: 0, open: () => false, commit: false }] }));
       const v = C.spawn('east', 'west');
       C.stopped(v);
@@ -163,9 +165,9 @@ try {
       const result = await page.evaluate((side) => {
         const C = window.vehicleFadeCheck;
         C.clear(); C.signal('g');
-        const start = side * 34, end = -side * 34, heading = -side * Math.PI / 2;
+        const start = C.edge(side), end = C.edge(-side), heading = -side * Math.PI / 2;
         const p = C.V.path(start, 15.1, heading).line(end, 15.1).build();
-        const stopX = side * 24.5;
+        const stopX = C.edge(side, -9.5);
         let blocked = true;
         const v = C.traffic.spawn(C.body(), { at: p.start }).then(C.V.drive(p, {
           reverse: true, through: true, speed: 5,
@@ -183,7 +185,7 @@ try {
     const parkedReverse = await page.evaluate(() => {
       const C = window.vehicleFadeCheck;
       C.clear();
-      const p = C.V.path(34, 15.1, -Math.PI / 2).line(24.5, 15.1).build();
+      const p = C.V.path(C.edge(1), 15.1, -Math.PI / 2).line(C.edge(1, -9.5), 15.1).build();
       const v = C.traffic.spawn(C.body(), { at: p.start }).then(C.V.drive(p, { reverse: true, speed: 4 }), C.V.wait(20));
       C.stopped(v);
       C.check(v.leg === null, 'Reverse arrival did not advance to its wait step');
@@ -196,8 +198,8 @@ try {
       const result = await page.evaluate((side) => {
         const C = window.vehicleFadeCheck;
         C.clear(); C.signal('g');
-        const p = C.V.path(side * 34, 15.1, -side * Math.PI / 2).line(side * 19, 15.1)
-          .curve(side * 19, 11.9, side * Math.PI / 2, 1.1).line(side * 34, 11.9).build();
+        const p = C.V.path(C.edge(side), 15.1, -side * Math.PI / 2).line(side * 19, 15.1)
+          .curve(side * 19, 11.9, side * Math.PI / 2, 1.1).line(C.edge(side), 11.9).build();
         const v = C.traffic.spawn(C.body(), { at: p.start }).then(C.V.drive(p, { through: true, speed: 4 }));
         return C.exit(v, side, `Same-edge turn ${side}`);
       }, side);

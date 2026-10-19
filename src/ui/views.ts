@@ -18,7 +18,7 @@ export const VIEWS: ViewPreset[] = [
     // three-quarter view from the front right, low and on a long lens: the shop in the middle with its bays and the
     // corner, 桜荘 and the crossing behind, a strip of sea along the top
     id: 'overview', name: '全景', fit: 'dolly',
-    pose: { position: [64, 34, 58], target: [-1, 0.5, -7.5], fov: 24 },
+    pose: { position: [59.5, 34, 58], target: [-5.5, 0.5, -7.5], fov: 24 },
     icon: '<path d="M12 3.5 20 8v8l-8 4.5L4 16V8z"/><path d="M4 8l8 4.5L20 8M12 12.5v8"/>',
   },
   {
@@ -31,7 +31,7 @@ export const VIEWS: ViewPreset[] = [
     // high over the west corner, the block turned on the diagonal: roofs, the lane, the railway and the shore laid
     // out like a map
     id: 'bird', name: '俯瞰', fit: 'dolly',
-    pose: { position: [-40, 62, 40], target: [-1, 0, -12], fov: 30 },
+    pose: { position: [-44.5, 62, 40], target: [-5.5, 0, -12], fov: 30 },
     icon: '<path d="M12 3 21 12 12 21 3 12z"/><path d="M7.5 7.5 16.5 16.5M12 12 7.5 16.5"/>',
   },
   {
@@ -77,7 +77,7 @@ export function fitView(v: ViewPreset, aspect: number): CameraPose {
 export const PET_FADE = 0.09;
 
 /** The model as the overview must show it: plinth, buildings, and the clouds that are always out. */
-const MODEL = new THREE.Box3(new THREE.Vector3(-33.5, -3.6, -42.4), new THREE.Vector3(31, 19, 25.4));
+const MODEL = new THREE.Box3(new THREE.Vector3(-38.6, -3.6, -42.4), new THREE.Vector3(29.6, 19, 25.4));
 const CENTRE = MODEL.getCenter(new THREE.Vector3());
 const CORNERS = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => new THREE.Vector3(
   i & 1 ? MODEL.max.x : MODEL.min.x, i & 2 ? MODEL.max.y : MODEL.min.y, i & 4 ? MODEL.max.z : MODEL.min.z));
@@ -105,6 +105,18 @@ function wholeOverview(v: ViewPreset, width: number, height: number): CameraPose
   for (let i = 0; i < 24; i++) { const mid = (lo + hi) / 2; if (fits(mid)) hi = mid; else lo = mid; }
   const p = CENTRE.clone().addScaledVector(dir, hi);
   return { position: [p.x, p.y, p.z], target: [CENTRE.x, CENTRE.y, CENTRE.z], fov };
+}
+
+/** How wide the model looks (px) from this pose in a canvas this size, at zoom 1. */
+export function modelSpan(pose: CameraPose, width: number, height: number) {
+  probe.fov = pose.fov ?? 30; probe.aspect = width / height; probe.near = 0.5; probe.far = 3000; probe.zoom = 1;
+  probe.updateProjectionMatrix();
+  probe.position.set(...pose.position);
+  probe.lookAt(...pose.target);
+  probe.updateMatrixWorld(true);
+  let lo = Infinity, hi = -Infinity;
+  for (const c of CORNERS) { const x = tmp.copy(c).project(probe).x; lo = Math.min(lo, x); hi = Math.max(hi, x); }
+  return ((Math.min(1, hi) - Math.max(-1, lo)) / 2) * width;
 }
 
 /** Where a preset puts the camera in this window: as on the web, except the pet's overview, which shows it all. */

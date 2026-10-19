@@ -61,6 +61,8 @@ export class App {
   elapsed = 0;
   /** at most this many frames a second (0: every display frame) — saves power when nobody is looking closely */
   maxFps = 0;
+  /** every display frame regardless of maxFps, while something on screen is moving on purpose (a form change) */
+  fullRate = false;
   /**
    * What is on screen: the model, or the plan (the UI draws it as a flat map). Either way the street lives on; with
    * the plan showing, the model isn't drawn at all — the whole cost of a frame is the simulation.
@@ -69,11 +71,15 @@ export class App {
 
   private frameFns: FrameFn[] = [];
   private uiFns: (() => void)[] = [];
+  private renderedFns: (() => void)[] = [];
+  private resizeFns: (() => void)[] = [];
   private clock = new THREE.Clock();
   private frame = 0;
   private baseCtx: ModContext;
   private quality = { time: 0, frames: 0, drops: 0, slow: 0, calm: 0, window: 0, max: 1, blocked: new Map<number, number>(), failures: new Map<number, number>() };
   private resizePending = false;
+  /** when the canvas's container last changed size */
+  private resizedAt = 0;
   private owed = 0;
   private onFirstFrame: (() => void) | null = null;
   /** objects popped in and out by states.show: never batched (they scale and hide) */
@@ -101,8 +107,9 @@ export class App {
       setTimeout(() => this.audio.play(distance < 0.4 ? 'thunder' : 'thunder-far'), 400 + distance * 2600);
     });
     // applied just before the next render: resizing clears the canvas, and a cleared canvas that gets shown
-    // before it is drawn again flashes the page background
-    addEventListener('resize', () => { this.resizePending = true; });
+    // before it is drawn again flashes the page background. The container, not the window: on the desk the model
+    // can change size inside a window that stays put
+    new ResizeObserver(() => { this.resizePending = true; this.resizedAt = performance.now(); }).observe(config.container);
   }
 
   private contextFor(id: string, root: THREE.Group): ModContext {
@@ -119,7 +126,7 @@ export class App {
       prefabs: this.prefabs, director: this.director, audio: this.audio, glow: this.glow,
       fx: {
         get envMap() { return fx.envMap; },
-        transparent: !!this.config.transparent,
+        get transparent() { return !fx.sky; },
         wetable: (m) => fx.wet.wetable(m),
         addPuddle: (x, z, r, sx, sz) => fx.wet.addPuddle(x, z, surfaces.walkAt(x, z), r, sx, sz, hashSeed(`${id}:${x}:${z}`) % 1000),
         addSheen: (rect, y) => fx.wet.addSheen(rect, y),
@@ -182,6 +189,12 @@ export class App {
   /** Interface updates, run once per rendered frame (not during warp). */
   onFrameUI(fn: () => void) { this.uiFns.push(fn); }
 
+  /** Just after the model is drawn, while the canvas still holds the frame (it is cleared once it reaches the screen). */
+  onRendered(fn: () => void) { this.renderedFns.push(fn); }
+
+  /** The canvas changed size (applied before the next render). */
+  onResize(fn: () => void) { this.resizeFns.push(fn); }
+
   /** Advance everything that moves, without rendering. */
   simulate(dt: number) {
     this.elapsed += dt;
@@ -203,7 +216,7 @@ export class App {
     this.onFirstFrame = onFirstFrame ?? null;
     const tick = () => {
       this.owed += this.clock.getDelta();
-      if (this.maxFps && this.owed < 1 / this.maxFps - 0.004) { requestAnimationFrame(tick); return; }
+      if (this.maxFps && !this.fullRate && this.owed < 1 / this.maxFps - 0.004) { requestAnimationFrame(tick); return; }
       const dt = Math.min(this.owed, 0.05);
       this.owed = 0;
       this.simulate(dt);
@@ -212,9 +225,10 @@ export class App {
       for (const f of this.uiFns) f();
       if (this.form === 'model') {
         if (this.frame > 60) this.adaptQuality(dt);
-        if (this.resizePending) this.resize();
+        if (this.resizePending && this.resizeDue()) this.resize();
         this.batcher.update();
         this.fx.render();
+        for (const f of this.renderedFns) f();
       }
       this.frame++;
       if (this.frame === 3) this.onFirstFrame?.();
@@ -259,9 +273,22 @@ export class App {
     }
   }
 
+  /**
+   * Resize now, or let the browser stretch the last frame a little longer? Every resize reallocates the render targets
+   * (a hitch), and the desk's size slider changes the canvas every frame while it moves. A change of shape can't be
+   * stretched; the same shape can, until it settles or strays too far from its pixels.
+   */
+  private resizeDue() {
+    // (the desk's model widens a little as it grows: a few percent off the drawn shape still stretches unnoticed)
+    const [w, h] = this.stage.size, [dw, dh] = this.stage.drawnSize, k = w / dw;
+    if (Math.abs((w / h) / (dw / dh) - 1) > 0.04) return true;
+    return k > 1.25 || k < 0.8 || performance.now() - this.resizedAt > 250;
+  }
+
   private resize() {
     this.resizePending = false;
     this.stage.resize();
     this.fx.resize();
+    for (const f of this.resizeFns) f();
   }
 }

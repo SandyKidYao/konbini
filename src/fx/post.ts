@@ -110,14 +110,19 @@ export class Post {
     this.gtao.output = GTAOPass.OUTPUT.Default;
     this.gtao.updateGtaoMaterial({ radius: 0.9, distanceExponent: 1.6, thickness: 1.4, scale: 1.0, samples: 16, distanceFallOff: 1.0 });
     this.composer.addPass(new SceneAoPass(scene, camera, this.gtao, s.x, s.y));
-    this.composer.setSize(innerWidth, innerHeight);
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.2, 0.4, 0.9);
+    // the canvas's own size: the desk can draw the model smaller than its window
+    const css = renderer.getSize(new THREE.Vector2());
+    this.composer.setSize(css.x, css.y);
+    this.bloom = new UnrealBloomPass(css, 0.2, 0.4, 0.9);
     if (transparent) { carryBloomAlpha(this.bloom); unpremultiplyOutput(this.output); }
     for (let i = 0; i < 2; i++) for (const axis of ['h', 'v'] as const) this.tilt.push({ pass: new ShaderPass(tiltShader), axis });
     this.grade = new ShaderPass(gradeShader);
     this.rebuild();
     this.setTexel();
   }
+
+  /** The miniature depth of field: off, its passes are skipped altogether. */
+  set tiltShift(on: boolean) { for (const p of this.tilt) p.pass.enabled = on; }
 
   /** Insert a mod's pass. order: 0–100 runs between bloom and tilt-shift (default 50). */
   addPass(pass: Pass, order = 50) {
@@ -157,7 +162,8 @@ export class Post {
 
   resize() {
     this.composer.setPixelRatio(this.renderer.getPixelRatio());
-    this.composer.setSize(innerWidth, innerHeight);
+    const css = this.renderer.getSize(new THREE.Vector2());
+    this.composer.setSize(css.x, css.y);
     this.setTexel();
   }
 

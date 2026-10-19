@@ -1,13 +1,20 @@
 // DOM controls. The page is the model: everything else hides until the pointer moves, and speaks in glyphs
 // (resting the pointer on one shows its name).
 //   bar:  the settings button
-//   tray: view presets and the map form, weather keys, time-of-day track, date, live mode, turntable, sound, mods list
+//   tray: view presets and the map form, size (down into the map), weather keys, time-of-day track, date, live mode,
+//         turntable, sound, mods list
 import type { App } from '../engine/app';
+import type { CameraPose } from '../engine/stage';
 import { formatHour, WEATHER_KINDS, WEATHER_LABEL, type WeatherKind } from '../engine/atmosphere';
 import type { LiveSync, LiveStatus } from '../engine/live';
 import { initDatePicker } from './date-picker';
+import type { MapView } from './map';
+import { initMorph } from './morph';
+import { PET_TILE_MAX, PLAN_TOP, SIZE_MAX, formOf, keepSizes, modelZoom, share, tileWidth, webTileMax, type Form, type Sizes } from './size';
 import { initTips } from './tips';
-import { VIEWS, findView, viewPose, type ViewPreset } from './views';
+import { VIEWS, findView, fitView, modelSpan, viewPose, type ViewPreset } from './views';
+
+export type { Form } from './size';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -32,17 +39,27 @@ const GAP = 10, EDGE = 8;
 export interface HudOptions {
   /** desktop pet: the controls come out on a double-click, and the overview shows the whole model */
   pet?: boolean;
+  /** the size slider's start (size.ts: readSizes) */
+  sizes: Sizes;
+  map: MapView;
 }
 
-export type Form = 'model' | 'plan';
 const PLAN_ICON = '<rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M3.5 14h17M15 4.5v15"/><rect x="6.5" y="7.2" width="5.5" height="4" rx=".8"/>';
 
 /** What the desktop pet needs from the controls. */
 export interface HudActions {
-  /** the model or the map, as chosen in the tray (or the pet's menu) */
+  /** the model or the map, as chosen in the tray (or the pet's menu); it shows once a change under way is done */
   readonly form: Form;
   setForm(form: Form): void;
   onForm(fn: (form: Form) => void): void;
+  /** the size slider: now, and the last size in each form */
+  readonly sizes: Readonly<Sizes>;
+  /** the model's size as shown: it glides after the slider's steps (and holds while the form changes) */
+  readonly shownModel: number;
+  /** the model is turning into the map, or back */
+  readonly morphing: boolean;
+  /** the settings tray is open */
+  readonly trayOpen: boolean;
   /** bring the controls out (they fade again once the pointer rests, unless a panel is open) */
   showChrome(): void;
   /** open the settings tray (from the shell's menu) */
@@ -51,7 +68,7 @@ export interface HudActions {
   layout(): void;
 }
 
-export function initHud(app: App, live: LiveSync, initialView: string | null, opts: HudOptions = {}): HudActions {
+export function initHud(app: App, live: LiveSync, initialView: string | null, opts: HudOptions): HudActions {
   const atm = app.atmosphere, stage = app.stage, controls = stage.controls, audio = app.audio;
   const body = document.body;
   const tick = () => audio.play('tick');
@@ -75,10 +92,15 @@ export function initHud(app: App, live: LiveSync, initialView: string | null, op
    * window (the desktop pet keeps it in a corner). Where the window is too short for that (a small desktop pet, a
    * phone on its side), a card opened from the tray is laid over the tray instead, and anything still too tall
    * scrolls. Returns whether the panel covers the one it was opened from.
+   *
+   * Which way the panels open is settled when the tray opens and kept until it closes: the desktop pet's window can
+   * grow round the settings (pet.ts), and the button, kept still on the screen, may then land in the other half of
+   * it — the tray must not flip over to the other side of the button, away from the pointer on its slider.
    */
+  let opensDown: boolean | null = null;
   const place = (panel: HTMLElement, under: HTMLElement, canCover: boolean) => {
     const u = under.getBoundingClientRect(), b = bar.getBoundingClientRect();
-    const down = b.top + b.height / 2 < innerHeight / 2;
+    const down = opensDown ??= b.top + b.height / 2 < innerHeight / 2;
     panel.style.maxHeight = '';
     const w = panel.offsetWidth, h = panel.offsetHeight;
     const cover = canCover && h > (down ? innerHeight - u.bottom - GAP - EDGE : u.top - GAP - EDGE);
@@ -99,12 +121,37 @@ export function initHud(app: App, live: LiveSync, initialView: string | null, op
   /** Lay out whatever is open: the tray next to the bar, the calendar or mods card beyond (or over) the tray. */
   const layout = () => {
     tray.classList.remove('covered');
-    if (tray.hidden) return;
+    if (tray.hidden) { opensDown = null; liftMap(); return; }
     place(tray, bar, false);
+    liftMap();   // (once the tray has its place)
     const card = !calPanel.hidden ? calPanel : !modsPanel.hidden ? modsPanel : null;
     if (card) tray.classList.toggle('covered', place(card, tray, true));
     tips.refresh();
   };
+
+  /**
+   * On the web the map sits in the middle of the page, where the open tray would cover its lower half — and the size
+   * slider is in the tray. While it is open the tile moves up out of its way, as far as there is room. (The desk
+   * already keeps the settings above the tile.)
+   */
+  const tile = opts.map.canvas.parentElement!;
+  let lift = 0;
+  /** animate: ease into place (the tray opening or closing); otherwise follow at once (the size changing under it) */
+  function liftMap(animate = true) {
+    if (opts.pet) return;
+    let want = 0;
+    // (and while the map is still on screen: it turns back into the model where it is)
+    if (!tray.hidden && (form === 'plan' || body.dataset.form === 'plan')) {
+      const t = tray.getBoundingClientRect(), m = tile.getBoundingClientRect();
+      want = Math.max(0, Math.min(m.bottom + lift - (t.top - GAP), m.top + lift - EDGE));
+    }
+    if (Math.abs(want - lift) < 0.5) return;
+    lift = want;
+    // (translate is the stylesheet's last transition: leaving it out of the list skips it, the rest keep theirs)
+    if (!animate) tile.style.transitionProperty = 'opacity, transform, visibility';
+    tile.style.setProperty('--lift', `${Math.round(want)}px`);
+    if (!animate) { tile.getBoundingClientRect(); tile.style.transitionProperty = ''; }
+  }
 
   const setMods = (open: boolean) => {
     if (open === !modsPanel.hidden) return;
@@ -183,39 +230,118 @@ export function initHud(app: App, live: LiveSync, initialView: string | null, op
     </button>`;
   const viewBtns = [...viewBox.querySelectorAll<HTMLButtonElement>('[data-view]')];
   const planBtn = $('planBtn');
+  const map = opts.map, sizes = opts.sizes;
   let view: ViewPreset | null = null;
   let form: Form = 'model';
   const formFns: ((f: Form) => void)[] = [];
   const markView = () => viewBtns.forEach((b) => b.setAttribute('aria-pressed', String(form === 'model' && b.dataset.view === view?.id)));
-  /** The map form stops drawing the model (the street lives on); a view preset brings the model back. */
-  const setForm = (f: Form) => {
+  const morph = initMorph(app, map);
+  /** the web's smallest model: about as wide as its largest map */
+  const minZoom = () => {
+    const [w, h] = stage.size;
+    return Math.max(0.15, Math.min(0.85, webTileMax(map.aspect) / modelSpan(fitView(VIEWS[0], w / h), w, h)));
+  };
+  const zoomFor = () => (opts.pet ? 1 : modelZoom(sizes.model, minZoom()));
+  /** Where the camera goes when the model comes back: the chosen view, or where it stood (and the size's zoom). */
+  const back = (): CameraPose => {
+    const [w, h] = stage.size;
+    const p = view ? viewPose(view, w, h, opts.pet) : morph.saved ?? viewPose(VIEWS[0], w, h, opts.pet);
+    return { ...p, zoom: zoomFor() };
+  };
+  /**
+   * The map form stops drawing the model (the street lives on); the size slider, the plan button or a view preset
+   * brings the model back. The form is the new one at once (the tray, the URL, the pet's window follow it); on screen
+   * it changes once the model has turned into the map (morph.ts).
+   */
+  const changeForm = (f: Form, instant = false) => {
     if (f === form) return;
     form = f;
-    app.form = f;
-    body.dataset.form = f;
     planBtn.setAttribute('aria-pressed', String(f === 'plan'));
     markView();
+    liftMap();
     syncUrl();
+    // the model comes back at the size it is going to (it glides only within the form)
+    if (f === 'model') shownModel = sizes.model;
     for (const fn of formFns) fn(f);
+    void morph.go(f, back, instant).then(() => {
+      if (form === 'model' && !morph.busy) controls.autoRotate = spinOn;
+    });
   };
+  /** Show a form at the size it was last left at. */
+  const setForm = (f: Form) => setSize(f === 'plan' ? sizes.plan : sizes.model);
   planBtn.addEventListener('click', () => { tick(); setForm(form === 'plan' ? 'model' : 'plan'); });
   const setView = (id: string, instant = false) => {
     const v = findView(id);
     if (!v) return;
     view = v;
-    setForm('model');
-    stage.flyTo(viewPose(v, innerWidth, innerHeight, opts.pet), instant || app.reducedMotion ? 0 : FLIGHT);
+    // from the map (or while it turns back into the model) the camera goes to the view once the model is back
+    if (form === 'plan' || morph.busy) setForm('model');
+    else stage.flyTo(viewPose(v, ...stage.size, opts.pet), instant || app.reducedMotion ? 0 : FLIGHT);
     markView();
     syncUrl();
   };
   viewBtns.forEach((b) => b.addEventListener('click', () => { tick(); setView(b.dataset.view!); }));
   // hand-turning the model leaves the preset
   controls.addEventListener('start', () => { if (view) { view = null; markView(); } });
-  addEventListener('resize', () => { if (view && !stage.flying) stage.flyTo(viewPose(view, innerWidth, innerHeight, opts.pet), 0); });
+  app.onResize(() => { if (view && form === 'model' && !morph.busy && !stage.flying) stage.flyTo(viewPose(view, ...stage.size, opts.pet), 0); });
   if (initialView && findView(initialView)) { view = findView(initialView)!; markView(); }
   body.dataset.form = form;
   // the map at first; the overview (where the camera stands) when the model comes back
-  if (initialView === 'plan') { view = VIEWS[0]; setForm('plan'); }
+  if (initialView === 'plan') view = VIEWS[0];
+
+  // ---------------------------------------------------------------- size: the map at the low end, the model above it
+  const sizeRange = $<HTMLInputElement>('sizeRange'), sizeKnob = $('sizeKnob');
+  /** the tile's width (the model's size glides after it, below) */
+  const applySize = () => {
+    map.setWidth(tileWidth(sizes.plan, opts.pet ? PET_TILE_MAX : webTileMax(map.aspect)));
+    liftMap(false);
+  };
+  /**
+   * The model's size follows the slider smoothly: a step of the slider is a jump of a few percent, and a drag is a
+   * run of them. Shown as the web's zoom; the desk sizes the model's canvas by it (pet.ts). It holds while the form
+   * changes, and while the camera comes down from overhead (that flight lands on the zoom of the size it set out
+   * for), then glides on to wherever the slider has gone since. A view preset's flight leaves the zoom to it.
+   */
+  let shownModel = sizes.model, lastGlide = performance.now();
+  const showZoom = () => {
+    if (opts.pet || form !== 'model' || morph.busy || stage.zooming) return;
+    const z = modelZoom(shownModel, minZoom());
+    if (z === stage.camera.zoom) return;
+    stage.camera.zoom = z;
+    stage.camera.updateProjectionMatrix();
+  };
+  app.onFrameUI(() => {
+    const now = performance.now(), dt = Math.min(0.1, (now - lastGlide) / 1000);
+    lastGlide = now;
+    if (shownModel === sizes.model || morph.busy || stage.zooming) return;
+    shownModel += (sizes.model - shownModel) * (app.reducedMotion ? 1 : 1 - Math.exp(-dt * 12));
+    if (Math.abs(sizes.model - shownModel) < 0.02) shownModel = sizes.model;
+    showZoom();
+  });
+  addEventListener('resize', showZoom);
+  const showSize = () => {
+    const v = sizes.value, f = formOf(v);
+    sizeRange.value = String(v);
+    sizeRange.setAttribute('aria-valuetext', `${f === 'plan' ? '俯视图' : '模型'} ${Math.round(share(v) * 100)}%`);
+    // the knob's middle travels as the input's own thumb does: a knob's width short of either end
+    const p = v / SIZE_MAX;
+    sizeKnob.style.left = `calc(${p * 100}% + ${(0.5 - p) * 18}px)`;
+    sizeKnob.classList.toggle('plan', f === 'plan');
+  };
+  /** A size from the slider (or a form button: the other form's last size). Past the map's top the form changes. */
+  function setSize(v: number, instant = false) {
+    v = Math.max(0, Math.min(SIZE_MAX, Math.round(v)));
+    sizes.value = v;
+    sizes[formOf(v)] = v;
+    showSize();
+    applySize();
+    changeForm(formOf(v), instant);
+  }
+  sizeRange.addEventListener('input', () => setSize(Number(sizeRange.value)));
+  sizeRange.addEventListener('change', () => { keepSizes(sizes); syncUrl(); });
+  addEventListener('resize', applySize);
+  setSize(sizes.value, true);
+  showZoom();
   const stepView = (n: number) => {
     const i = view ? VIEWS.indexOf(view) : -1;
     setView(VIEWS[(i + n + VIEWS.length) % VIEWS.length].id);
@@ -280,7 +406,7 @@ export function initHud(app: App, live: LiveSync, initialView: string | null, op
   setSpin(false);
   spinBtn.addEventListener('click', () => { tick(); setSpin(!spinOn); });
   controls.addEventListener('start', () => { clearTimeout(resume); controls.autoRotate = false; hideChrome(); });
-  controls.addEventListener('end', () => { clearTimeout(resume); resume = window.setTimeout(() => { if (spinOn) controls.autoRotate = true; }, 6000); });
+  controls.addEventListener('end', () => { clearTimeout(resume); resume = window.setTimeout(() => { if (spinOn && form === 'model' && !morph.busy) controls.autoRotate = true; }, 6000); });
 
   // ---------------------------------------------------------------- sound
   const soundBtn = $('soundBtn');
@@ -333,6 +459,10 @@ export function initHud(app: App, live: LiveSync, initialView: string | null, op
     get form() { return form; },
     setForm,
     onForm: (fn) => { formFns.push(fn); },
+    get sizes() { return sizes; },
+    get shownModel() { return shownModel; },
+    get morphing() { return morph.busy; },
+    get trayOpen() { return !tray.hidden; },
     showChrome,
     openTray: () => { showChrome(); setTray(true); },
     layout,
@@ -354,6 +484,9 @@ export function initHud(app: App, live: LiveSync, initialView: string | null, op
     if (form === 'plan') q.set('view', 'plan');
     else if (view) { q.set('view', view.id); q.delete('cam'); }
     else if (q.get('view') === 'plan') q.delete('view');
+    // a size only when it isn't the form's largest (the desk always says, its shell keeps it)
+    if (opts.pet || sizes.value !== (form === 'plan' ? PLAN_TOP : SIZE_MAX)) q.set('size', String(sizes.value));
+    else q.delete('size');
     history.replaceState(null, '', `?${q}`);
   }
 }

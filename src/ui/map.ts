@@ -15,6 +15,8 @@ type RGB = [number, number, number];
 /** at most this many pixels across (under one per metre on this block): coarse on purpose — a tile the size of a
  *  stamp still reads, because what moves is drawn larger than life, each kind in a single colour (below) */
 const ART_W = 49;
+/** ms the tile's size must rest before it snaps back to whole device pixels per art pixel */
+const SETTLE = 250;
 /** rows of walnut under the tile (the plinth's edge), and the pixels cut from each row at a corner */
 const EDGE = 2;
 const CORNER = [2, 1];
@@ -68,8 +70,16 @@ const css = (c: RGB, a = 1) => `rgba(${Math.round(c[0])},${Math.round(c[1])},${M
 
 export interface MapView {
   readonly canvas: HTMLCanvasElement;
+  /** the part of the world the tile shows */
+  readonly bounds: Rect;
+  /** the tile's width over its depth (without the walnut edge) */
+  readonly aspect: number;
   /** is the tile under this point (client coordinates)? */
   hit(x: number, y: number): boolean;
+  /** the tile's width on the page (px); it snaps to whole art pixels inside that */
+  setWidth(px: number): void;
+  /** Where the ground's art pixels are on the page: n × m of them over `rect` (the walnut edge below it left out). */
+  grid(): { n: number; m: number; rect: DOMRect } | null;
 }
 
 export function initMap(app: App, bounds: Rect): MapView {
@@ -90,16 +100,33 @@ export function initMap(app: App, bounds: Rect): MapView {
   box.style.setProperty('--map-aspect', String(W / D));
 
   /** art pixels: across, down the tile (without the walnut edge); and per metre */
-  let N = 0, M = 0, ppm = 1, boxW = 0;
+  let N = 0, M = 0, ppm = 1, boxW = 0, sizedAt = -Infinity, snapped = true;
   const fit = () => {
     const r = box.getBoundingClientRect();
     if (!r.width) return false;
-    if (r.width === boxW && N) return true;
+    const settling = performance.now() - sizedAt < SETTLE;
+    if (r.width === boxW && N && (snapped || settling)) return true;
     boxW = r.width;
-    const dpr = devicePixelRatio || 1;
-    // a whole number of device pixels per art pixel (at least two, so it reads as pixels), as many art pixels as fit
-    const k = Math.max(2, Math.ceil((r.width * dpr) / ART_W));
-    N = Math.max(28, Math.floor((r.width * dpr) / k / 7) * 7);
+    // while the size slider moves, the art stays as it is and scales smoothly with the box: snapping to whole pixels at
+    // every step would make it jump, and change its detail now and then; it snaps once the size rests
+    if (settling && N) {
+      canvas.style.width = `${r.width}px`;
+      canvas.style.height = `${(r.width * (M + EDGE)) / N}px`;
+      snapped = false;
+      return true;
+    }
+    snapped = true;
+    const dpr = devicePixelRatio || 1, dev = r.width * dpr;
+    // a whole number of device pixels per art pixel (at least two, so it reads as pixels), up to ART_W of them across,
+    // a multiple of 7: the such tile nearest the box's size (so it grows steadily with the box, and snapping when the
+    // slider rests hardly moves it)
+    let k = 2;
+    N = 28;
+    for (let n = Math.floor(ART_W / 7) * 7; n >= 35; n -= 7) {
+      for (const kk of [Math.max(2, Math.floor(dev / n)), Math.max(2, Math.ceil(dev / n))]) {
+        if (Math.abs(n * kk - dev) < Math.abs(N * k - dev)) { N = n; k = kk; }
+      }
+    }
     M = Math.round((N * D) / W);
     ppm = N / W;
     for (const c of [canvas, base]) { c.width = N; c.height = M + EDGE; }
@@ -257,7 +284,8 @@ export function initMap(app: App, bounds: Rect): MapView {
 
   // ---------------------------------------------------------------- one frame
   let last = performance.now();
-  const shown = () => document.body.dataset.form === 'plan';
+  // (and while the model turns into the map or back, see morph.ts)
+  const shown = () => document.body.dataset.form === 'plan' || !!document.body.dataset.morph;
   // under a roof people can't be seen — except in the shop (the site): the map looks in, so you can count the customers
   const underRoof = (x: number, z: number) => plan.shapes.some((s) => {
     if (!s.rect || (s.h ?? 0) < 2 || s.kind === 'site') return false;
@@ -423,6 +451,19 @@ export function initMap(app: App, bounds: Rect): MapView {
 
   return {
     canvas,
+    bounds,
+    aspect: W / D,
+    setWidth(px) {
+      const v = `${Math.round(px)}px`;
+      if (box.style.getPropertyValue('--map-w') === v) return;
+      if (N) sizedAt = performance.now();   // (the first size is drawn snapped straight away)
+      box.style.setProperty('--map-w', v);
+    },
+    grid() {
+      if (!fit()) return null;
+      const r = canvas.getBoundingClientRect();
+      return { n: N, m: M, rect: new DOMRect(r.left, r.top, r.width, (r.height * M) / (M + EDGE)) };
+    },
     hit(x, y) {
       if (!shown()) return false;
       const r = canvas.getBoundingClientRect();

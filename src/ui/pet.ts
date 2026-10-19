@@ -1,27 +1,31 @@
 // Desktop-pet mode (?pet=1, set by the Electron shell in desktop/): only the model — or the map — over a transparent
 // window. Nothing else shows: a double-click on the model (or the map) opens the web page's own settings panel, and
-// its close button (or Escape) puts it away. ⌥-drag on the model moves the window; the map moves with a plain drag.
-// The native menu (right-click, or the menu-bar icon) keeps what belongs to the window: form, size, floating,
-// icons, power saving. Everywhere the model, the map and the controls aren't, clicks fall through to the desktop.
+// its close button (or Escape) puts it away. ⌥-drag on the model or the map moves the window.
+// The native menu (right-click, or the menu-bar icon) keeps what belongs to the window: form, the sky behind the model,
+// floating, icons, power saving. Everywhere the model, the map and the controls aren't, clicks fall through to the desktop.
+//
+// The size is the settings' slider (size.ts), and the page sizes the window to it: a large model fills its window; a
+// small one, and the map, stand at the foot of a window tall enough for the settings above them. While the settings
+// are open (or the model is turning into the map) the window only grows, so the panel never moves under the pointer.
 import type { App } from '../engine/app';
 import type { Form, HudActions } from './hud';
 import type { MapView } from './map';
+import { petBox, type Sizes } from './size';
 import { PET_FADE } from './views';
 
-export type PetSize = 'small' | 'medium' | 'large';
-/** the map's width (px) at each of the shell's sizes */
-const MAP_SIZE: Record<PetSize, number> = { small: 120, medium: 160, large: 220 };
-
-/** What the shell's menu shows: the page's own settings. */
+/** What the shell's menu shows, and what it keeps in pet.json: the page's own settings. */
 export interface PetState {
   saver: boolean;
+  /** the sky behind the model (off: only the model, over the desk) */
+  sky: boolean;
   form: Form;
+  /** the size slider's step (size.ts) */
+  size: number;
 }
 
 export type PetAction =
-  | { type: 'settings' | 'saver' }
-  | { type: 'form'; value: Form }
-  | { type: 'size'; value: PetSize };
+  | { type: 'settings' | 'saver' | 'sky' }
+  | { type: 'form'; value: Form };
 
 /** Exposed by desktop/preload.cjs. */
 interface DesktopBridge {
@@ -29,41 +33,77 @@ interface DesktopBridge {
   drag(on: boolean): void;
   showMenu(): void;
   setState(state: PetState): void;
+  /** the window's size; the shell keeps its foot where it stands, and keeps it on the screen */
+  setWindow(width: number, height: number): void;
   onAction(fn: (a: PetAction) => void): void;
+  /** the cursor over the window, or null once it has left (older shells don't have it) */
+  onPointer?(fn: (p: { x: number; y: number } | null) => void): void;
 }
+
+/** the window of the map and of a small model: room for the settings above them */
+const SMALL_WINDOW: [number, number] = [380, 540];
+/** from this width the model fills its window (the settings hang over it from the top) */
+const FILL_W = 380;
+
+/** The window this size wants (the model's box, or the small window). */
+const windowFor = (form: Form, sizes: Sizes): [number, number] => {
+  const [w, h] = petBox(sizes.model);
+  return form === 'model' && w >= FILL_W ? [w, h] : [Math.max(SMALL_WINDOW[0], form === 'model' ? w : 0), SMALL_WINDOW[1]];
+};
+
+/**
+ * The largest window that keeps its foot where it is on the screen (bottom centre) and stays on it: a window that has
+ * to grow while held goes straight there (below), without moving anything.
+ */
+const roomAtFoot = (): [number, number] => {
+  const s = screen as Screen & { availLeft?: number; availTop?: number };
+  const left = s.availLeft ?? 0, top = s.availTop ?? 0;
+  const footX = screenX + innerWidth / 2, footY = screenY + innerHeight;
+  return [Math.floor(2 * Math.min(footX - left, left + s.availWidth - footX)), Math.floor(footY - top)];
+};
+
+/** Size the model's canvas (at the foot of the window) before the renderer first measures it. */
+export function preparePet(sizes: Sizes) {
+  document.body.classList.add('pet');
+  setBox(sizes.model);
+}
+/** the model's canvas at this (possibly in-between) size */
+const setBox = (model: number) => {
+  const [w, h] = petBox(model), s = document.body.style;
+  if (s.getPropertyValue('--pet-box-w') === `${w}px` && s.getPropertyValue('--pet-box-h') === `${h}px`) return;
+  s.setProperty('--pet-box-w', `${w}px`);
+  s.setProperty('--pet-box-h', `${h}px`);
+};
 
 // In a window this small the GPU has little to do; what's left is three.js's per-mesh cost, so the frame rate is the lever.
 const IDLE_FPS = 20;     // the street keeps living, gently
 const SAVER_FPS = 10;    // 省电: still moving, about a quarter less energy
 const ACTIVE_FPS = 60;   // while the pointer is on the model or the controls
 const LINGER = 1200;     // ms at full frame rate after the pointer leaves
-const DRAG_SLOP = 4;     // px the map must be dragged before the press moves the window
 /** below this opacity a faded bit of the model (at the soft edge, style.css) no longer catches the pointer */
 const FADE_HIT = 0.3;
 
-/** How opaque the edge mask leaves this point: 0 at the window's edge, eased up to 1 a band's width in. */
-function edgeAlpha(x: number, y: number) {
-  const band = Math.min(innerWidth, innerHeight) * PET_FADE;
-  const axis = (d: number) => (d >= band ? 1 : d < band / 2 ? (0.25 * d) / (band / 2) : 0.25 + (0.75 * (d - band / 2)) / (band / 2));
-  return axis(Math.min(x, innerWidth - x)) * axis(Math.min(y, innerHeight - y));
+/** How opaque the edge mask leaves this point of the model's canvas `r`: 0 at its edge, eased up to 1 a band's width in. */
+function edgeAlpha(r: DOMRect, x: number, y: number) {
+  const band = Math.min(r.width, r.height) * PET_FADE;
+  const axis = (d: number) => (d >= band ? 1 : d <= 0 ? 0 : d < band / 2 ? (0.25 * d) / (band / 2) : 0.25 + (0.75 * (d - band / 2)) / (band / 2));
+  return axis(Math.min(x - r.left, r.right - x)) * axis(Math.min(y - r.top, r.bottom - y));
 }
 
 export function initPet(app: App, hud: HudActions, map: MapView) {
   const bridge = (window as unknown as { konbiniDesktop?: DesktopBridge }).konbiniDesktop;
-  document.body.classList.add('pet');
+  const stageEl = app.stage.renderer.domElement;
   app.stage.controls.enablePan = false;  // the right button opens the menu instead
   app.fx.post.gtao.enabled = false;      // ambient occlusion barely shows at this size
-  const SAVER_KEY = 'konbini.pet.saver';
-  let saver = false;
-  try { saver = localStorage.getItem(SAVER_KEY) === '1'; } catch { /* storage unavailable */ }
+  app.fx.post.tiltShift = false;         // a model this small already reads as a miniature; blurred, it just looks soft
+  const SAVER_KEY = 'konbini.pet.saver', SKY_KEY = 'konbini.pet.sky';
+  let saver = false, sky = false;
+  try { saver = localStorage.getItem(SAVER_KEY) === '1'; sky = localStorage.getItem(SKY_KEY) === '1'; } catch { /* storage unavailable */ }
+  // some views look odd with the desk showing through where the sky would be (a busy wallpaper behind the street)
+  app.fx.sky = sky;
   const idleFps = () => (saver ? SAVER_FPS : IDLE_FPS);
   app.maxFps = idleFps();
 
-  const setMapSize = (size: string | null) => {
-    const w = MAP_SIZE[size as PetSize] ?? MAP_SIZE.medium;
-    document.body.style.setProperty('--pet-map', `${w}px`);
-  };
-  setMapSize(new URLSearchParams(location.search).get('size'));
 
   // --- hover: wake up (full frame rate) while the pointer is on the model or the controls ---
   let over = false, active = false, sleep = 0, dragging = false;
@@ -82,36 +122,50 @@ export function initPet(app: App, hud: HudActions, map: MapView) {
     setActive(on);
   };
 
-  // --- the cursor says when a drag would move the window: a grab hand over the model while ⌥ is held (over the map always,
-  // see style.css), a closed hand while it moves
+  // --- the cursor says when a drag would move the window: a grab hand over the model or the map while ⌥ is held, a
+  // closed hand while it moves
   let onShape = false, alt = false;
-  const showGrab = () => document.body.classList.toggle('pet-grab', alt && onShape && hud.form === 'model');
+  const showGrab = () => document.body.classList.toggle('pet-grab', alt && onShape);
   const onKey = (e: KeyboardEvent) => { if (e.key === 'Alt') { alt = e.type === 'keydown'; showGrab(); } };
   addEventListener('keydown', onKey);
   addEventListener('keyup', onKey);
-  addEventListener('blur', () => { alt = false; showGrab(); });
+  addEventListener('blur', () => { alt = false; pressed = false; showGrab(); });
 
-  // forwarded moves arrive even while the window lets clicks through; throttle the raycast
-  let last: PointerEvent | null = null, pending = false;
-  addEventListener('pointermove', (e) => {
-    last = e;
-    if (pending) return;
-    pending = true;
-    setTimeout(() => {
-      pending = false;
-      if (!last) return;
-      if (dragging || last.buttons) { setOver(true); return; }   // hold on to a drag that wanders off the model
-      // hidden controls are invisible to the pointer, so any control under it is one that's showing
-      const onChrome = !!(last.target as Element | null)?.closest?.('.chrome');
-      const onModel = !onChrome && (hud.form === 'plan' ? map.hit(last.clientX, last.clientY)
-        : edgeAlpha(last.clientX, last.clientY) > FADE_HIT && app.interact.modelAt(last.clientX, last.clientY));
-      setOver(onChrome || onModel);
-      onShape = onModel;
-      alt = last.altKey;
-      showGrab();
-    }, 50);
+  // Where the pointer is comes two ways: the page's own moves (forwarded by the shell even while clicks fall through,
+  // but only while the pet is the active app or floats above the others), and the shell's own watch on the cursor,
+  // which always works (main.js). Both feed one throttled check (it raycasts).
+  type Spot = { x: number; y: number; target: Element | null; buttons: number; altKey: boolean };
+  let last: Spot | null = null, pending = false, pressed = false;
+  const check = () => {
+    pending = false;
+    if (!last) return;
+    if (dragging || last.buttons) { setOver(true); return; }   // hold on to a drag that wanders off the model
+    // hidden controls are invisible to the pointer, so any control under it is one that's showing
+    const onChrome = !!last.target?.closest?.('.chrome');
+    // with the sky drawn the whole window is the picture, not just the model
+    const { x, y } = last;
+    const onModel = !onChrome && (document.body.dataset.form === 'plan' ? map.hit(x, y)
+      : edgeAlpha(stageEl.getBoundingClientRect(), x, y) > FADE_HIT && (sky || app.interact.modelAt(x, y)));
+    setOver(onChrome || onModel);
+    onShape = onModel;
+    alt = last.altKey;
+    showGrab();
+  };
+  const look = (spot: Spot) => {
+    last = spot;
+    if (!pending) { pending = true; setTimeout(check, 50); }
+  };
+  addEventListener('pointermove', (e) => look({ x: e.clientX, y: e.clientY, target: e.target as Element | null, buttons: e.buttons, altKey: e.altKey }));
+  // (a press under way is the page's own: the shell's watch knows nothing of buttons, and must not end an orbit)
+  addEventListener('pointerdown', () => { pressed = true; }, { capture: true });
+  addEventListener('pointerup', () => { pressed = false; }, { capture: true });
+  addEventListener('pointercancel', () => { pressed = false; }, { capture: true });
+  bridge?.onPointer?.((p) => {
+    if (pressed || dragging) return;
+    if (!p) { last = null; setOver(false); onShape = false; showGrab(); return; }
+    look({ x: p.x, y: p.y, target: document.elementFromPoint(p.x, p.y), buttons: 0, altKey: alt });
   });
-  document.documentElement.addEventListener('pointerleave', () => { last = null; if (!dragging) setOver(false); });
+  document.documentElement.addEventListener('pointerleave', () => { last = null; if (!dragging && !pressed) setOver(false); });
 
   // --- moving the window: the shell follows the cursor between drag(true) and drag(false) ---
   const startDrag = (e: PointerEvent, el: Element) => {
@@ -129,14 +183,7 @@ export function initPet(app: App, hud: HudActions, map: MapView) {
     el.addEventListener('pointerup', end);
     el.addEventListener('pointercancel', end);
   };
-  // the map has nothing to turn, so a drag on it moves the window
-  let press: { x: number; y: number; id: number } | null = null;
-  map.canvas.addEventListener('pointerdown', (e) => { if (e.button === 0) press = { x: e.clientX, y: e.clientY, id: e.pointerId }; });
-  map.canvas.addEventListener('pointermove', (e) => {
-    if (!press || dragging || e.pointerId !== press.id || Math.hypot(e.clientX - press.x, e.clientY - press.y) < DRAG_SLOP) return;
-    startDrag(e, map.canvas);
-  });
-  addEventListener('pointerup', () => { press = null; });
+  // the same gesture on the model and the map: a plain drag is left to the page (it turns the model)
   addEventListener('pointerdown', (e) => {
     if (e.button !== 0 || !e.altKey || !(e.target instanceof HTMLCanvasElement)) return;
     e.preventDefault();
@@ -153,39 +200,67 @@ export function initPet(app: App, hud: HudActions, map: MapView) {
     switch (a.type) {
       case 'settings': hud.openTray(); break;
       case 'form': hud.setForm(a.value); break;
-      case 'size': setMapSize(a.value); break;
       case 'saver':
         saver = !saver;
         try { localStorage.setItem(SAVER_KEY, saver ? '1' : '0'); } catch { /* storage unavailable */ }
         if (!active) app.maxFps = idleFps();
         break;
+      case 'sky':
+        sky = app.fx.sky = !sky;
+        try { localStorage.setItem(SKY_KEY, sky ? '1' : '0'); } catch { /* storage unavailable */ }
+        break;
     }
   });
 
-  // the settings button isn't shown on the desk, but the panel still opens from where it stands (see hud.ts: place):
-  // above the window's top edge, so the panel hangs from the top; in the map form on the tile's top edge, so the
-  // panel opens above the tile (the window is taller than the tile to leave it room)
-  const bar = document.querySelector<HTMLElement>('.bar')!;
-  let barAt = '';
-  app.onFrameUI(() => {
-    let at = '';
-    if (hud.form === 'plan') {
-      const r = map.canvas.getBoundingClientRect();
-      if (r.width) at = `${Math.round(r.top)} ${Math.round(r.left + r.width / 2)}`;
+  // --- the window follows the size: it only grows while the settings are open or the form is changing ---
+  let win: [number, number] = [0, 0];
+  const fitWindow = () => {
+    setBox(hud.shownModel);
+    // (big enough for the model as shown, too, while it glides to its size)
+    let want = windowFor(hud.form, { ...hud.sizes, model: Math.max(hud.sizes.model, hud.shownModel) });
+    if (hud.trayOpen || hud.morphing) {
+      // a window that grows a little at a time jumps at every step (the page catches up with it a frame late): once
+      // it has to grow at all, it grows as far as it can with its foot in place, in one go — the extra room is
+      // see-through. A size larger still has to move it (towards the whole screen): then once, straight to all of it.
+      if (want[0] > win[0] || want[1] > win[1]) {
+        const room = roomAtFoot();
+        const all: [number, number] = [screen.availWidth, screen.availHeight];
+        const to = want[0] > room[0] || want[1] > room[1] ? all : room;
+        want = [Math.max(want[0], win[0], to[0]), Math.max(want[1], win[1], to[1])];
+      } else want = [win[0], win[1]];
     }
+    if (want[0] === win[0] && want[1] === win[1]) return;
+    win = want;
+    bridge?.setWindow(...want);
+  };
+  fitWindow();   // now, before the scene loads: the window opens at its size
+  app.onFrameUI(fitWindow);
+
+  // the settings button isn't shown on the desk, but the panel still opens from where it stands (see hud.ts: place).
+  // Over a model that fills the window: above its top edge, so the panel hangs from the top; over a small model or the
+  // map: on its top edge, so the panel opens above it. Once open, the panel keeps its place on the screen while the
+  // size changes under it, and the window grows (or, towards the whole screen, moves): the spot is kept in screen
+  // coordinates — a slider sliding away under the pointer would change the size by itself.
+  const bar = document.querySelector<HTMLElement>('.bar')!;
+  let spot: [number, number] = [0, 0], barAt = '';
+  app.onFrameUI(() => {
+    // (kept up to date while the panel is closed, so it opens straight at the right place)
+    if (!hud.trayOpen) {
+      const plan = document.body.dataset.form === 'plan';
+      const r = (plan ? map.canvas : stageEl).getBoundingClientRect();
+      spot = [screenX + innerWidth / 2, screenY + (!plan && r.height >= innerHeight - 1 ? -50 : r.top)];
+    }
+    const at = `${Math.round(spot[0] - screenX)}px ${Math.round(spot[1] - screenY)}px`;
     if (at === barAt) return;
     barAt = at;
-    const [top, left] = at.split(' ');
-    bar.style.top = at ? `${top}px` : '';
-    bar.style.left = at ? `${left}px` : '';
-    bar.style.right = at ? 'auto' : '';
+    [bar.style.left, bar.style.top] = at.split(' ');
     hud.layout();
   });
 
   // keep the shell's copy of the state current, so the menu opens instantly with the right checks
   let sent = '';
   app.onFrameUI(() => {
-    const state: PetState = { saver, form: hud.form };
+    const state: PetState = { saver, sky, form: hud.form, size: hud.sizes.value };
     const key = JSON.stringify(state);
     if (key !== sent) { sent = key; bridge?.setState(state); }
   });
