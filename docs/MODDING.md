@@ -66,6 +66,14 @@ ctx.director.define({
 
 事件的 `weight` 和 `run` 还会收到 `day`（今天的日期，见下文），比如 `weight: ({ drivers, day }) => day.dayOff ? 0.6 : 0.3` 让周末和节假日更热闹。
 
+内置飞机事件提供 `events.aircraft` 服务，供脚本和调试使用（没有界面按钮）：
+
+- `send(1 | -1)`：请求往 +x 或 −x 飞越，成功返回 `true`；已有飞机或尾云、或当前不是适合飞行的白天晴／少云天气时返回 `false`
+- `flying`：只读布尔值，飞机是否正在飞越；`lingering`：只读布尔值，飞机或尾云是否仍在场
+- 自动事件的起飞间隔为 240–420 模拟秒，首次也等待这个间隔；飞越约 38 秒，每段尾云保留约 60 秒后完全消散，上一架飞机及其尾云清完前不会再次起飞。夜晚、阴雨雪雾天气暂停出现，条件恢复后重新尝试，不积攒航班
+
+运行 `npm run check:aircraft` 可检查调度、尾云生命周期、天气切换、俯视图同步和长期资源稳定性；截图回归为 `npm run build && npm run shots -- aircraft`。
+
 ## 车辆与道路
 
 车和人一样是按脚本行动的角色，引擎部分在 `src/engine/agents/vehicle.ts`：
@@ -82,7 +90,7 @@ ctx.director.define({
   - `pullIn(from, pose, { enter })`：沿 A 路开来、拐进 B 路，再车头朝前拐进 B 路西侧的车位（`pose` 是停好的位置，车头朝 −x）。拐下 A 路之前在路口边上等 `enter` 说可以（比如拿到车位前的锁），不会开到 B 路里再放弃
   - `backOut(pose, to, { ready, onRoad })`：从 B 路西侧的车位倒车出来开走：`'south'` 顺着 B 路开下去，`'east'` / `'west'` 倒进对面车道、开上路口转回 A 路。先等要倒过去的车道都有空当，再问 `ready`（比如拿锁），倒车期间其他车在车位两头停下等它
   - `intoLane(from, x)` / `alongLane()`：从 A 路拐进 B 路、再左转进店后的小巷，停在 x 处；之后顺着小巷往西开出模型（送货卡车用）
-  - `clip`：车身要用的裁切平面。用素材库造的车身带上它，还会在离模型边缘最后几米里整体淡出（开进来时淡入），到边缘时已经完全消失，不会露出被切开的截面。自己写车身时，实现 `VehicleBody.fade(presence)` 就能得到同样的效果，`presence` 由引擎每帧给出（0–1），交给 `ctx.kit.fader(root).set` 即可
+  - `clip`：车身要用的裁切平面。用素材库造的车身带上它，车身完整进入模型后约 0.8 秒内淡入，遇到红灯或排队停住也会继续变得清晰；驶离时在边缘前最后几米整体淡出，到边缘时已经完全消失，不会露出被切开的截面。自己写车身时，实现 `VehicleBody.fade(presence)` 就能得到同样的效果，`presence` 由引擎每帧给出（0–1），交给 `ctx.kit.fader(root).set` 即可
 - 世界模组 `konbini.world.railway` 提供服务 `world.railway`：`closed()` 踏切是不是关着（警报在响，或者栏杆还没完全抬起来），`z` 铁路中线，`crossing` 踏切的范围，`send(1 | -1)` 马上发一班车（往 +x 或 −x，没有车在跑的时候）。电车从 5:30 到 23:50 大约每两分钟一班，往返交替；行人走到踏切前、车开到停止线前都会看 `closed()`
 - 车身素材：`car`（形状见 `CAR_MODELS`：kei、hatch、sedan、minivan、taxi）、`truck`（`kei` 小货车、`box` 箱式送货车）、`bus`；都实现 `VehicleBody`，也可以自己做车身
 
@@ -169,6 +177,7 @@ ctx.plan.movers(() => robots.map((r) => ({ kind: 'vehicle', x: r.x, z: r.z, head
 - `color` 可以是函数，每帧读取（季节里变色的树）。不写就用这一类的默认颜色。夜晚、积雪、雨后路湿的效果由地图统一加上，形状只要给白天的颜色
 - `glow` 是一个发光通道名（`window`、`interior`、`sign`…）：通道亮起来时，形状在夜里泛暖光
 - 车和人在图上都画得比实际大，而且各用一种颜色（所有车一个颜色，所有人一个颜色），小图上一眼能分清。行人由引擎自动画上；道路模组把 `traffic.vehicles` 报告给了 `movers`
+- `movers` 返回的 `PlanMover.kind` 可以是 `vehicle`、`person`、`aircraft` 或 `contrail`；`heading` 为弧度，0 朝 +z、π/2 朝 +x，`len` / `width` 是米制尺寸，`opacity` 为可选的 0–1 可见度（默认 1，四种都按它绘制，`npm run check:plan-opacity` 检查车和人）。飞机以有机翼和尾翼的蓝色小图案画在地面对象之上，旁边带一块投在地上的淡影；尾云按小段登记，使用偏冷的浅色像素抖动，随 `opacity` 降低逐渐稀疏、淡去。在模型上，飞机像云一样往地面投下影子
 - 模组 `setup` 失败时，它加到俯视图上的东西会一并撤掉
 
 ## 静态合并（自动，不用声明）

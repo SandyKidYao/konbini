@@ -236,8 +236,9 @@ export interface VehicleOptions {
 }
 
 let nextId = 1;
-/** metres over which a vehicle fades out before the edge of the model (and in, after it) */
+/** Departures fade by distance; arrivals finish fading even if a light stops them near the edge. */
 const EDGE_FADE = 3;
+const FADE_IN = 0.8, EDGE_CLEARANCE = 0.2;
 const flat = (s: VehicleSteps): VehicleStep[] => (Array.isArray(s) ? s.flatMap(flat) : [s]);
 
 export class Vehicle {
@@ -268,6 +269,9 @@ export class Vehicle {
   private stuck = 0;
   ghost = 0;
   private y = 0;
+  private arrivalPresence = 0;
+  /** Actual path direction, retained while waiting too; reversing points the body the other way. */
+  private travelHeading = 0;
 
   constructor(readonly body: VehicleBody, private readonly traffic: Traffic, o: VehicleOptions = {}) {
     this.root = body.root;
@@ -278,20 +282,26 @@ export class Vehicle {
     if (o.at) this.place(o.at);
   }
 
+  /** Clearance of the whole footprint at each edge (west, east, north, south), including turns. */
+  private edgeClearances(): [number, number, number, number] {
+    const B = this.traffic.env.bounds, p = this.pose;
+    const fx = Math.abs(Math.sin(p.heading)), fz = Math.abs(Math.cos(p.heading));
+    const rx = fx * this.half + fz * this.halfWidth, rz = fz * this.half + fx * this.halfWidth;
+    return [p.x - rx - B.x0, B.x1 - p.x - rx, p.z - rz - B.z0, B.z1 - p.z - rz];
+  }
+
   /**
-   * How much of it shows, 0…1: full inside the model, fading over its last metres before the edge, and gone the
-   * moment any corner of it would cross — so a vehicle is never seen cut in two at the edge. (One value for the whole
-   * body: a fade that varied across it would let you see inside.)
+   * One fade for the whole body, so no clipped cross-section shows. Once fully inside, a red light or queue
+   * cannot freeze its arrival half-transparent. Only edges it is heading out towards apply the distance fade.
    */
   get presence() {
-    const B = this.traffic.env.bounds, p = this.pose;
-    const fx = Math.sin(p.heading), fz = Math.cos(p.heading);
-    let inside = Infinity;
-    for (const a of [-1, 1]) for (const b of [-1, 1]) {
-      const x = p.x + fx * this.half * a + fz * this.halfWidth * b, z = p.z + fz * this.half * a - fx * this.halfWidth * b;
-      inside = Math.min(inside, x - B.x0, B.x1 - x, z - B.z0, B.z1 - z);
-    }
-    return Math.min(1, Math.max(0, inside / EDGE_FADE));
+    const [west, east, north, south] = this.edgeClearances();
+    // Leave room for the inset clipping planes and small details outside the nominal body dimensions.
+    if (Math.min(west, east, north, south) <= EDGE_CLEARANCE) return 0;
+    const fx = Math.sin(this.travelHeading), fz = Math.cos(this.travelHeading);
+    const exit = Math.min(fx < -1e-4 ? west : fx > 1e-4 ? east : Infinity,
+      fz < -1e-4 ? north : fz > 1e-4 ? south : Infinity);
+    return Math.min(this.arrivalPresence, (exit - EDGE_CLEARANCE) / (EDGE_FADE - EDGE_CLEARANCE));
   }
 
   /** Has it got past the gate placed at `at` on its current leg (the same `at` the Gate was given)? The engine's own
@@ -303,6 +313,7 @@ export class Vehicle {
 
   place(p: Pose) {
     Object.assign(this.pose, p);
+    this.travelHeading = p.heading;
     this.y = this.traffic.env.surfaces.walkAt(p.x, p.z);
     this.apply(p.heading);
   }
@@ -381,6 +392,7 @@ export class Vehicle {
     this.s = ns;
     const moved = ns - s;
     const pose = P.at(ns, this.pose);
+    this.travelHeading = pose.heading;
     this.apply(o.reverse ? pose.heading + Math.PI : pose.heading);
     this.body.spin(o.reverse ? -moved : moved);
 
@@ -432,6 +444,8 @@ export class Vehicle {
     if (!this.engine) this.lamps.brake = false;
     this.lamps.flash = Math.max(0, this.lamps.flash - dt * 2.5);
     this.body.lamps?.(this.lamps, t);
+    this.arrivalPresence = Math.min(...this.edgeClearances()) > EDGE_CLEARANCE
+      ? Math.min(1, this.arrivalPresence + dt / FADE_IN) : 0;
     this.body.fade?.(this.presence);
   }
 

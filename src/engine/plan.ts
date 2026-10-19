@@ -1,6 +1,6 @@
 // The plan: the scene seen straight from above, as flat shapes — what the map form (ui/map.ts) draws, small
 // enough for a corner of the desk. Content adds its footprints as it builds them (roads, roofs, trees) and says
-// what moves (vehicles, people); the map reads it all every frame, so the street on the map is the same street.
+// what moves (vehicles, people, aircraft); the map reads it all every frame, so the street on the map is the same street.
 // Like everything a mod builds, the plan knows nothing about any particular scene.
 import type { Rect } from './surfaces';
 
@@ -38,16 +38,18 @@ export interface PlanMarker {
 
 /**
  * Something that moves, as the map draws it: heading 0 faces +z, π/2 faces +x (as everywhere in the scene). The
- * map draws every vehicle in one colour and every person in another — at the size of a stamp, more reads as noise.
+ * map gives each kind a simple silhouette and colour — at the size of a stamp, more reads as noise.
  */
 export interface PlanMover {
-  kind: 'vehicle' | 'person';
+  kind: 'vehicle' | 'person' | 'aircraft' | 'contrail';
   x: number;
   z: number;
   heading: number;
-  /** metres (a vehicle's footprint; a person is a dot) */
+  /** metres (footprint or contrail segment; a person is a dot) */
   len?: number;
   width?: number;
+  /** visibility from 0 to 1 (default 1); contrails also thin out as they fade */
+  opacity?: number;
 }
 
 export type PlanSource = () => Iterable<PlanMover>;

@@ -75,8 +75,8 @@ function fitWheels(s: Shell, xs: number[], width: number, r = 0.34) {
 }
 
 function finish(s: Shell, len: number, width: number, lamps: (l: Lamps, t: number) => void, wheels: ReturnType<typeof fitWheels>, extra?: (l: Lamps, t: number) => void): Car {
-  // a body that drives in and out of the model fades out before its edge and in after it (see Vehicle.presence), so it
-  // is never seen cut in two — a hollow body, a truck bed with its tailgate gone. Its materials are its own.
+  // Fade in once fully inside, even when stopped, and out by distance before leaving (see Vehicle.presence), so
+  // no hollow body or missing tailgate is exposed at the edge. Its materials are its own.
   const fade = s.clip ? fader(s.g, { own: true }) : null;
   return {
     root: s.g, wheels: wheels.wheels, len, width,

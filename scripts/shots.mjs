@@ -17,10 +17,22 @@ const out = `${root}tmp/shots`;
 // the overview camera (the default view); close-ups pass their own ?cam or ?view
 // behind the pet's transparent window: a wallpaper, so its soft edges show as they would on a real desk
 const DESK = `document.documentElement.style.background = 'linear-gradient(135deg, #2f3e5e, #7a6488 55%, #d9a487)'`;
+// Trigger through the event's public service, then freeze only simulation so the chosen phase is reproducible.
+const aircraftAt = (seconds, direction = 1) => `
+  if (!konbini.services.get('events.aircraft').send(${direction})) throw new Error('Aircraft did not start');
+  for (let i = 0; i < ${seconds * 20}; i++) konbini.simulate(0.05);
+  konbini.simulate = () => {};`;
 
 const SCENES = [
   { name: 'clear-day', q: 'weather=clear&time=1130' },
   { name: 'clear-dusk', q: 'weather=clear&time=1750' },
+  { name: 'aircraft-day', q: 'weather=clear&time=1430&date=2026-10-14', setup: aircraftAt(20), wait: 400 },
+  { name: 'aircraft-wake', q: 'weather=clear&time=1430&date=2026-10-14', setup: aircraftAt(55), wait: 400 },
+  { name: 'aircraft-dusk', q: 'weather=partly&time=1700&date=2026-10-14', setup: aircraftAt(20, -1), wait: 400 },
+  { name: 'aircraft-close', q: 'weather=clear&time=1430&date=2026-10-14&cam=12,27,30,0,18,8,30', setup: aircraftAt(20), wait: 400 },
+  { name: 'aircraft-plan', q: 'view=plan&weather=clear&time=1430&date=2026-10-14', setup: aircraftAt(20), wait: 400 },
+  { name: 'pet-aircraft', q: 'pet=1&weather=clear&time=1430&date=2026-10-14', viewport: { width: 560, height: 460 },
+    setup: `${DESK}; ${aircraftAt(20)}`, wait: 400 },
   { name: 'rain-night', q: 'weather=rain&time=2230&mods=mods/chochin.js' },
   { name: 'storm-night', q: 'weather=storm&time=2200' },
   { name: 'snow-day', q: 'weather=snow&time=1300' },
@@ -82,11 +94,21 @@ const SCENES = [
       konbini.stage.world.add(b.root);
       x += b.len / 2 + 0.8;
     }` },
+  // Entering just as the light turns red must not leave the hatch permanently half-transparent.
+  { name: 'vehicle-red-entry', q: 'weather=clear&time=1600&date=2026-10-14&cam=36,7,26,23.5,0.8,15,30&disable=konbini.events.traffic,konbini.events.parking,konbini.events.delivery,konbini.events.passersby,konbini.events.tourists,konbini.events.customer', wait: 400, setup: `
+    const roads = konbini.services.get('world.roads'), signals = konbini.services.get('world.signals');
+    signals.vehicle = signals.side = signals.ped = () => 'r';
+    const body = konbini.prefabs.create('car', { color: '#c3c8cd', len: 4, width: 1.66, clip: roads.clip });
+    const v = roads.spawn(body, 'east').then(roads.through('east', 'west'));
+    for (let i = 0; i < 400; i++) konbini.simulate(0.05);
+    if (v.v > 0.01 || v.presence < 0.999 || Math.abs(v.pose.x - 24.5) > 0.02) throw new Error('Red-light arrival did not finish fading in');
+    konbini.simulate = () => {};` },
   // a car about to leave over the east edge, the clock stopped: it is fading out (never seen cut in two at the edge)
   { name: 'vehicle-edge', q: 'weather=clear&time=1600&date=2026-10-14&warp=120&cam=38,6,22,25,0.8,12,30', wait: 800, setup: `(async () => {
     const t0 = performance.now();
     while (performance.now() - t0 < 90000) {
-      const v = konbini.services.get('world.roads').traffic.vehicles.find((v) => v.presence > 0.3 && v.presence < 0.7 && Math.sin(v.pose.heading) > 0.9);
+      const v = konbini.services.get('world.roads').traffic.vehicles.find((v) => v.presence > 0.3 && v.presence < 0.7
+        && v.pose.x > 20 && v.pose.z > 10 && v.pose.z < 17 && Math.sin(v.pose.heading) > 0.9 && !v.leg?.o.reverse);
       if (v) break;
       await new Promise((r) => requestAnimationFrame(r));
     }
@@ -99,7 +121,23 @@ const SCENES = [
   { name: 'lot-lunch', q: 'weather=clear&time=1215&date=2026-10-14&warp=150&cam=25,11,10,10,0,-1' },
   // the shop front from above: the car park, the plaza and the lane people walk in by
   { name: 'front-plan', q: 'weather=clear&time=1200&date=2026-10-17&warp=60&cam=0,70,1,0,0,0' },
-  { name: 'lot-delivery', q: 'weather=partly&time=1430&date=2026-10-14&warp=200&cam=-1,12,3,-10,0,-7' },
+  // Wait for the real delivery script to carry a crate through the yard opening, with the roof out of the way.
+  { name: 'lot-delivery', q: 'weather=partly&time=1430&date=2026-10-14&cam=-6,10,-12,-11,0,-4,52', wait: 400, setup: `
+    let courier, unloading = false;
+    const spawn = konbini.director.spawn.bind(konbini.director);
+    konbini.director.spawn = (body, options) => {
+      const actor = spawn(body, options);
+      if (options?.label === '送货员') courier = actor;
+      return actor;
+    };
+    try {
+      for (let i = 0; i < 12000; i++) {
+        konbini.simulate(0.05);
+        if (courier && courier.position.z > -5.3 && courier.position.z < -3.2) { unloading = true; break; }
+      }
+    } finally { konbini.director.spawn = spawn; }
+    if (!unloading) throw new Error('Delivery did not reach the yard opening');
+    konbini.simulate = () => {};` },
   // the camera presets (the overview is the default view, shot above)
   { name: 'view-facade', q: 'weather=clear&time=1600&date=2026-10-14&warp=60&view=facade' },
   { name: 'view-bird', q: 'weather=clear&time=1600&date=2026-10-14&warp=60&view=bird' },
