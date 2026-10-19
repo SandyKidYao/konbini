@@ -9,5 +9,6 @@ import railway from './railway';
 import coast from './coast';
 import backstreet from './backstreet';
 import westend from './westend';
+import house from './house';
 
-export const worldMods = [plinth, streets, furniture, neighborhood, nature, roads, railway, coast, backstreet, westend];
+export const worldMods = [plinth, streets, furniture, neighborhood, nature, roads, railway, coast, backstreet, westend, house];

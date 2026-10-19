@@ -6,7 +6,7 @@ import { mat, box, boxE, cyl, canvasTex, groundPlane, FONT_JP as JP, FONT_LATIN 
 import { materials, windowPane } from '../common/materials';
 import { sidingTex, aptTex, shutterTex, hedgeTex } from '../common/surfaces';
 import { shopSignTex } from '../common/signage';
-import { SHOP_ROW } from './layout';
+import { BLOCK, SHOP_ROW } from './layout';
 
 export default defineMod({
   id: 'konbini.world.neighborhood',
@@ -23,7 +23,7 @@ export default defineMod({
     };
     const S = ctx.surfaces;
     // on the map: the roofs as they look from above; lit windows glow at night
-    ctx.plan.add({ kind: 'green', rect: { x0: -28, x1: 28, z0: 19.6, z1: 20.6 }, color: '#86ad6a' });
+    ctx.plan.add({ kind: 'green', rect: { x0: BLOCK.x0, x1: BLOCK.x1, z0: 19.6, z1: 20.6 }, color: '#86ad6a' });
 
     // --- the row across road B: three narrow buildings, the coin parking and a bus stop ---
     {
@@ -127,11 +127,11 @@ export default defineMod({
     }
 
     // --- the far-side hedge ---
-    boxE(root, -28, 28, 0.06, 0.55, 19.3, 19.5, M.block, { uv: 0.8 });
+    boxE(root, BLOCK.x0, BLOCK.x1, 0.06, 0.55, 19.3, 19.5, M.block, { uv: 0.8 });
     {
       const hm = mat('#ffffff', { map: hedgeTex, roughness: 1 });
-      boxE(root, -28, 28, 0.06, 0.95, 19.6, 20.6, hm, { uv: 1.5, r: 0.2 });
-      for (let x = -27; x < 28; x += 1.3) {
+      boxE(root, BLOCK.x0, BLOCK.x1, 0.06, 0.95, 19.6, 20.6, hm, { uv: 1.5, r: 0.2 });
+      for (let x = BLOCK.x0 + 1; x < BLOCK.x1; x += 1.3) {
         const s = new THREE.Mesh(new THREE.SphereGeometry(rr(0.45, 0.62), 14, 10), hm);
         s.position.set(x + rr(-0.3, 0.3), 0.98, 20.1 + rr(-0.2, 0.2)); s.scale.y = 0.7; s.castShadow = true; root.add(s);
       }

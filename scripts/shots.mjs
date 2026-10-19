@@ -53,6 +53,8 @@ const SCENES = [
   { name: 'train-dusk', q: 'weather=partly&time=1800&date=2026-10-14&warp=60&cam=-4,5.5,-31,4,2,-18.6,38', wait: 400, setup: `
     konbini.services.get('world.railway').send(-1); for (let i = 0; i < 297; i++) konbini.simulate(0.05);` },
   // seasons and festivals (the close-ups look at the shop door, where the decorations go)
+  { name: 'west-house', q: 'weather=clear&time=1000&date=2026-05-10&cam=-20,8,22,-32,2,-1,40' },
+  { name: 'west-house-dusk', q: 'weather=partly&time=1830&date=2026-10-14&warp=60&cam=-22,10,-24,-31,1,-8,44' },
   { name: 'spring-bloom', q: 'weather=clear&time=1100&date=2026-04-03' },
   { name: 'summer-festival', q: 'weather=clear&time=1930&date=2026-08-08&warp=40' },
   { name: 'autumn-leaves', q: 'weather=partly&time=1500&date=2026-11-12' },

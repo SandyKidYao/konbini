@@ -1,17 +1,17 @@
 // Across the back lane from the shop, between it and the railway: 桜荘, a long two-storey timber apartment of the
 // Shōwa kind — an open gallery along the lane with a row of doors, washing on the rail, a steel stair at the end,
-// a tin roof — and, in the corner by the west tunnel, a small park: a big zelkova, a pine, a bench, a slide.
+// a tin roof — and, out to the west tunnel, a small park: a big zelkova, a pine, a bench, a slide, swings.
 // The apartment is the backdrop to the shop from the front; the train goes by behind it.
 import * as THREE from 'three';
 import { defineMod } from '../../engine/mod';
 import { mat, box, boxE, cyl, rod, V, canvasTex, FONT_JP as JP } from '../../engine/kit/build';
 import { materials, windowPane } from '../common/materials';
 import { plantTree } from '../common/trees';
-import { LANE, TRACK } from './layout';
+import { BLOCK, LANE, TRACK } from './layout';
 
 /** the apartment's body (its gallery runs out from z1 towards the lane) */
 export const SAKURASO = { x0: -10.6, x1: 10.2, z0: TRACK.z + TRACK.fence + 0.5, z1: TRACK.z + TRACK.fence + 4.3 };
-const PARK = { x0: -27.5, x1: -12.4, z0: TRACK.z + TRACK.fence + 1.3, z1: LANE.z0 - 0.5 };
+const PARK = { x0: BLOCK.x0 + 0.5, x1: -12.4, z0: TRACK.z + TRACK.fence + 1.3, z1: LANE.z0 - 0.5 };
 
 export default defineMod({
   id: 'konbini.world.backstreet',
@@ -121,6 +121,18 @@ export default defineMod({
       chute.position.set(-24.0, 0.85, z0 + 2.3); chute.rotation.x = 0.55; chute.castShadow = true; root.add(chute);
       boxE(root, -22.6, -20.8, 0.08, 0.25, z0 + 0.5, z0 + 2.1, mat('#bfb39a', { roughness: 0.9 }));
       boxE(root, -22.45, -20.95, 0.24, 0.26, z0 + 0.65, z0 + 1.95, mat('#e3d2a8', { roughness: 1 }), { cast: false, plain: true });
+      // swings past the grass: a steel A-frame either end, a bar across, two seats on chains
+      {
+        const frame = mat('#4f8fb8', { roughness: 0.5, metalness: 0.3 }), chain = mat('#9aa0a4', { metalness: 0.6, roughness: 0.4 });
+        const sx0 = -30.2, sx1 = -26.8, zc = (z0 + z1) / 2, TOP = 2.3;
+        for (const x of [sx0, sx1]) for (const dz of [-0.9, 0.9]) rod(root, V(x, 0.11, zc + dz), V(x, TOP, zc), 0.05, frame, 6);
+        rod(root, V(sx0, TOP, zc), V(sx1, TOP, zc), 0.06, frame, 8);
+        for (const x of [sx0 + 1.0, sx1 - 1.0]) {
+          for (const dx of [-0.25, 0.25]) rod(root, V(x + dx, TOP, zc), V(x + dx, 0.5, zc), 0.01, chain, 4, false);
+          boxE(root, x - 0.3, x + 0.3, 0.46, 0.52, zc - 0.12, zc + 0.12, yellow);
+        }
+        ctx.plan.add({ kind: 'paint', rect: { x0: sx0, x1: sx1, z0: zc - 0.06, z1: zc + 0.06 }, color: '#4f8fb8' });
+      }
     }
   },
 });

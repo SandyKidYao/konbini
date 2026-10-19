@@ -54,7 +54,9 @@ export interface RoadService {
   alongLane(): VehicleSteps;
 }
 
-const EDGE = 34;
+/** where vehicles come on and go off, a few metres out past each edge of the model (they fade at the edge itself) */
+const EDGE = { west: BLOCK.x0 - 6, east: BLOCK.x1 + 6 } as const;
+const edgeAt = (sx: number) => (sx < 0 ? EDGE.west : EDGE.east);
 /** the coast road's lanes: eastbound keeps left (the sea side) */
 const COAST_LANE = { east: COAST.z0 + 1.25, west: COAST.z1 - 1.25 } as const;
 /** where road B meets the coast road (its stop line), and the level crossing's deck */
@@ -231,10 +233,10 @@ export default defineMod({
 
     // ---------------------------------------------------------------- the ways through
     const starts: Record<RoadEnd, Pose> = {
-      west: { x: -EDGE, z: LANE.east, heading: R },
-      east: { x: EDGE, z: LANE.west, heading: -R },
-      'shore-west': { x: -EDGE, z: COAST_LANE.east, heading: R },
-      'shore-east': { x: EDGE, z: COAST_LANE.west, heading: -R },
+      west: { x: EDGE.west, z: LANE.east, heading: R },
+      east: { x: EDGE.east, z: LANE.west, heading: -R },
+      'shore-west': { x: EDGE.west, z: COAST_LANE.east, heading: R },
+      'shore-east': { x: EDGE.east, z: COAST_LANE.west, heading: -R },
     };
     const from = (e: RoadEnd) => { const s = starts[e]; return path(s.x, s.z, s.heading); };
     /** off road A at end `e` and round into road B, heading down it (−z) in the lane towards the sea */
@@ -243,21 +245,21 @@ export default defineMod({
       : from('east').speed(SPEED.a).line(21, LANE.west).curve(B.south, 10.1, Math.PI).speed(SPEED.b);
     /** on up road B (+z, the lane away from the sea), through the junction and off along road A towards `e` */
     const outOfB = (b: PathBuilder, e: 'west' | 'east') => e === 'east'
-      ? b.speed(SPEED.b).line(B.north, 8.9).curve(22, LANE.east, R).speed(SPEED.a).line(EDGE, LANE.east)
-      : b.speed(SPEED.b).line(B.north, 11.1).curve(15, LANE.west, -R).speed(SPEED.a).line(-EDGE, LANE.west);
+      ? b.speed(SPEED.b).line(B.north, 8.9).curve(22, LANE.east, R).speed(SPEED.a).line(EDGE.east, LANE.east)
+      : b.speed(SPEED.b).line(B.north, 11.1).curve(15, LANE.west, -R).speed(SPEED.a).line(EDGE.west, LANE.west);
     /** on down road B (heading −z in the lane towards the sea), over the crossing, and at the T left or right along the shore */
     const toShore = (b: PathBuilder, e: 'shore-west' | 'shore-east') => e === 'shore-west'
-      ? b.speed(SPEED.b).line(B.south, COAST_LANE.west + 3).speed(SPEED.turn).curve(B.south - 3, COAST_LANE.west, -R).speed(SPEED.a).line(-EDGE, COAST_LANE.west)
-      : b.speed(SPEED.b).line(B.south, COAST_LANE.east + 4.4).speed(SPEED.turn).curve(B.south + 4.4, COAST_LANE.east, R).speed(SPEED.a).line(EDGE, COAST_LANE.east);
+      ? b.speed(SPEED.b).line(B.south, COAST_LANE.west + 3).speed(SPEED.turn).curve(B.south - 3, COAST_LANE.west, -R).speed(SPEED.a).line(EDGE.west, COAST_LANE.west)
+      : b.speed(SPEED.b).line(B.south, COAST_LANE.east + 4.4).speed(SPEED.turn).curve(B.south + 4.4, COAST_LANE.east, R).speed(SPEED.a).line(EDGE.east, COAST_LANE.east);
     /** along the shore from end `e` and up road B (+z), over the crossing: a left turn from the east, a right turn from the west */
     const fromShore = (e: 'shore-west' | 'shore-east') => e === 'shore-east'
       ? from(e).speed(SPEED.a).line(B.north + 3, COAST_LANE.west).speed(SPEED.turn).curve(B.north, COAST_LANE.west + 3, 0).speed(SPEED.b)
       : from(e).speed(SPEED.a).line(B.north - 5, COAST_LANE.east).speed(SPEED.turn).curve(B.north, COAST_LANE.east + 5, 0).speed(SPEED.b);
     const ways = new Map<string, Path>([
-      ['west>east', from('west').speed(SPEED.a).line(EDGE, LANE.east).build()],
-      ['east>west', from('east').speed(SPEED.a).line(-EDGE, LANE.west).build()],
-      ['shore-west>shore-east', from('shore-west').speed(SPEED.a).line(EDGE, COAST_LANE.east).build()],
-      ['shore-east>shore-west', from('shore-east').speed(SPEED.a).line(-EDGE, COAST_LANE.west).build()],
+      ['west>east', from('west').speed(SPEED.a).line(EDGE.east, LANE.east).build()],
+      ['east>west', from('east').speed(SPEED.a).line(EDGE.west, LANE.west).build()],
+      ['shore-west>shore-east', from('shore-west').speed(SPEED.a).line(EDGE.east, COAST_LANE.east).build()],
+      ['shore-east>shore-west', from('shore-east').speed(SPEED.a).line(EDGE.west, COAST_LANE.west).build()],
     ]);
     for (const a of ['west', 'east'] as const) for (const b of ['shore-west', 'shore-east'] as const) {
       ways.set(`${a}>${b}`, toShore(intoB(a), b).build());
@@ -369,7 +371,7 @@ export default defineMod({
         const approach = from(e).speed(SPEED.a).line(decide + sx * 12, lane).speed(5).line(decide, lane).build();
         const b = path(decide, lane, -sx * R).speed(5).line(turnX, lane).speed(SPEED.turn).curve(to.x, to.z, to.heading, 0.4).speed(SPEED.lot);
         const turn = via(b, onward).build();
-        const onBy = path(decide, lane, -sx * R).speed(SPEED.a).line(-sx * EDGE, lane).build();
+        const onBy = path(decide, lane, -sx * R).speed(SPEED.a).line(edgeAt(-sx), lane).build();
         // turning right across the eastbound lane: only start if there is a clear gap now — never sit in the
         // road waiting for one (the queue behind would back up into the junction)
         const xc = crossing(turn, 13.9)?.x;
@@ -389,7 +391,7 @@ export default defineMod({
         const b = via(path(f.x, f.z, f.heading).speed(SPEED.lot), o.via ?? []);
         // facing the road: a quarter turn into the lane; facing along it: an S-bend over
         const end = b.end, L = Math.abs(Math.sin(end.heading)) < 0.5 ? Math.max(3, lane - end.z) : Math.max(7, (lane - end.z) * 1.45);
-        const p = b.speed(SPEED.turn).curve(end.x + sx * L, lane, sx * R, 0.4).speed(SPEED.a).line(sx * EDGE, lane).build();
+        const p = b.speed(SPEED.turn).curve(end.x + sx * L, lane, sx * R, 0.4).speed(SPEED.a).line(edgeAt(sx), lane).build();
         const mx = end.x + sx * L, xc = crossing(p, LANE.east, 1)?.x ?? end.x;
         // wait for a gap: room where it joins (or crosses) a lane, and nobody arriving there within a few
         // seconds. The longer the wait, the smaller the gap that will do. Then one last look at the kerb.
@@ -460,7 +462,7 @@ export default defineMod({
         return drive(p, { speed: SPEED.a, gates: gatesFor(p).filter((g) => !(Array.isArray(g.at) && g.at[1] === BACK_LANE.z1 + 0.3)) });
       },
       alongLane() {
-        return drive((v) => path(v.pose.x, v.pose.z, -R).speed(5).line(-EDGE, BACK_Z).build(), { speed: 5, through: true });
+        return drive((v) => path(v.pose.x, v.pose.z, -R).speed(5).line(EDGE.west, BACK_Z).build(), { speed: 5, through: true });
       },
     };
     ctx.services.provide<RoadService>('world.roads', service);

@@ -24,7 +24,7 @@ export interface Railway {
 /** where the crossing is along the track: road B with its sidewalks */
 const XING = { x0: 11.5, x1: 23 };
 /** the tunnels: how far in from each edge, and where the train is cut off out of sight inside them */
-const TUNNEL = 4, HIDE = BLOCK.x1 - 3.5;
+const TUNNEL = 4, HIDE = { west: BLOCK.x0 + 3.5, east: BLOCK.x1 - 3.5 };
 const CAR = 12, GAP = 0.6, TRAIN = CAR * 2 + GAP, SPEED = 7.5;
 /** seconds of warning before the train reaches the crossing; the arms start down after the first few */
 const WARN = 10, ARMS_AFTER = 3, ARM_TIME = 3.5;
@@ -42,8 +42,8 @@ export default defineMod({
     const BED = { x0: BLOCK.x0, x1: BLOCK.x1 };
     // the ballast, sleepers and rails stop a little way into each tunnel's darkness, out of sight (run on to the
     // edge, their ends would fight with the tunnel's)
-    const END = HIDE + 0.3;
-    const segs: [number, number][] = [[-END, XING.x0], [XING.x1, END]];
+    const END = { west: HIDE.west - 0.3, east: HIDE.east + 0.3 };
+    const segs: [number, number][] = [[END.west, XING.x0], [XING.x1, END.east]];
     const ballast = mat('#9a9286', { roughness: 1 }), sleeperM = mat('#6a5646', { roughness: 0.9 });
     const railM = mat('#a5abb1', { roughness: 0.35, metalness: 0.7 });
     for (const [a, b] of segs) {
@@ -54,7 +54,7 @@ export default defineMod({
     }
     {
       const xs: number[] = [];
-      for (let x = -END + 0.3; x < END; x += 0.62) if (x < XING.x0 - 0.1 || x > XING.x1 + 0.1) xs.push(x);
+      for (let x = END.west + 0.3; x < END.east; x += 0.62) if (x < XING.x0 - 0.1 || x > XING.x1 + 0.1) xs.push(x);
       const sl = new THREE.InstancedMesh(new THREE.BoxGeometry(0.22, 0.07, 2.1), sleeperM, xs.length);
       const m4 = new THREE.Matrix4();
       xs.forEach((x, i) => { m4.makeTranslation(x, 0.255, Z); sl.setMatrixAt(i, m4); });
@@ -112,7 +112,7 @@ export default defineMod({
       const concrete = mat('#bdb8ad', { roughness: 0.9 }), dark = mat('#141619', { roughness: 1 }), fill = mat('#a9a498', { roughness: 0.95 });
       const grass = M.grass, H = 5.9, W = 2.4;
       for (const side of [-1, 1]) {
-        const xo = side * BLOCK.x1, xi = side * (BLOCK.x1 - TUNNEL);
+        const xo = side < 0 ? BLOCK.x0 : BLOCK.x1, xi = xo - side * TUNNEL, hide = side < 0 ? HIDE.west : HIDE.east;
         const [a, b] = side < 0 ? [xo, xi] : [xi, xo];
         boxE(root, a, b, 0.06, H, Z - W - 0.6, Z - W, concrete);
         boxE(root, a, b, 0.06, H, Z + W, Z + W + 0.6, concrete);
@@ -127,7 +127,7 @@ export default defineMod({
         boxE(root, face[0], face[1], 4.9, H, Z - W - 0.6, Z + W + 0.6, concrete);
         // the darkness: a hair inside the walls and the roof, so where they meet it is the dark that shows
         const xe = xo - side * 0.3;
-        const inner = side < 0 ? [xe, HIDE * side] : [HIDE * side, xe];
+        const inner = side < 0 ? [xe, hide] : [hide, xe];
         boxE(root, inner[0], inner[1], 0.06, H - 0.51, Z - W + 0.01, Z + W - 0.01, dark, { cast: false, plain: true });
         boxE(root, side < 0 ? xe : xi, side < 0 ? xi : xe, 0.05, 0.06, Z - W, Z + W, dark, { cast: false, plain: true });
         boxE(root, Math.min(xo, xe), Math.max(xo, xe), 0, H - 0.5, Z - W, Z + W, fill, { cast: false });
@@ -210,7 +210,7 @@ export default defineMod({
     });
 
     // ---------------------------------------------------------------- the train
-    const clip = [new THREE.Plane(new THREE.Vector3(-1, 0, 0), HIDE), new THREE.Plane(new THREE.Vector3(1, 0, 0), HIDE)];
+    const clip = [new THREE.Plane(new THREE.Vector3(-1, 0, 0), HIDE.east), new THREE.Plane(new THREE.Vector3(1, 0, 0), -HIDE.west)];
     const TM = (color: string, o: THREE.MeshStandardMaterialParameters = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.45, ...o, clippingPlanes: clip, clipShadows: true });
     const cream = TM('#efe5c6'), green = TM('#2f6b47'), roofM = TM('#8c9092', { roughness: 0.6 }), under = TM('#2a2c2f', { roughness: 0.8 });
     // lit inside after dark, like the windows round about (not like the shop, which is bright all day)
@@ -221,7 +221,8 @@ export default defineMod({
     const dest = (text: string) => TM('#ffffff', { map: canvasTex(128, 32, (g, w, h) => { g.fillStyle = '#1e2a33'; g.fillRect(0, 0, w, h); g.fillStyle = '#f6efd8'; g.font = `700 22px ${JP}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, w / 2, h / 2 + 1); }), emissive: '#ffffff', emissiveIntensity: 0.25 });
     const train = new THREE.Group();
     train.userData.skyIgnore = true;
-    train.position.set(-BLOCK.x1 * 2, 0, Z);
+    const PARKED = BLOCK.x0 - TRAIN - 20;   // out of sight, west of the west tunnel
+    train.position.set(PARKED, 0, Z);
     root.add(train);
     const FLOOR = 0.95, TOP = 3.35;
     [-1, 1].forEach((side) => {
@@ -284,7 +285,7 @@ export default defineMod({
     let next = R(8, 30), lastDir: 1 | -1 = Math.random() < 0.5 ? 1 : -1;
     // it sets off out of sight, deep in the tunnel, far enough back that the whole warning — bell, then the arms —
     // runs before its nose reaches the crossing (the crossing is only a few metres from the east tunnel)
-    const LEAD = SPEED * WARN + 6, GONE = BLOCK.x1 + TRAIN / 2 + 6;
+    const LEAD = SPEED * WARN + 6, GONE = { west: BLOCK.x0 - TRAIN / 2 - 6, east: BLOCK.x1 + TRAIN / 2 + 6 };
     const send = (dir?: 1 | -1) => {
       if (running) return false;
       const d = dir ?? (lastDir = (lastDir * -1) as 1 | -1);
@@ -311,7 +312,7 @@ export default defineMod({
         const head = ctx.atmosphere.channel('head') * 1.6 + 0.4, lead = running.dir > 0 ? ends.east : ends.west, back = running.dir > 0 ? ends.west : ends.east;
         lead.head.emissiveIntensity = head; lead.tail.emissiveIntensity = 0;
         back.head.emissiveIntensity = 0; back.tail.emissiveIntensity = 1.2;
-        if (running.x * running.dir > GONE) { running = null; train.position.x = -BLOCK.x1 * 2; }
+        if (running.dir > 0 ? running.x > GONE.east : running.x < GONE.west) { running = null; train.position.x = PARKED; }
       }
       if (warn && !alarm) { alarm = true; ring = 0; }
       if (!warn && alarm) alarm = false;
