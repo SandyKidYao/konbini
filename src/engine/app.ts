@@ -279,8 +279,9 @@ export class App {
    * stretched; the same shape can, until it settles or strays too far from its pixels.
    */
   private resizeDue() {
+    // (the desk's model widens a little as it grows: a few percent off the drawn shape still stretches unnoticed)
     const [w, h] = this.stage.size, [dw, dh] = this.stage.drawnSize, k = w / dw;
-    if (Math.abs(w / h - dw / dh) > 0.01) return true;
+    if (Math.abs((w / h) / (dw / dh) - 1) > 0.04) return true;
     return k > 1.25 || k < 0.8 || performance.now() - this.resizedAt > 250;
   }
 

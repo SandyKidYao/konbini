@@ -5,7 +5,7 @@
 // The same slider on the web and on the desk, read differently:
 //   map    the tile's width (px), as on the desk: 120 up to what the page allows (web) or 220 (desk)
 //   model  on the web the camera's zoom, so the smallest model is about as wide as the largest map; on the desk the
-//          window's size, from about the largest map up to the old 大 (760 px)
+//          window's size, from about the largest map up to the whole screen (as a maximised window: the work area)
 
 export type Form = 'model' | 'plan';
 
@@ -33,14 +33,18 @@ export const webTileMax = (aspect: number) => Math.max(TILE_MIN, Math.min(392, i
 export const tileWidth = (v: number, max: number) => geo(TILE_MIN, max, share(v));
 
 // ---------------------------------------------------------------- the model on the desk: the window's size
-/** the model's window keeps the shape of the old sizes (400×330, 560×460, 760×625) */
-export const PET_ASPECT = 1.216;
-/** about the largest map once the soft edge is taken off; the old 大 */
-const BOX_MIN = 260, BOX_MAX = 760;
+/** the smallest: about the largest map, in the shape of the old sizes (400×330, 560×460, 760×625) */
+const BOX_MIN: [number, number] = [260, 214];
+/** the largest: the screen's work area (without the menu bar and the Dock), as a maximised window */
+const boxMax = (): [number, number] => [Math.max(BOX_MIN[0] + 1, screen.availWidth), Math.max(BOX_MIN[1] + 1, screen.availHeight)];
+/** The model's window at this size: width and height each from the smallest to the screen's (so it widens a little on
+ *  its way up, from the old sizes' shape to the screen's). */
 export const petBox = (v: number): [number, number] => {
-  const w = Math.round(geo(BOX_MIN, BOX_MAX, share(v)));
-  return [w, Math.round(w / PET_ASPECT)];
+  const t = share(v), max = boxMax();
+  return [Math.round(geo(BOX_MIN[0], max[0], t)), Math.round(geo(BOX_MIN[1], max[1], t))];
 };
+/** the slider's model step whose window is this wide */
+const petStep = (width: number) => fromShare('model', geoInv(BOX_MIN[0], boxMax()[0], width));
 
 // ---------------------------------------------------------------- the model on the web: the camera's zoom
 export const modelZoom = (v: number, min: number) => geo(min, 1, share(v));
@@ -50,8 +54,8 @@ export const modelZoom = (v: number, min: number) => geo(min, 1, share(v));
 export interface Sizes { value: number; model: number; plan: number }
 
 const KEY = 'konbini.size';
-/** the desk's old sizes (pet.json's `size` before the slider): 小 / 中 / 大 in each form */
-const LEGACY = { small: [400, TILE_MIN], medium: [560, 160], large: [BOX_MAX, PET_TILE_MAX] } as const;
+/** the desk's old sizes (pet.json's `size` before the slider): 小 / 中 / 大 in each form (window width, map width) */
+const LEGACY = { small: [400, TILE_MIN], medium: [560, 160], large: [760, PET_TILE_MAX] } as const;
 
 /**
  * Sizes at start: the current one from ?size= (a step, or the desk's old small / medium / large), in the form ?view=
@@ -60,7 +64,7 @@ const LEGACY = { small: [400, TILE_MIN], medium: [560, 160], large: [BOX_MAX, PE
  */
 export function readSizes(q: URLSearchParams, pet: boolean): Sizes {
   const plan = q.get('view') === 'plan';
-  const s: Sizes = { value: 0, model: pet ? fromShare('model', geoInv(BOX_MIN, BOX_MAX, LEGACY.medium[0])) : SIZE_MAX, plan: PLAN_TOP };
+  const s: Sizes = { value: 0, model: pet ? petStep(LEGACY.medium[0]) : SIZE_MAX, plan: PLAN_TOP };
   try {
     const kept = JSON.parse(localStorage.getItem(KEY) ?? '{}') as Partial<Sizes>;
     if (Number.isFinite(kept.model) && formOf(kept.model!) === 'model') s.model = kept.model!;
@@ -71,7 +75,7 @@ export function readSizes(q: URLSearchParams, pet: boolean): Sizes {
   if (Object.hasOwn(LEGACY, p)) {
     const [box, tile] = LEGACY[p as keyof typeof LEGACY];
     if (plan) s.plan = fromShare('plan', geoInv(TILE_MIN, PET_TILE_MAX, tile));
-    else s.model = fromShare('model', geoInv(BOX_MIN, BOX_MAX, box));
+    else s.model = petStep(box);
   } else if (p && Number.isInteger(n) && n >= 0 && n <= SIZE_MAX && (formOf(n) === 'plan') === plan) {
     s[formOf(n)] = n;
   }

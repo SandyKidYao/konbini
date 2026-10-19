@@ -117,11 +117,22 @@ function setLayer(layer) {
   savePrefs();
 }
 
-/** Change size around the bottom centre, so the model stays where it stands on the desk. */
+/** where the window's foot belongs while the screen's edge holds the window elsewhere (null: where it is) */
+let home = null;
+
+/**
+ * Change size around the bottom centre, so the model stays where it stands on the desk. A window too big to stand
+ * there is moved onto the screen (as far as the whole screen, at the slider's top); once it is small enough again it
+ * goes back to where it stood.
+ */
 function setWindowSize(w, h) {
   const [x, y] = win.getPosition(), [w0, h0] = win.getSize();
+  const foot = home ?? [x + w0 / 2, y + h0];
+  const want = { x: Math.round(foot[0] - w / 2), y: Math.round(foot[1] - h), width: w, height: h };
+  const b = onScreen(want);
+  home = b.x !== want.x || b.y !== want.y ? foot : null;
   [prefs.w, prefs.h] = [w, h];
-  if (w !== w0 || h !== h0) win.setBounds(onScreen({ x: Math.round(x + (w0 - w) / 2), y: y + h0 - h, width: w, height: h }));
+  if (w !== w0 || h !== h0 || b.x !== x || b.y !== y) win.setBounds(b);
   savePosition();
 }
 
@@ -164,6 +175,7 @@ ipcMain.on('pet:window', (_e, w, h) => {
 });
 ipcMain.on('pet:menu', () => buildMenu().popup({ window: win }));
 ipcMain.on('pet:drag', (_e, on) => {
+  home = null;   // moved by hand: where it stands now is its place
   clearInterval(dragTimer);
   dragTimer = null;
   if (!on) { savePosition(); return; }

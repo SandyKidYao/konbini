@@ -10,7 +10,7 @@
 import type { App } from '../engine/app';
 import type { Form, HudActions } from './hud';
 import type { MapView } from './map';
-import { SIZE_MAX, petBox, type Sizes } from './size';
+import { petBox, type Sizes } from './size';
 import { PET_FADE } from './views';
 
 /** What the shell's menu shows, and what it keeps in pet.json: the page's own settings. */
@@ -51,8 +51,16 @@ const windowFor = (form: Form, sizes: Sizes): [number, number] => {
   return form === 'model' && w >= FILL_W ? [w, h] : [Math.max(SMALL_WINDOW[0], form === 'model' ? w : 0), SMALL_WINDOW[1]];
 };
 
-/** the largest window any size asks for: a window that has to grow while held goes straight there (below) */
-const LARGEST: [number, number] = [Math.max(petBox(SIZE_MAX)[0], SMALL_WINDOW[0]), Math.max(petBox(SIZE_MAX)[1], SMALL_WINDOW[1])];
+/**
+ * The largest window that keeps its foot where it is on the screen (bottom centre) and stays on it: a window that has
+ * to grow while held goes straight there (below), without moving anything.
+ */
+const roomAtFoot = (): [number, number] => {
+  const s = screen as Screen & { availLeft?: number; availTop?: number };
+  const left = s.availLeft ?? 0, top = s.availTop ?? 0;
+  const footX = screenX + innerWidth / 2, footY = screenY + innerHeight;
+  return [Math.floor(2 * Math.min(footX - left, left + s.availWidth - footX)), Math.floor(footY - top)];
+};
 
 /** Size the model's canvas (at the foot of the window) before the renderer first measures it. */
 export function preparePet(sizes: Sizes) {
@@ -212,9 +220,14 @@ export function initPet(app: App, hud: HudActions, map: MapView) {
     let want = windowFor(hud.form, { ...hud.sizes, model: Math.max(hud.sizes.model, hud.shownModel) });
     if (hud.trayOpen || hud.morphing) {
       // a window that grows a little at a time jumps at every step (the page catches up with it a frame late): once
-      // it has to grow at all, it grows to the largest it could need, in one go — the extra room is see-through
-      if (want[0] > win[0] || want[1] > win[1]) want = [Math.max(win[0], LARGEST[0]), Math.max(win[1], LARGEST[1])];
-      else want = [win[0], win[1]];
+      // it has to grow at all, it grows as far as it can with its foot in place, in one go — the extra room is
+      // see-through. A size larger still has to move it (towards the whole screen): then once, straight to all of it.
+      if (want[0] > win[0] || want[1] > win[1]) {
+        const room = roomAtFoot();
+        const all: [number, number] = [screen.availWidth, screen.availHeight];
+        const to = want[0] > room[0] || want[1] > room[1] ? all : room;
+        want = [Math.max(want[0], win[0], to[0]), Math.max(want[1], win[1], to[1])];
+      } else want = [win[0], win[1]];
     }
     if (want[0] === win[0] && want[1] === win[1]) return;
     win = want;
@@ -226,20 +239,21 @@ export function initPet(app: App, hud: HudActions, map: MapView) {
   // the settings button isn't shown on the desk, but the panel still opens from where it stands (see hud.ts: place).
   // Over a model that fills the window: above its top edge, so the panel hangs from the top; over a small model or the
   // map: on its top edge, so the panel opens above it. Once open, the panel keeps its place on the screen while the
-  // size changes under it: the window grows from its foot, so the spot is kept as a distance from the bottom.
+  // size changes under it, and the window grows (or, towards the whole screen, moves): the spot is kept in screen
+  // coordinates — a slider sliding away under the pointer would change the size by itself.
   const bar = document.querySelector<HTMLElement>('.bar')!;
-  let fromBottom = 0, barAt = '';
+  let spot: [number, number] = [0, 0], barAt = '';
   app.onFrameUI(() => {
     // (kept up to date while the panel is closed, so it opens straight at the right place)
     if (!hud.trayOpen) {
       const plan = document.body.dataset.form === 'plan';
       const r = (plan ? map.canvas : stageEl).getBoundingClientRect();
-      fromBottom = !plan && r.height >= innerHeight - 1 ? innerHeight + 50 : innerHeight - r.top;
+      spot = [screenX + innerWidth / 2, screenY + (!plan && r.height >= innerHeight - 1 ? -50 : r.top)];
     }
-    const at = `${Math.round(innerHeight - fromBottom)}px`;
+    const at = `${Math.round(spot[0] - screenX)}px ${Math.round(spot[1] - screenY)}px`;
     if (at === barAt) return;
     barAt = at;
-    bar.style.top = at;
+    [bar.style.left, bar.style.top] = at.split(' ');
     hud.layout();
   });
 
