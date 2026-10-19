@@ -2,7 +2,7 @@
   "name": "konbini",
   "productName": "Konbini",
   "private": true,
-  "version": "0.5.3",
+  "version": "0.5.4",
   "type": "module",
   "main": "desktop/main.js",
   "scripts": {
