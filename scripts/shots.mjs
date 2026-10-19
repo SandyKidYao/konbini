@@ -99,7 +99,23 @@ const SCENES = [
   { name: 'lot-lunch', q: 'weather=clear&time=1215&date=2026-10-14&warp=150&cam=25,11,10,10,0,-1' },
   // the shop front from above: the car park, the plaza and the lane people walk in by
   { name: 'front-plan', q: 'weather=clear&time=1200&date=2026-10-17&warp=60&cam=0,70,1,0,0,0' },
-  { name: 'lot-delivery', q: 'weather=partly&time=1430&date=2026-10-14&warp=200&cam=-1,12,3,-10,0,-7' },
+  // Wait for the real delivery script to carry a crate through the yard opening, with the roof out of the way.
+  { name: 'lot-delivery', q: 'weather=partly&time=1430&date=2026-10-14&cam=-6,10,-12,-11,0,-4,52', wait: 400, setup: `
+    let courier, unloading = false;
+    const spawn = konbini.director.spawn.bind(konbini.director);
+    konbini.director.spawn = (body, options) => {
+      const actor = spawn(body, options);
+      if (options?.label === '送货员') courier = actor;
+      return actor;
+    };
+    try {
+      for (let i = 0; i < 12000; i++) {
+        konbini.simulate(0.05);
+        if (courier && courier.position.z > -5.3 && courier.position.z < -3.2) { unloading = true; break; }
+      }
+    } finally { konbini.director.spawn = spawn; }
+    if (!unloading) throw new Error('Delivery did not reach the yard opening');
+    konbini.simulate = () => {};` },
   // the camera presets (the overview is the default view, shot above)
   { name: 'view-facade', q: 'weather=clear&time=1600&date=2026-10-14&warp=60&view=facade' },
   { name: 'view-bird', q: 'weather=clear&time=1600&date=2026-10-14&warp=60&view=bird' },
