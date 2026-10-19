@@ -177,7 +177,7 @@ ctx.plan.movers(() => robots.map((r) => ({ kind: 'vehicle', x: r.x, z: r.z, head
 - `color` 可以是函数，每帧读取（季节里变色的树）。不写就用这一类的默认颜色。夜晚、积雪、雨后路湿的效果由地图统一加上，形状只要给白天的颜色
 - `glow` 是一个发光通道名（`window`、`interior`、`sign`…）：通道亮起来时，形状在夜里泛暖光
 - 车和人在图上都画得比实际大，而且各用一种颜色（所有车一个颜色，所有人一个颜色），小图上一眼能分清。行人由引擎自动画上；道路模组把 `traffic.vehicles` 报告给了 `movers`
-- `movers` 返回的 `PlanMover.kind` 可以是 `vehicle`、`person`、`aircraft` 或 `contrail`；`heading` 为弧度，0 朝 +z、π/2 朝 +x，`len` / `width` 是米制尺寸，`opacity` 为可选的 0–1 可见度（默认 1）。飞机以有机翼和尾翼的小图案画在地面对象之上；尾云按小段登记，使用浅色像素抖动，随 `opacity` 降低逐渐稀疏、淡去
+- `movers` 返回的 `PlanMover.kind` 可以是 `vehicle`、`person`、`aircraft` 或 `contrail`；`heading` 为弧度，0 朝 +z、π/2 朝 +x，`len` / `width` 是米制尺寸，`opacity` 为可选的 0–1 可见度（默认 1）。飞机以有机翼和尾翼的蓝色小图案画在地面对象之上，旁边带一块投在地上的淡影；尾云按小段登记，使用偏冷的浅色像素抖动，随 `opacity` 降低逐渐稀疏、淡去。在模型上，飞机像云一样往地面投下影子
 - 模组 `setup` 失败时，它加到俯视图上的东西会一并撤掉
 
 ## 静态合并（自动，不用声明）

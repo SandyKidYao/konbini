@@ -17,6 +17,8 @@ export interface AircraftService {
 const FLIGHT = 38, LINGER = 60, INTERVAL = [240, 420] as const;
 const SAMPLES = 77, STRANDS = 2, CROSS = 5;
 const SOFT_EDGE = [0, 0.6, 1, 0.6, 0] as const;
+/** model size over its 3.4 m drawing (large enough to read on the desk), and its engines' span either side */
+const SCALE = 1.2, ENGINE_X = 0.56;
 const clearSky = (d: Drivers) => d.daylight > 0.25 && d.cloud < 0.65 && d.rain < 0.1 && d.snow < 0.1 && d.fog < 0.2;
 
 export default defineMod({
@@ -31,15 +33,24 @@ export default defineMod({
     const plane = new THREE.Group();
     plane.name = 'aircraft';
     root.add(plane);
-    const white = mat('#f4f1e7', { roughness: 0.5 }), blue = mat('#436e91');
-    const glass = mat('#415969', { roughness: 0.3 });
-    const body = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 10), white);
-    body.scale.set(0.19, 0.18, 1.7);
+    // An airliner, not a jet fighter: a long even tube with a rounded nose and an upswept tail, a window line
+    // in the tail's blue along each side, and a modest fin.
+    const white = mat('#f4f1e7', { roughness: 0.5 }), blue = mat('#436e91'), grey = mat('#c9ccd0', { roughness: 0.6 });
+    const glass = mat('#2d3a46', { roughness: 0.3 });
+    const profile = [[0, -1.72], [0.05, -1.68], [0.1, -1.5], [0.17, -1.05], [0.2, -0.65], [0.2, 1.1], [0.185, 1.38],
+      [0.14, 1.58], [0.07, 1.69], [0, 1.72]].map(([r, z]) => new THREE.Vector2(r, z));
+    const body = new THREE.Mesh(new THREE.LatheGeometry(profile, 16), white);
+    body.rotation.x = Math.PI / 2;
+    body.scale.set(1, 1, 0.92);
     plane.add(body);
-    const cockpit = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), glass);
-    cockpit.scale.set(0.14, 0.09, 0.25);
-    cockpit.position.set(0, 0.12, 1.13);
-    plane.add(cockpit);
+    for (const x of [-1, 1]) {
+      const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.045, 1.7), blue);
+      stripe.position.set(x * 0.197, 0.035, 0.25);
+      const windshield = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.05, 0.13), glass);
+      windshield.position.set(x * 0.166, 0.07, 1.42);
+      windshield.rotation.y = -x * 0.2;
+      plane.add(stripe, windshield);
+    }
 
     // Extruded silhouettes retain a little thickness when seen from the low street cameras.
     function wing(points: [number, number][], material: THREE.Material, y = 0) {
@@ -53,23 +64,28 @@ export default defineMod({
       return mesh;
     }
     wing([[-0.16, 0.5], [-1.55, -0.45], [-1.5, -0.7], [-0.18, -0.3], [0.18, -0.3], [1.5, -0.7], [1.55, -0.45], [0.16, 0.5]], white);
-    wing([[-0.1, -0.92], [-0.7, -1.45], [-0.7, -1.6], [0.7, -1.6], [0.7, -1.45], [0.1, -0.92]], blue, 0.07);
-    const fin = wing([[0, -1.6], [0.65, -1.45], [0.65, -1.2], [0, -0.85]], blue);
+    wing([[-0.08, -1.12], [-0.6, -1.5], [-0.6, -1.62], [0.6, -1.62], [0.6, -1.5], [0.08, -1.12]], white, 0.05);
+    const fin = wing([[0, -1.66], [0.52, -1.62], [0.52, -1.44], [0, -1.02]], blue);
     fin.rotation.set(0, Math.PI / 2, Math.PI / 2);
-    for (const x of [-0.56, 0.56]) {
-      const engine = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.1, 0.55, 10), white);
+    for (const x of [-ENGINE_X, ENGINE_X]) {
+      const engine = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.09, 0.5, 12), grey);
       engine.rotation.x = Math.PI / 2;
-      engine.position.set(x, -0.16, 0.05);
+      engine.position.set(x, -0.16, 0.18);
       plane.add(engine);
     }
-    plane.traverse((o) => { o.userData.noSnow = true; o.userData.skyIgnore = true; });
+    plane.scale.setScalar(SCALE);
+    // It casts a shadow like the clouds do: the one cue at desk scale that it is high up, not on a roof.
+    plane.traverse((o) => { o.userData.noSnow = true; o.userData.skyIgnore = true; o.castShadow = o instanceof THREE.Mesh; });
     const fade = fader(plane, { own: true });
     fade.set(0);
     plane.visible = false;
 
-    // Each cross-section has soft edges through vertex alpha. No textures, particles or per-flight allocation.
+    // Each cross-section is a low half-tube with soft edges through vertex alpha: lit like the clouds, so it has a
+    // bright top and shaded flanks — a flat white ribbon vanishes against a pale sky. No textures, particles or
+    // per-flight allocation.
     const count = STRANDS * SAMPLES * CROSS;
     const positions = new THREE.Float32BufferAttribute(new Float32Array(count * 3), 3).setUsage(THREE.DynamicDrawUsage);
+    const normals = new THREE.Float32BufferAttribute(new Float32Array(count * 3), 3).setUsage(THREE.DynamicDrawUsage);
     const colors = new THREE.Float32BufferAttribute(new Float32Array(count * 4), 4).setUsage(THREE.DynamicDrawUsage);
     const indices: number[] = [];
     for (let side = 0; side < STRANDS; side++) for (let i = 0; i < SAMPLES - 1; i++) for (let j = 0; j < CROSS - 1; j++) {
@@ -77,9 +93,11 @@ export default defineMod({
       indices.push(a, b, a + 1, a + 1, b, b + 1);
     }
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', positions); geo.setAttribute('color', colors); geo.setIndex(indices);
-    const trailMat = new THREE.MeshBasicMaterial({ color: '#ffffff', vertexColors: true, transparent: true,
-      opacity: 0.65, side: THREE.DoubleSide, depthWrite: false });
+    geo.setAttribute('position', positions); geo.setAttribute('normal', normals); geo.setAttribute('color', colors);
+    geo.setIndex(indices);
+    const ARC = Array.from({ length: CROSS }, (_, j) => Math.PI * j / (CROSS - 1));
+    const trailMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 1, vertexColors: true, transparent: true,
+      opacity: 0.9, side: THREE.DoubleSide, depthWrite: false });
     const trail = new THREE.Mesh(geo, trailMat);
     trail.name = 'contrails';
     trail.frustumCulled = false;
@@ -127,7 +145,7 @@ export default defineMod({
         opacity: p.alpha * trailMat.opacity,
       };
       if (service.flying && presence > 0.02) yield { kind: 'aircraft', x: plane.position.x, z: plane.position.z,
-        heading, len: 3.4, width: 3.1, opacity: presence };
+        heading, len: 3.4 * SCALE, width: 3.1 * SCALE, opacity: presence };
     });
 
     ctx.onFrame((dt, _t, d) => {
@@ -153,25 +171,31 @@ export default defineMod({
       fade.set(presence);
       plane.visible = service.flying && presence > 0.01;
       trail.visible = visibility > 0.01;
+      // Lit for its shape, with a little glow of its own: the shaded side stays just darker than the sky, enough to
+      // outline it, never grey enough to read as one more overhead wire.
       trailMat.color.copy(ctx.atmosphere.look.cloudColor);
+      trailMat.emissive.copy(trailMat.color).multiplyScalar(0.3);
       for (let i = 0; i < SAMPLES; i++) {
         const born = i / (SAMPLES - 1) * FLIGHT, life = age - born;
         // Unborn samples collapse to the current exhaust, so no part of the wake can lead the plane.
         const emitted = Math.min(born, age), t = emitted / FLIGHT, drift = Math.max(0, life);
         const p = points[i];
-        p.x = lerp(start.x, end.x, t) - along.x * 0.5 + drift * (0.012 + wind * 0.035);
-        p.y = start.y - 0.12 + drift * 0.006;
-        p.z = lerp(start.z, end.z, t) - along.z * 0.5 + drift * (0.008 + wind * 0.018);
-        p.width = 0.11 + drift * (0.005 + wind * 0.004);
-        p.alpha = life < 0 ? 0 : envelope(t) * (1 - smoothstep(12, LINGER, life)) * visibility;
+        p.x = lerp(start.x, end.x, t) - along.x * 0.3 * SCALE + drift * (0.012 + wind * 0.035);
+        p.y = start.y - 0.2 * SCALE + drift * 0.006;
+        p.z = lerp(start.z, end.z, t) - along.z * 0.3 * SCALE + drift * (0.008 + wind * 0.018);
+        p.width = 0.22 + drift * (0.016 + wind * 0.01);
+        // Vapour condenses a little way behind the engines (about half a plane length), then thins as it spreads.
+        p.alpha = life < 0 ? 0 : envelope(t) * smoothstep(0, 1, life) * (1 - smoothstep(10, LINGER, life)) * visibility;
         for (let side = 0; side < STRANDS; side++) for (let j = 0; j < CROSS; j++) {
-          const offset = (side === 0 ? -0.56 : 0.56) + (j / (CROSS - 1) * 2 - 1) * p.width;
+          const c = Math.cos(ARC[j]), up = Math.sin(ARC[j]);
+          const offset = (side === 0 ? -ENGINE_X : ENGINE_X) * SCALE + c * p.width;
           const k = (side * SAMPLES + i) * CROSS + j;
-          positions.setXYZ(k, p.x + across.x * offset, p.y, p.z + across.z * offset);
+          positions.setXYZ(k, p.x + across.x * offset, p.y + up * p.width * 0.6, p.z + across.z * offset);
+          normals.setXYZ(k, across.x * c * 0.6, up, across.z * c * 0.6);
           colors.setXYZW(k, 1, 1, 1, p.alpha * SOFT_EDGE[j]);
         }
       }
-      positions.needsUpdate = colors.needsUpdate = true;
+      positions.needsUpdate = normals.needsUpdate = colors.needsUpdate = true;
     });
   },
 });
