@@ -104,8 +104,15 @@ function setSize(size) {
 
 function fitWindow() {
   const [x, y] = win.getPosition(), [w0, h0] = win.getSize(), [w, h] = windowSize();
-  if (w !== w0 || h !== h0) win.setBounds({ x: Math.round(x + (w0 - w) / 2), y: y + h0 - h, width: w, height: h });
+  if (w !== w0 || h !== h0) win.setBounds(onScreen({ x: Math.round(x + (w0 - w) / 2), y: y + h0 - h, width: w, height: h }));
   savePosition();
+}
+
+/** Bounds moved just far enough to lie inside the screen they are mostly on (growing near an edge would push past it). */
+function onScreen(b) {
+  const a = screen.getDisplayMatching(b).workArea;
+  const x = Math.max(a.x, Math.min(a.x + a.width - b.width, b.x)), y = Math.max(a.y, Math.min(a.y + a.height - b.height, b.y));
+  return { ...b, x, y };
 }
 
 // --- messages from the page (desktop/preload.cjs) ---
