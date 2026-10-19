@@ -78,6 +78,8 @@ export class App {
   private baseCtx: ModContext;
   private quality = { time: 0, frames: 0, drops: 0, slow: 0, calm: 0, window: 0, max: 1, blocked: new Map<number, number>(), failures: new Map<number, number>() };
   private resizePending = false;
+  /** when the canvas's container last changed size */
+  private resizedAt = 0;
   private owed = 0;
   private onFirstFrame: (() => void) | null = null;
   /** objects popped in and out by states.show: never batched (they scale and hide) */
@@ -107,7 +109,7 @@ export class App {
     // applied just before the next render: resizing clears the canvas, and a cleared canvas that gets shown
     // before it is drawn again flashes the page background. The container, not the window: on the desk the model
     // can change size inside a window that stays put
-    new ResizeObserver(() => { this.resizePending = true; }).observe(config.container);
+    new ResizeObserver(() => { this.resizePending = true; this.resizedAt = performance.now(); }).observe(config.container);
   }
 
   private contextFor(id: string, root: THREE.Group): ModContext {
@@ -223,7 +225,7 @@ export class App {
       for (const f of this.uiFns) f();
       if (this.form === 'model') {
         if (this.frame > 60) this.adaptQuality(dt);
-        if (this.resizePending) this.resize();
+        if (this.resizePending && this.resizeDue()) this.resize();
         this.batcher.update();
         this.fx.render();
         for (const f of this.renderedFns) f();
@@ -269,6 +271,17 @@ export class App {
       r.setPixelRatio(pr + 0.25);
       this.resizePending = true;
     }
+  }
+
+  /**
+   * Resize now, or let the browser stretch the last frame a little longer? Every resize reallocates the render targets
+   * (a hitch), and the desk's size slider changes the canvas every frame while it moves. A change of shape can't be
+   * stretched; the same shape can, until it settles or strays too far from its pixels.
+   */
+  private resizeDue() {
+    const [w, h] = this.stage.size, [dw, dh] = this.stage.drawnSize, k = w / dw;
+    if (Math.abs(w / h - dw / dh) > 0.01) return true;
+    return k > 1.25 || k < 0.8 || performance.now() - this.resizedAt > 250;
   }
 
   private resize() {

@@ -54,6 +54,8 @@ export interface HudActions {
   onForm(fn: (form: Form) => void): void;
   /** the size slider: now, and the last size in each form */
   readonly sizes: Readonly<Sizes>;
+  /** the model's size as shown: it glides after the slider's steps (and holds while the form changes) */
+  readonly shownModel: number;
   /** the model is turning into the map, or back */
   readonly morphing: boolean;
   /** the settings tray is open */
@@ -129,7 +131,8 @@ export function initHud(app: App, live: LiveSync, initialView: string | null, op
    */
   const tile = opts.map.canvas.parentElement!;
   let lift = 0;
-  function liftMap() {
+  /** animate: ease into place (the tray opening or closing); otherwise follow at once (the size changing under it) */
+  function liftMap(animate = true) {
     if (opts.pet) return;
     let want = 0;
     // (and while the map is still on screen: it turns back into the model where it is)
@@ -139,7 +142,10 @@ export function initHud(app: App, live: LiveSync, initialView: string | null, op
     }
     if (Math.abs(want - lift) < 0.5) return;
     lift = want;
+    // (translate is the stylesheet's last transition: leaving it out of the list skips it, the rest keep theirs)
+    if (!animate) tile.style.transitionProperty = 'opacity, transform, visibility';
     tile.style.setProperty('--lift', `${Math.round(want)}px`);
+    if (!animate) { tile.getBoundingClientRect(); tile.style.transitionProperty = ''; }
   }
 
   const setMods = (open: boolean) => {
@@ -250,6 +256,8 @@ export function initHud(app: App, live: LiveSync, initialView: string | null, op
     markView();
     liftMap();
     syncUrl();
+    // the model comes back at the size it is going to (it glides only within the form)
+    if (f === 'model') shownModel = sizes.model;
     for (const fn of formFns) fn(f);
     void morph.go(f, back, instant).then(() => {
       if (form === 'model' && !morph.busy) controls.autoRotate = spinOn;
@@ -279,15 +287,31 @@ export function initHud(app: App, live: LiveSync, initialView: string | null, op
 
   // ---------------------------------------------------------------- size: the map at the low end, the model above it
   const sizeRange = $<HTMLInputElement>('sizeRange'), sizeKnob = $('sizeKnob');
-  /** the tile's width, and on the web the model's zoom (the desk's window follows the sizes itself, pet.ts) */
+  /** the tile's width (the model's size glides after it, below) */
   const applySize = () => {
     map.setWidth(tileWidth(sizes.plan, opts.pet ? PET_TILE_MAX : webTileMax(map.aspect)));
-    liftMap();
-    if (!opts.pet && form === 'model' && !morph.busy && !stage.flying) {
-      stage.camera.zoom = zoomFor();
-      stage.camera.updateProjectionMatrix();
-    }
+    liftMap(false);
   };
+  /**
+   * The model's size follows the slider smoothly: a step of the slider is a jump of a few percent, and a drag is a
+   * run of them. Shown as the web's zoom; the desk sizes the model's canvas by it (pet.ts). It holds while the form
+   * changes: the overhead framing is worked out for the canvas as it is.
+   */
+  let shownModel = sizes.model, lastGlide = performance.now();
+  const showZoom = () => {
+    if (opts.pet || form !== 'model' || morph.busy || stage.flying) return;
+    stage.camera.zoom = modelZoom(shownModel, minZoom());
+    stage.camera.updateProjectionMatrix();
+  };
+  app.onFrameUI(() => {
+    const now = performance.now(), dt = Math.min(0.1, (now - lastGlide) / 1000);
+    lastGlide = now;
+    if (shownModel === sizes.model || morph.busy) return;
+    shownModel += (sizes.model - shownModel) * (app.reducedMotion ? 1 : 1 - Math.exp(-dt * 12));
+    if (Math.abs(sizes.model - shownModel) < 0.02) shownModel = sizes.model;
+    showZoom();
+  });
+  addEventListener('resize', showZoom);
   const showSize = () => {
     const v = sizes.value, f = formOf(v);
     sizeRange.value = String(v);
@@ -310,6 +334,7 @@ export function initHud(app: App, live: LiveSync, initialView: string | null, op
   sizeRange.addEventListener('change', () => { keepSizes(sizes); syncUrl(); });
   addEventListener('resize', applySize);
   setSize(sizes.value, true);
+  showZoom();
   const stepView = (n: number) => {
     const i = view ? VIEWS.indexOf(view) : -1;
     setView(VIEWS[(i + n + VIEWS.length) % VIEWS.length].id);
@@ -428,6 +453,7 @@ export function initHud(app: App, live: LiveSync, initialView: string | null, op
     setForm,
     onForm: (fn) => { formFns.push(fn); },
     get sizes() { return sizes; },
+    get shownModel() { return shownModel; },
     get morphing() { return morph.busy; },
     get trayOpen() { return !tray.hidden; },
     showChrome,

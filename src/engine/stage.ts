@@ -22,8 +22,9 @@ export class Stage {
     });
     if (opts.transparent) r.setClearColor(0x000000, 0);
     r.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+    // the stylesheet sizes the canvas to its container: between resizes the browser stretches the last frame to it
     const [w, h] = this.size;
-    r.setSize(w, h);
+    r.setSize(w, h, false);
     r.shadowMap.enabled = true;
     r.shadowMap.type = THREE.PCFSoftShadowMap;
     r.toneMapping = THREE.ACESFilmicToneMapping;
@@ -111,7 +112,13 @@ export class Stage {
     const [w, h] = this.size;
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(w, h);
+    this.renderer.setSize(w, h, false);
+  }
+
+  /** The canvas's size as last drawn (it may be shown stretched to a new size until the next resize). */
+  get drawnSize(): [number, number] {
+    const s = this.renderer.getSize(new THREE.Vector2());
+    return [s.x, s.y];
   }
 }
 

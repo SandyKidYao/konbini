@@ -121,7 +121,9 @@ export function initMorph(app: App, map: MapView, opts: MorphOptions): Morph {
     og.imageSmoothingQuality = 'high';
     og.drawImage(from, sx, sy, sw, sh, 0, 0, n, m);
     if (cut) CORNER.forEach((k, y) => { og.clearRect(0, y, k, 1); og.clearRect(n - k, y, k, 1); });
-    Object.assign(overlay.style, { left: `${at.left}px`, top: `${at.top}px`, width: `${at.width}px`, height: `${at.height}px` });
+    // on whole device pixels: a picture of big pixels sliding by fractions of one shimmers at its edges
+    const dpr = devicePixelRatio || 1, px = (v: number) => `${Math.round(v * dpr) / dpr}px`;
+    Object.assign(overlay.style, { left: px(at.left), top: px(at.top), width: px(at.width), height: px(at.height) });
   };
   /** clear the overlay's pixels whose dither value is under p (0: none, 1: all) */
   const dissolve = (p: number) => {
@@ -157,20 +159,23 @@ export function initMorph(app: App, map: MapView, opts: MorphOptions): Morph {
     stage.controls.enabled = false;
     stage.controls.autoRotate = false;
     body.dataset.morph = 'plan';
-    const grid = map.grid();
+    let grid = map.grid();
     if (!grid) { settle('plan'); delete body.dataset.morph; return; }
     fade(1, 0);
-    const tile = grid.rect, block = blockRect(tile);
+    const block = blockRect(grid.rect);
+    // the tile as it is now: the slider can keep moving while the model turns into it
+    const now = () => (grid = map.grid() ?? grid!);
     stage.flyTo(overhead(block), FLY);
     await phase(FLY * 2, () => {}, () => !stage.flying);
     overlay.hidden = false;
     await phase(PIXELATE, (t) => {
-      const [n, m] = res(block, grid.n, grid.m, jump(t));
-      capture(block, lerpRect(block, tile, ease(t)), n, m, jump(t) >= STEPS);
+      const g = now(), [n, m] = res(block, g.n, g.m, jump(t));
+      capture(block, lerpRect(block, g.rect, ease(t)), n, m, jump(t) >= STEPS);
       fade(1 - ease(t), 0);
     });
     await phase(DISSOLVE, (t) => {
-      capture(block, tile, grid.n, grid.m, true);
+      const g = now();
+      capture(block, g.rect, g.n, g.m, true);
       dissolve(t);
       fade(0, Math.min(1, t / 0.3));
     });
@@ -182,27 +187,28 @@ export function initMorph(app: App, map: MapView, opts: MorphOptions): Morph {
 
   async function toModel(back: () => CameraPose) {
     body.dataset.morph = 'model';
-    const grid = map.grid();
+    let grid = map.grid();
     fade(0, 1);
     settle('model');
     stage.controls.enabled = false;
     if (!grid) { fade(null, null); delete body.dataset.morph; stage.controls.enabled = true; stage.flyTo(back(), FLY_BACK); return; }
-    const tile = grid.rect;
+    const now = () => (grid = map.grid() ?? grid!);
     // one frame overhead before the picture is read: the canvas may have just taken a new size
-    let block = blockRect(tile);
+    let block = blockRect(grid.rect);
     stage.flyTo(overhead(block), 0);
     await phase(0, () => {});
-    block = blockRect(tile);
+    block = blockRect(now().rect);
     stage.flyTo(overhead(block), 0);
     await phase(0, () => {});
     overlay.hidden = false;
     await phase(DISSOLVE, (t) => {
-      capture(block, tile, grid.n, grid.m, true);
+      const g = now();
+      capture(block, g.rect, g.n, g.m, true);
       dissolve(1 - t);
     });
     await phase(PIXELATE, (t) => {
-      const k = STEPS - jump(t), [n, m] = res(block, grid.n, grid.m, k);
-      capture(block, lerpRect(tile, block, ease(t)), n, m, k >= STEPS);
+      const g = now(), k = STEPS - jump(t), [n, m] = res(block, g.n, g.m, k);
+      capture(block, lerpRect(g.rect, block, ease(t)), n, m, k >= STEPS);
       fade(ease(t), Math.max(0, 1 - t * 2));
     });
     overlay.hidden = true;

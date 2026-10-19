@@ -40,7 +40,7 @@ body {
 }
 /* the canvas fills the stage: the whole page, or on the desk the model's box at the window's foot (pet.ts) */
 #stage { position: fixed; inset: 0; container-type: size; transition: opacity 0.5s var(--ease); }
-#stage canvas { position: absolute; inset: 0; display: block; }
+#stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 
 /* --- the map form: the street from straight above, a small pixel-art tile (its walnut edge is drawn in it) --- */
 .plan {
@@ -50,14 +50,15 @@ body {
   position: fixed; left: 50%; top: 50%; z-index: 1; translate: -50% calc(-54% - var(--lift, 0px));
   width: var(--map-w); aspect-ratio: var(--map-aspect, 0.86); display: grid; place-items: end center; pointer-events: none;
   opacity: 0; visibility: hidden; transform: scale(0.97);
-  transition: opacity 0.5s var(--ease), transform 0.5s var(--ease), translate 0.5s var(--ease), visibility 0s linear 0.5s;
+  /* translate last: hud.ts drops it from the list while the size changes, so the lift follows at once */
+  transition: opacity 0.5s var(--ease), transform 0.5s var(--ease), visibility 0s linear 0.5s, translate 0.5s var(--ease);
 }
 /* whole device pixels per art pixel (set in map.ts), never smoothed; a hard shadow, as pixel art would draw it */
 .plan canvas {
   display: block; pointer-events: auto; image-rendering: pixelated;
   filter: drop-shadow(0 calc(var(--map-w) * 0.035) 0 rgba(30, 40, 62, 0.16));
 }
-body[data-form="plan"] .plan { opacity: 1; visibility: visible; transform: none; transition: opacity 0.5s var(--ease), transform 0.5s var(--ease), translate 0.5s var(--ease), visibility 0s; }
+body[data-form="plan"] .plan { opacity: 1; visibility: visible; transform: none; transition: opacity 0.5s var(--ease), transform 0.5s var(--ease), visibility 0s, translate 0.5s var(--ease); }
 body[data-form="plan"] #stage { opacity: 0; pointer-events: none; }
 /* the model turning into the map or back (morph.ts sets the opacities frame by frame): the tile laid out where it ends */
 body[data-morph] .plan { visibility: visible; transform: none; transition: none; }
@@ -129,7 +130,8 @@ body.chrome-on .tray.covered { opacity: 0; visibility: hidden; }
 .size .lo { width: 14px; height: 14px; stroke-width: 2; }
 .size .hi { width: 20px; height: 20px; }
 .size-track { position: relative; flex: 1; height: 22px; --plan: 39.5%; }
-.size-track::before, .size-track::after { content: ""; position: absolute; top: 9px; height: 4px; opacity: 0.55; }
+/* (drawn over the input, so they must let the pointer through to it) */
+.size-track::before, .size-track::after { content: ""; position: absolute; top: 9px; height: 4px; opacity: 0.55; pointer-events: none; }
 .size-track::before { left: 0; width: calc(var(--plan) - 3px); background: repeating-linear-gradient(90deg, var(--muted) 0 3px, transparent 3px 6px); }
 .size-track::after { left: calc(var(--plan) + 3px); right: 0; border-radius: 2px; background: var(--muted); }
 .size-track input { position: absolute; inset: 0; width: 100%; margin: 0; opacity: 0; cursor: grab; }

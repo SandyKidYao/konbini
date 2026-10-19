@@ -10,7 +10,7 @@
 import type { App } from '../engine/app';
 import type { Form, HudActions } from './hud';
 import type { MapView } from './map';
-import { petBox, type Sizes } from './size';
+import { SIZE_MAX, petBox, type Sizes } from './size';
 import { PET_FADE } from './views';
 
 /** What the shell's menu shows, and what it keeps in pet.json: the page's own settings. */
@@ -49,13 +49,17 @@ const windowFor = (form: Form, sizes: Sizes): [number, number] => {
   return form === 'model' && w >= FILL_W ? [w, h] : [Math.max(SMALL_WINDOW[0], form === 'model' ? w : 0), SMALL_WINDOW[1]];
 };
 
+/** the largest window any size asks for: a window that has to grow while held goes straight there (below) */
+const LARGEST: [number, number] = [Math.max(petBox(SIZE_MAX)[0], SMALL_WINDOW[0]), Math.max(petBox(SIZE_MAX)[1], SMALL_WINDOW[1])];
+
 /** Size the model's canvas (at the foot of the window) before the renderer first measures it. */
 export function preparePet(sizes: Sizes) {
   document.body.classList.add('pet');
-  setBox(sizes);
+  setBox(sizes.model);
 }
-const setBox = (sizes: Sizes) => {
-  const [w, h] = petBox(sizes.model), s = document.body.style;
+/** the model's canvas at this (possibly in-between) size */
+const setBox = (model: number) => {
+  const [w, h] = petBox(model), s = document.body.style;
   if (s.getPropertyValue('--pet-box-w') === `${w}px` && s.getPropertyValue('--pet-box-h') === `${h}px`) return;
   s.setProperty('--pet-box-w', `${w}px`);
   s.setProperty('--pet-box-h', `${h}px`);
@@ -188,9 +192,15 @@ export function initPet(app: App, hud: HudActions, map: MapView) {
   // --- the window follows the size: it only grows while the settings are open or the form is changing ---
   let win: [number, number] = [0, 0];
   const fitWindow = () => {
-    setBox(hud.sizes);
-    const want = windowFor(hud.form, hud.sizes);
-    if (hud.trayOpen || hud.morphing) { want[0] = Math.max(want[0], win[0]); want[1] = Math.max(want[1], win[1]); }
+    setBox(hud.shownModel);
+    // (big enough for the model as shown, too, while it glides to its size)
+    let want = windowFor(hud.form, { ...hud.sizes, model: Math.max(hud.sizes.model, hud.shownModel) });
+    if (hud.trayOpen || hud.morphing) {
+      // a window that grows a little at a time jumps at every step (the page catches up with it a frame late): once
+      // it has to grow at all, it grows to the largest it could need, in one go — the extra room is see-through
+      if (want[0] > win[0] || want[1] > win[1]) want = [Math.max(win[0], LARGEST[0]), Math.max(win[1], LARGEST[1])];
+      else want = [win[0], win[1]];
+    }
     if (want[0] === win[0] && want[1] === win[1]) return;
     win = want;
     bridge?.setWindow(...want);
