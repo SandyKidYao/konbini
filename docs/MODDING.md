@@ -90,7 +90,7 @@ ctx.director.define({
   - `pullIn(from, pose, { enter })`：沿 A 路开来、拐进 B 路，再车头朝前拐进 B 路西侧的车位（`pose` 是停好的位置，车头朝 −x）。拐下 A 路之前在路口边上等 `enter` 说可以（比如拿到车位前的锁），不会开到 B 路里再放弃
   - `backOut(pose, to, { ready, onRoad })`：从 B 路西侧的车位倒车出来开走：`'south'` 顺着 B 路开下去，`'east'` / `'west'` 倒进对面车道、开上路口转回 A 路。先等要倒过去的车道都有空当，再问 `ready`（比如拿锁），倒车期间其他车在车位两头停下等它
   - `intoLane(from, x)` / `alongLane()`：从 A 路拐进 B 路、再左转进店后的小巷，停在 x 处；之后顺着小巷往西开出模型（送货卡车用）
-  - `clip`：车身要用的裁切平面。用素材库造的车身带上它，还会在离模型边缘最后几米里整体淡出（开进来时淡入），到边缘时已经完全消失，不会露出被切开的截面。自己写车身时，实现 `VehicleBody.fade(presence)` 就能得到同样的效果，`presence` 由引擎每帧给出（0–1），交给 `ctx.kit.fader(root).set` 即可
+  - `clip`：车身要用的裁切平面。用素材库造的车身带上它，车身完整进入模型后约 0.8 秒内淡入，遇到红灯或排队停住也会继续变得清晰；驶离时在边缘前最后几米整体淡出，到边缘时已经完全消失，不会露出被切开的截面。自己写车身时，实现 `VehicleBody.fade(presence)` 就能得到同样的效果，`presence` 由引擎每帧给出（0–1），交给 `ctx.kit.fader(root).set` 即可
 - 世界模组 `konbini.world.railway` 提供服务 `world.railway`：`closed()` 踏切是不是关着（警报在响，或者栏杆还没完全抬起来），`z` 铁路中线，`crossing` 踏切的范围，`send(1 | -1)` 马上发一班车（往 +x 或 −x，没有车在跑的时候）。电车从 5:30 到 23:50 大约每两分钟一班，往返交替；行人走到踏切前、车开到停止线前都会看 `closed()`
 - 车身素材：`car`（形状见 `CAR_MODELS`：kei、hatch、sedan、minivan、taxi）、`truck`（`kei` 小货车、`box` 箱式送货车）、`bus`；都实现 `VehicleBody`，也可以自己做车身
 

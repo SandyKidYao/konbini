@@ -96,6 +96,7 @@ export default defineMod({
     // on the map: every vehicle on the model
     ctx.plan.movers(() => traffic.vehicles.filter((v) => !v.done && v.pose.x > BLOCK.x0 - 3 && v.pose.x < BLOCK.x1 + 3 && v.pose.z > BLOCK.z0 - 3).map((v) => ({
       kind: 'vehicle' as const, x: v.pose.x, z: v.pose.z, heading: v.pose.heading, len: v.body.len, width: v.body.width,
+      opacity: v.presence,
     })));
     ctx.onFrame((dt, t, d) => {
       traffic.speedScale = (1 - 0.15 * d.rain) * (1 - 0.35 * Math.max(d.snow, d.snowCover * 0.8)) * (1 - 0.25 * d.fog);

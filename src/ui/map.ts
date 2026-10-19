@@ -331,7 +331,11 @@ export function initMap(app: App, bounds: Rect): MapView {
     // what moves: vehicles, then people on foot over them — each kind one solid colour
     const moving = [...plan.moving()];
     g.fillStyle = css(mix(CAR_DAY, CAR_NIGHT, look.night));
-    for (const m of moving) if (m.kind === 'vehicle') vehicle(X(m.x), Z(m.z), m.heading, m.len ?? 4.2, m.width ?? 1.7);
+    for (const m of moving) if (m.kind === 'vehicle') {
+      g.globalAlpha = opacity(m);
+      vehicle(X(m.x), Z(m.z), m.heading, m.len ?? 4.2, m.width ?? 1.7);
+    }
+    g.globalAlpha = 1;
     g.fillStyle = css(mix(PERSON_DAY, PERSON_NIGHT, look.night));
     for (const m of moving) {
       if (m.kind === 'person' && !underRoof(m.x, m.z)) g.fillRect(Math.round(X(m.x) - 1), Math.round(Z(m.z) - 1), 2, 2);

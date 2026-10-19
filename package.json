@@ -10,6 +10,7 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "check:aircraft": "node scripts/check-aircraft.mjs",
+    "check:vehicle-fade": "node scripts/check-vehicle-fade.mjs",
     "preview": "vite preview",
     "shots": "node scripts/shots.mjs",
     "icons": "node scripts/icons.mjs",

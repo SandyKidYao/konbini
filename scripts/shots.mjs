@@ -94,11 +94,21 @@ const SCENES = [
       konbini.stage.world.add(b.root);
       x += b.len / 2 + 0.8;
     }` },
+  // Entering just as the light turns red must not leave the hatch permanently half-transparent.
+  { name: 'vehicle-red-entry', q: 'weather=clear&time=1600&date=2026-10-14&cam=36,7,26,23.5,0.8,15,30&disable=konbini.events.traffic,konbini.events.parking,konbini.events.delivery,konbini.events.passersby,konbini.events.tourists,konbini.events.customer', wait: 400, setup: `
+    const roads = konbini.services.get('world.roads'), signals = konbini.services.get('world.signals');
+    signals.vehicle = signals.side = signals.ped = () => 'r';
+    const body = konbini.prefabs.create('car', { color: '#c3c8cd', len: 4, width: 1.66, clip: roads.clip });
+    const v = roads.spawn(body, 'east').then(roads.through('east', 'west'));
+    for (let i = 0; i < 400; i++) konbini.simulate(0.05);
+    if (v.v > 0.01 || v.presence < 0.999 || Math.abs(v.pose.x - 24.5) > 0.02) throw new Error('Red-light arrival did not finish fading in');
+    konbini.simulate = () => {};` },
   // a car about to leave over the east edge, the clock stopped: it is fading out (never seen cut in two at the edge)
   { name: 'vehicle-edge', q: 'weather=clear&time=1600&date=2026-10-14&warp=120&cam=38,6,22,25,0.8,12,30', wait: 800, setup: `(async () => {
     const t0 = performance.now();
     while (performance.now() - t0 < 90000) {
-      const v = konbini.services.get('world.roads').traffic.vehicles.find((v) => v.presence > 0.3 && v.presence < 0.7 && Math.sin(v.pose.heading) > 0.9);
+      const v = konbini.services.get('world.roads').traffic.vehicles.find((v) => v.presence > 0.3 && v.presence < 0.7
+        && v.pose.x > 20 && v.pose.z > 10 && v.pose.z < 17 && Math.sin(v.pose.heading) > 0.9 && !v.leg?.o.reverse);
       if (v) break;
       await new Promise((r) => requestAnimationFrame(r));
     }
