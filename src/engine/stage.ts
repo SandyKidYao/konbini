@@ -14,6 +14,8 @@ export class Stage {
   readonly camera: THREE.PerspectiveCamera;
   readonly controls: OrbitControls;
   private flight: Flight | null = null;
+  /** how far a hand may pull the camera back (setReach) */
+  private reach = 190;
 
   /** The canvas fills the container, which is the window except on the desk (the model can be smaller than it). */
   constructor(private container: HTMLElement, pose: CameraPose, opts: StageOptions = {}) {
@@ -44,11 +46,24 @@ export class Stage {
     c.enableDamping = true;
     c.dampingFactor = 0.06;
     c.minDistance = 10;
-    c.maxDistance = 190;
     c.maxPolarAngle = 1.52;   // down to eye level in front of the shop (the facade view), never under the street
     c.autoRotateSpeed = 0.3;
+    this.hold();
     c.update();
-    c.addEventListener('start', () => { this.flight = null; });   // grabbing the model ends a flight
+    c.addEventListener('start', () => { this.flight = null; this.hold(); });   // grabbing the model ends a flight
+  }
+
+  /**
+   * How far the camera can be pulled back by hand (a pinch, the wheel): no farther than this, or than where it was
+   * last put (a flight's end, the starting pose). Flights themselves go wherever they are sent.
+   */
+  setReach(distance: number) {
+    this.reach = distance;
+    if (!this.flight) this.hold();
+  }
+  /** the camera stays where it was put, and a hand can't take it farther than that or the reach */
+  private hold() {
+    this.controls.maxDistance = Math.max(this.reach, this.camera.position.distanceTo(this.controls.target) + 1e-6);
   }
 
   /** The canvas's size in CSS pixels. */
@@ -82,6 +97,7 @@ export class Stage {
       fromZoom: this.camera.zoom, toZoom: pose.zoom,
     };
     this.flight = f;
+    this.controls.maxDistance = Infinity;   // (a flight goes where it is sent)
     if (seconds <= 0) this.step(1);
   }
 
@@ -105,7 +121,7 @@ export class Stage {
     this.camera.fov = THREE.MathUtils.lerp(f.fromFov, f.toFov, k);
     if (f.toZoom !== undefined) this.camera.zoom = f.fromZoom * (f.toZoom / f.fromZoom) ** k;
     this.camera.updateProjectionMatrix();
-    if (f.t >= 1) this.flight = null;
+    if (f.t >= 1) { this.flight = null; this.hold(); }
   }
 
   get fog() { return this.scene.fog as THREE.FogExp2; }
