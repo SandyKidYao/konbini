@@ -94,7 +94,15 @@ function startPosition(w, h) {
   return { x: a.x + a.width - w - 24, y: a.y + a.height - h - 12 };
 }
 
+/**
+ * The page holds the window larger than the model while the settings are open or the form is changing (as far as the
+ * whole screen): its place and size then aren't the model's, and aren't kept — quit meanwhile, and the next start
+ * opens where the model stood, not across the screen.
+ */
+let held = false;
+
 function savePosition() {
+  if (held) return;
   [prefs.x, prefs.y] = win.getPosition();
   savePrefs();
 }
@@ -139,11 +147,12 @@ function setLayer(layer) {
  * screen at the slider's top; the page keeps where the model belongs (pet.ts: home), so it goes back there once it is
  * small enough again.
  */
-function setWindowSize(w, h, foot) {
+function setWindowSize(w, h, foot, hold) {
   const [x, y] = win.getPosition(), [w0, h0] = win.getSize();
   foot ??= [x + w0 / 2, y + h0];
   const b = onScreen({ x: Math.round(foot[0] - w / 2), y: Math.round(foot[1] - h), width: w, height: h });
-  [prefs.w, prefs.h] = [w, h];
+  held = hold;
+  if (!held) [prefs.w, prefs.h] = [w, h];
   if (w !== w0 || h !== h0 || b.x !== x || b.y !== y) win.setBounds(b);
   savePosition();
 }
@@ -184,9 +193,9 @@ ipcMain.on('pet:state', (_e, s) => {
   refreshDockMenu();
 });
 // the page sizes the window to its size slider
-ipcMain.on('pet:window', (_e, w, h, footX, footY) => {
+ipcMain.on('pet:window', (_e, w, h, footX, footY, hold) => {
   if (!(Number.isInteger(w) && Number.isInteger(h) && w >= 100 && h >= 100 && w <= 4000 && h <= 4000)) return;
-  setWindowSize(w, h, Number.isFinite(footX) && Number.isFinite(footY) ? [footX, footY] : null);
+  setWindowSize(w, h, Number.isFinite(footX) && Number.isFinite(footY) ? [footX, footY] : null, !!hold);
 });
 ipcMain.on('pet:menu', () => buildMenu().popup({ window: win }));
 ipcMain.on('pet:drag', (_e, on) => {

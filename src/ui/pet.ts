@@ -36,8 +36,9 @@ interface DesktopBridge {
   drag(on: boolean): void;
   showMenu(): void;
   setState(state: PetState): void;
-  /** the window's size, with its foot (bottom centre, screen px) here; the shell keeps it on the screen */
-  setWindow(width: number, height: number, footX: number, footY: number): void;
+  /** the window's size, with its foot (bottom centre, screen px) here; the shell keeps it on the screen. held: larger
+   *  than the model for a while (the settings are open, the form is changing), so not where it is kept for next time */
+  setWindow(width: number, height: number, footX: number, footY: number, held: boolean): void;
   onAction(fn: (a: PetAction) => void): void;
   /** the cursor over the window, or null once it has left (older shells don't have it) */
   onPointer?(fn: (p: { x: number; y: number } | null) => void): void;
@@ -298,7 +299,7 @@ export function initPet(app: App, hud: HudActions, map: MapView) {
     // at rest the shell puts it at home (or as near as the screen allows: where `stand` already is)
     const to = footOnScreen(held ? foot : home, ...want);
     asked = { x: to[0] - want[0] / 2, y: to[1] - want[1], w: want[0], h: want[1], until: performance.now() + 500 };
-    bridge?.setWindow(...want, ...(held ? foot : home));
+    bridge?.setWindow(...want, ...(held ? foot : home), held);
   };
   fitWindow();   // now, before the scene loads: the window opens at its size
   app.onFrameUI(fitWindow);
