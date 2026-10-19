@@ -2,8 +2,8 @@
 // (the web app with ?pet=1). Clicks fall through wherever the model isn't — the page reports when the pointer
 // is on it. The scene's settings are the page's own (a double-click opens them), its size too: the page sizes the
 // window to it. Right-click on the model, the menu-bar icon or the Dock icon opens the native menu, which keeps the
-// window's: form, the sky, floating (or sinking beneath every window), icons, power saving. Whether the menu-bar and
-// Dock icons show is a preference (at least one of them stays).
+// window's: form, the sky, on top (or in the background, like the wallpaper), icons, power saving. Whether the menu-bar
+// and Dock icons show is a preference (at least one of them stays).
 //
 //   npm run pet                 build, then open dist/index.html
 //   npm run dev + npm run pet:dev   load the Vite dev server instead (live reload)
@@ -18,13 +18,15 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const FORMS = [['model', '模型'], ['plan', '俯视图']];
 // the window until the page says what its size wants (pet.json keeps the last one)
 const FIRST_WINDOW = [560, 460];
+// kCGDesktopWindowLevel: right above the wallpaper (one level lower), beneath the desktop's icons and widgets
+const WALLPAPER_LEVEL = -2147483623;
 
 const probe = process.argv.find((a) => a.startsWith('--probe'))?.split('=')[1] ?? (process.argv.includes('--probe') ? 'pet-probe.png' : null);
 
 // --- preferences: size, floating, where the window was ---
 // size: the page's size slider (0–100; before it, 'small' / 'medium' / 'large', which the page still reads)
 const prefsFile = path.join(app.getPath('userData'), 'pet.json');
-// onTop / onBottom: above every window, or beneath them all (at most one of the two)
+// onTop / onBottom: above every window, or in the background with the wallpaper (at most one of the two)
 const prefs = { size: 'medium', form: 'model', onTop: true, onBottom: false, x: null, y: null, w: null, h: null, tray: true, dock: false };
 try { Object.assign(prefs, JSON.parse(fs.readFileSync(prefsFile, 'utf8'))); } catch { /* first run */ }
 if (prefs.onTop && prefs.onBottom) prefs.onBottom = false;
@@ -46,7 +48,7 @@ app.on('will-quit', () => { if (saveTimer) writePrefs(); });
 
 /** @type {BrowserWindow} */ let win;
 /** @type {Tray} */ let tray;
-let state = { saver: false, sky: false, form: prefs.form, size: prefs.size };
+let state = { saver: false, sky: false, form: prefs.form, size: prefs.size, settings: false };
 let dragTimer = null;
 
 if (!app.requestSingleInstanceLock()) app.quit();
@@ -71,8 +73,7 @@ function createWindow() {
     skipTaskbar: true, acceptFirstMouse: true, show: false,
     webPreferences: { preload: path.join(here, 'preload.cjs'), sandbox: true, contextIsolation: true },
   });
-  applyLayer();
-  win.setIgnoreMouseEvents(true, { forward: true });   // until the page says the pointer is on the model
+  applyLayer();   // (and clicks fall through until the page says the pointer is on the model)
   win.once('ready-to-show', () => win.showInactive());
   watchCursor();
   win.on('moved', savePosition);
@@ -98,18 +99,33 @@ function savePosition() {
   savePrefs();
 }
 
+/** In the background and out of reach: every click, drag and scroll goes to the desktop beneath. */
+const behind = () => prefs.onBottom && !state.settings;
+
 function applyLayer() {
-  // 'floating' sits above normal windows, on every Space and over full-screen apps too. At the bottom: one level under
-  // 'normal', beneath every app's windows (even once it is clicked) but above the desktop and its icons, so it still
-  // takes clicks and drags (a 'desktop' type window sits under the Finder's desktop and gets none); on every Space,
-  // where full-screen apps cover it anyway
-  if (prefs.onTop) win.setAlwaysOnTop(true, 'floating');
-  else if (prefs.onBottom) win.setAlwaysOnTop(true, 'normal', -1);
+  // 'floating' sits above normal windows, on every Space and over full-screen apps too. In the background it is part
+  // of the desktop: on the wallpaper's level, under the desktop's icons, on every Space (full-screen apps cover it). A
+  // 'desktop' type window won't do: Electron puts it a level lower, with the wallpaper, which may draw over it. While
+  // the settings are open the model comes up to the top, where they can be reached, and goes back once they close
+  if (prefs.onTop || (prefs.onBottom && state.settings)) win.setAlwaysOnTop(true, 'floating');
+  else if (prefs.onBottom) win.setAlwaysOnTop(true, 'normal', WALLPAPER_LEVEL);
   else win.setAlwaysOnTop(false);
   win.setVisibleOnAllWorkspaces(prefs.onTop || prefs.onBottom, { visibleOnFullScreen: prefs.onTop, skipTransformProcessType: true });
+  applyMouse();
 }
 
-/** Above everything, beneath everything, or neither: the two menu switches turn each other off. */
+/** the page's last word on whether the pointer is on the model (pet:hit) */
+let hit = false, wasBehind = false;
+function applyMouse() {
+  if (behind()) {
+    win.setIgnoreMouseEvents(true);   // not even forwarded: the page has nothing to notice
+    // the page forgets the pointer (back to its idle frame rate); coming back up, the watch tells it again
+    if (!wasBehind) { hit = false; cursorAt = ''; win.webContents.send('pet:pointer', null); }
+  } else win.setIgnoreMouseEvents(!hit, { forward: true });
+  wasBehind = behind();
+}
+
+/** On top, in the background, or neither: the two menu switches turn each other off. */
 function setLayer(layer) {
   prefs.onTop = layer === 'top';
   prefs.onBottom = layer === 'bottom';
@@ -151,7 +167,7 @@ function onScreen(b) {
 let cursorAt = '';
 function watchCursor() {
   setInterval(() => {
-    if (!win || win.isDestroyed() || !win.isVisible() || dragTimer) return;
+    if (!win || win.isDestroyed() || !win.isVisible() || dragTimer || behind()) return;
     const p = screen.getCursorScreenPoint(), b = win.getContentBounds();
     const x = p.x - b.x, y = p.y - b.y, inside = x >= 0 && y >= 0 && x < b.width && y < b.height;
     const at = inside ? `${x},${y}` : '';
@@ -162,9 +178,11 @@ function watchCursor() {
 }
 
 // --- messages from the page (desktop/preload.cjs) ---
-ipcMain.on('pet:hit', (_e, over) => { if (!dragTimer) win.setIgnoreMouseEvents(!over, { forward: true }); });
+ipcMain.on('pet:hit', (_e, over) => { hit = over; if (!dragTimer) applyMouse(); });
 ipcMain.on('pet:state', (_e, s) => {
+  const lift = !!s.settings !== !!state.settings;
   state = s;
+  if (lift && prefs.onBottom) applyLayer();   // the settings opened or closed over a model in the background
   // the form and the size are chosen in the page (or this menu), and kept here for the next start
   if (s.form !== prefs.form || s.size !== prefs.size) { prefs.form = s.form; prefs.size = s.size; savePrefs(); }
   refreshDockMenu();
@@ -193,7 +211,8 @@ function buildMenu({ dock = false } = {}) {
   const s = state;
   return Menu.buildFromTemplate([
     // how to handle the pet, where anyone who has forgotten looks first (the desk itself shows no words)
-    { label: '双击打开设置 · ⌥ 拖动移动位置', enabled: false },
+    // (in the background the model takes no clicks at all: the settings open from this menu, and come up to the top)
+    { label: prefs.onBottom ? '背景：点击都会穿过它，取消「背景」才能挪动' : '双击打开设置 · ⌥ 拖动移动位置', enabled: false },
     { type: 'separator' },
     // weather, time, date, views… are in the page's own settings, the same as on the web
     { label: '设置…', click: () => { win.showInactive(); send({ type: 'settings' }); } },
@@ -203,8 +222,8 @@ function buildMenu({ dock = false } = {}) {
     { type: 'separator' },
     { label: '省电（降低帧率）', type: 'checkbox', checked: s.saver, click: () => send({ type: 'saver' }) },
     { type: 'separator' },
-    { label: '浮在最上层', type: 'checkbox', checked: prefs.onTop, click: () => setLayer(prefs.onTop ? null : 'top') },
-    { label: '沉在最下层', type: 'checkbox', checked: prefs.onBottom, click: () => setLayer(prefs.onBottom ? null : 'bottom') },
+    { label: '顶层', type: 'checkbox', checked: prefs.onTop, click: () => setLayer(prefs.onTop ? null : 'top') },
+    { label: '背景', type: 'checkbox', checked: prefs.onBottom, click: () => setLayer(prefs.onBottom ? null : 'bottom') },
     // the last icon left can't be turned off: with neither, the model's right-click would be the only way in
     { label: '显示图标', submenu: [
       { label: '菜单栏', type: 'checkbox', checked: prefs.tray, enabled: !prefs.tray || prefs.dock, click: () => togglePresence('tray') },

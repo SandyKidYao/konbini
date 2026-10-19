@@ -2,7 +2,8 @@
 // window. Nothing else shows: a double-click on the model (or the map) opens the web page's own settings panel, and
 // its close button (or Escape) puts it away. ⌥-drag on the model or the map moves the window.
 // The native menu (right-click, or the menu-bar icon) keeps what belongs to the window: form, the sky behind the model,
-// floating, icons, power saving. Everywhere the model, the map and the controls aren't, clicks fall through to the desktop.
+// on top or in the background, icons, power saving. Everywhere the model, the map and the controls aren't, clicks fall
+// through to the desktop; in the background they all do (the shell stops even telling the page where the pointer is).
 //
 // The size is the settings' slider (size.ts), and the page sizes the window to it: a large model fills its window; a
 // small one, and the map, stand at the foot of a window tall enough for the settings above them. While the settings
@@ -21,6 +22,8 @@ export interface PetState {
   form: Form;
   /** the size slider's step (size.ts) */
   size: number;
+  /** the settings are open: a model in the background comes up to the top until they close */
+  settings: boolean;
 }
 
 export type PetAction =
@@ -195,7 +198,9 @@ export function initPet(app: App, hud: HudActions, map: MapView) {
   addEventListener('dblclick', (e) => { if (e.target instanceof HTMLCanvasElement) hud.openTray(); });
 
   // --- the native menu ---
-  addEventListener('contextmenu', (e) => { e.preventDefault(); bridge?.showMenu(); });
+  // (the menu takes the button's release: no press is left under way, or a model sent to the background from here
+  // would never hear that the pointer left, and stay awake)
+  addEventListener('contextmenu', (e) => { e.preventDefault(); pressed = false; bridge?.showMenu(); });
   bridge?.onAction((a) => {
     switch (a.type) {
       case 'settings': hud.openTray(); break;
@@ -260,7 +265,7 @@ export function initPet(app: App, hud: HudActions, map: MapView) {
   // keep the shell's copy of the state current, so the menu opens instantly with the right checks
   let sent = '';
   app.onFrameUI(() => {
-    const state: PetState = { saver, sky, form: hud.form, size: hud.sizes.value };
+    const state: PetState = { saver, sky, form: hud.form, size: hud.sizes.value, settings: hud.trayOpen };
     const key = JSON.stringify(state);
     if (key !== sent) { sent = key; bridge?.setState(state); }
   });
