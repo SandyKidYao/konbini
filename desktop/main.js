@@ -74,6 +74,7 @@ function createWindow() {
   applyLayer();
   win.setIgnoreMouseEvents(true, { forward: true });   // until the page says the pointer is on the model
   win.once('ready-to-show', () => win.showInactive());
+  watchCursor();
   win.on('moved', savePosition);
 
   const query = { pet: '1', size: String(prefs.size), ...(prefs.form === 'plan' ? { view: 'plan' } : {}) };
@@ -129,6 +130,24 @@ function onScreen(b) {
   const a = screen.getDisplayMatching(b).workArea;
   const x = Math.max(a.x, Math.min(a.x + a.width - b.width, b.x)), y = Math.max(a.y, Math.min(a.y + a.height - b.height, b.y));
   return { ...b, x, y };
+}
+
+// --- where the cursor is over the window ---
+// While the window lets clicks through, the page only hears the pointer through forwarded mouse moves, and macOS stops
+// sending those once another app is active (click the desktop or another app, and the pet no longer notices the
+// pointer on it, so it never takes the click). So the shell watches the cursor itself and tells the page where it
+// is while it is over the window, and that it left; the page decides whether that is on the model.
+let cursorAt = '';
+function watchCursor() {
+  setInterval(() => {
+    if (!win || win.isDestroyed() || !win.isVisible() || dragTimer) return;
+    const p = screen.getCursorScreenPoint(), b = win.getContentBounds();
+    const x = p.x - b.x, y = p.y - b.y, inside = x >= 0 && y >= 0 && x < b.width && y < b.height;
+    const at = inside ? `${x},${y}` : '';
+    if (at === cursorAt) return;
+    cursorAt = at;
+    win.webContents.send('pet:pointer', inside ? { x, y } : null);
+  }, 50);
 }
 
 // --- messages from the page (desktop/preload.cjs) ---

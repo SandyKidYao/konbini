@@ -36,6 +36,8 @@ interface DesktopBridge {
   /** the window's size; the shell keeps its foot where it stands, and keeps it on the screen */
   setWindow(width: number, height: number): void;
   onAction(fn: (a: PetAction) => void): void;
+  /** the cursor over the window, or null once it has left (older shells don't have it) */
+  onPointer?(fn: (p: { x: number; y: number } | null) => void): void;
 }
 
 /** the window of the map and of a small model: room for the settings above them */
@@ -119,31 +121,43 @@ export function initPet(app: App, hud: HudActions, map: MapView) {
   const onKey = (e: KeyboardEvent) => { if (e.key === 'Alt') { alt = e.type === 'keydown'; showGrab(); } };
   addEventListener('keydown', onKey);
   addEventListener('keyup', onKey);
-  addEventListener('blur', () => { alt = false; showGrab(); });
+  addEventListener('blur', () => { alt = false; pressed = false; showGrab(); });
 
-  // forwarded moves arrive even while the window lets clicks through; throttle the raycast
-  let last: PointerEvent | null = null, pending = false;
-  addEventListener('pointermove', (e) => {
-    last = e;
-    if (pending) return;
-    pending = true;
-    setTimeout(() => {
-      pending = false;
-      if (!last) return;
-      if (dragging || last.buttons) { setOver(true); return; }   // hold on to a drag that wanders off the model
-      // hidden controls are invisible to the pointer, so any control under it is one that's showing
-      const onChrome = !!(last.target as Element | null)?.closest?.('.chrome');
-      // with the sky drawn the whole window is the picture, not just the model
-      const x = last.clientX, y = last.clientY;
-      const onModel = !onChrome && (document.body.dataset.form === 'plan' ? map.hit(x, y)
-        : edgeAlpha(stageEl.getBoundingClientRect(), x, y) > FADE_HIT && (sky || app.interact.modelAt(x, y)));
-      setOver(onChrome || onModel);
-      onShape = onModel;
-      alt = last.altKey;
-      showGrab();
-    }, 50);
+  // Where the pointer is comes two ways: the page's own moves (forwarded by the shell even while clicks fall through,
+  // but only while the pet is the active app or floats above the others), and the shell's own watch on the cursor,
+  // which always works (main.js). Both feed one throttled check (it raycasts).
+  type Spot = { x: number; y: number; target: Element | null; buttons: number; altKey: boolean };
+  let last: Spot | null = null, pending = false, pressed = false;
+  const check = () => {
+    pending = false;
+    if (!last) return;
+    if (dragging || last.buttons) { setOver(true); return; }   // hold on to a drag that wanders off the model
+    // hidden controls are invisible to the pointer, so any control under it is one that's showing
+    const onChrome = !!last.target?.closest?.('.chrome');
+    // with the sky drawn the whole window is the picture, not just the model
+    const { x, y } = last;
+    const onModel = !onChrome && (document.body.dataset.form === 'plan' ? map.hit(x, y)
+      : edgeAlpha(stageEl.getBoundingClientRect(), x, y) > FADE_HIT && (sky || app.interact.modelAt(x, y)));
+    setOver(onChrome || onModel);
+    onShape = onModel;
+    alt = last.altKey;
+    showGrab();
+  };
+  const look = (spot: Spot) => {
+    last = spot;
+    if (!pending) { pending = true; setTimeout(check, 50); }
+  };
+  addEventListener('pointermove', (e) => look({ x: e.clientX, y: e.clientY, target: e.target as Element | null, buttons: e.buttons, altKey: e.altKey }));
+  // (a press under way is the page's own: the shell's watch knows nothing of buttons, and must not end an orbit)
+  addEventListener('pointerdown', () => { pressed = true; }, { capture: true });
+  addEventListener('pointerup', () => { pressed = false; }, { capture: true });
+  addEventListener('pointercancel', () => { pressed = false; }, { capture: true });
+  bridge?.onPointer?.((p) => {
+    if (pressed || dragging) return;
+    if (!p) { last = null; setOver(false); onShape = false; showGrab(); return; }
+    look({ x: p.x, y: p.y, target: document.elementFromPoint(p.x, p.y), buttons: 0, altKey: alt });
   });
-  document.documentElement.addEventListener('pointerleave', () => { last = null; if (!dragging) setOver(false); });
+  document.documentElement.addEventListener('pointerleave', () => { last = null; if (!dragging && !pressed) setOver(false); });
 
   // --- moving the window: the shell follows the cursor between drag(true) and drag(false) ---
   const startDrag = (e: PointerEvent, el: Element) => {
