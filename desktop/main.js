@@ -135,7 +135,7 @@ function buildMenu({ dock = false } = {}) {
   const s = state;
   return Menu.buildFromTemplate([
     // how to handle the pet, where anyone who has forgotten looks first (the desk itself shows no words)
-    { label: s.form === 'plan' ? '双击打开设置 · 拖动移动位置' : '双击打开设置 · ⌥ 拖动移动位置', enabled: false },
+    { label: '双击打开设置 · ⌥ 拖动移动位置', enabled: false },
     { type: 'separator' },
     // weather, time, date, views… are in the page's own settings, the same as on the web
     { label: '设置…', click: () => { win.showInactive(); send({ type: 'settings' }); } },

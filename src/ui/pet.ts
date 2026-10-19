@@ -1,6 +1,6 @@
 // Desktop-pet mode (?pet=1, set by the Electron shell in desktop/): only the model — or the map — over a transparent
 // window. Nothing else shows: a double-click on the model (or the map) opens the web page's own settings panel, and
-// its close button (or Escape) puts it away. ⌥-drag on the model moves the window; the map moves with a plain drag.
+// its close button (or Escape) puts it away. ⌥-drag on the model or the map moves the window.
 // The native menu (right-click, or the menu-bar icon) keeps what belongs to the window: form, size, floating,
 // icons, power saving. Everywhere the model, the map and the controls aren't, clicks fall through to the desktop.
 import type { App } from '../engine/app';
@@ -37,7 +37,6 @@ const IDLE_FPS = 20;     // the street keeps living, gently
 const SAVER_FPS = 10;    // 省电: still moving, about a quarter less energy
 const ACTIVE_FPS = 60;   // while the pointer is on the model or the controls
 const LINGER = 1200;     // ms at full frame rate after the pointer leaves
-const DRAG_SLOP = 4;     // px the map must be dragged before the press moves the window
 /** below this opacity a faded bit of the model (at the soft edge, style.css) no longer catches the pointer */
 const FADE_HIT = 0.3;
 
@@ -82,10 +81,10 @@ export function initPet(app: App, hud: HudActions, map: MapView) {
     setActive(on);
   };
 
-  // --- the cursor says when a drag would move the window: a grab hand over the model while ⌥ is held (over the map always,
-  // see style.css), a closed hand while it moves
+  // --- the cursor says when a drag would move the window: a grab hand over the model or the map while ⌥ is held, a
+  // closed hand while it moves
   let onShape = false, alt = false;
-  const showGrab = () => document.body.classList.toggle('pet-grab', alt && onShape && hud.form === 'model');
+  const showGrab = () => document.body.classList.toggle('pet-grab', alt && onShape);
   const onKey = (e: KeyboardEvent) => { if (e.key === 'Alt') { alt = e.type === 'keydown'; showGrab(); } };
   addEventListener('keydown', onKey);
   addEventListener('keyup', onKey);
@@ -129,14 +128,7 @@ export function initPet(app: App, hud: HudActions, map: MapView) {
     el.addEventListener('pointerup', end);
     el.addEventListener('pointercancel', end);
   };
-  // the map has nothing to turn, so a drag on it moves the window
-  let press: { x: number; y: number; id: number } | null = null;
-  map.canvas.addEventListener('pointerdown', (e) => { if (e.button === 0) press = { x: e.clientX, y: e.clientY, id: e.pointerId }; });
-  map.canvas.addEventListener('pointermove', (e) => {
-    if (!press || dragging || e.pointerId !== press.id || Math.hypot(e.clientX - press.x, e.clientY - press.y) < DRAG_SLOP) return;
-    startDrag(e, map.canvas);
-  });
-  addEventListener('pointerup', () => { press = null; });
+  // the same gesture on the model and the map: a plain drag is left to the page (it turns the model)
   addEventListener('pointerdown', (e) => {
     if (e.button !== 0 || !e.altKey || !(e.target instanceof HTMLCanvasElement)) return;
     e.preventDefault();
