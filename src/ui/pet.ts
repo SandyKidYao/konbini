@@ -85,6 +85,7 @@ export function initPet(app: App, hud: HudActions, map: MapView) {
   const stageEl = app.stage.renderer.domElement;
   app.stage.controls.enablePan = false;  // the right button opens the menu instead
   app.fx.post.gtao.enabled = false;      // ambient occlusion barely shows at this size
+  app.fx.post.tiltShift = false;         // a model this small already reads as a miniature; blurred, it just looks soft
   const SAVER_KEY = 'konbini.pet.saver', SKY_KEY = 'konbini.pet.sky';
   let saver = false, sky = false;
   try { saver = localStorage.getItem(SAVER_KEY) === '1'; sky = localStorage.getItem(SKY_KEY) === '1'; } catch { /* storage unavailable */ }

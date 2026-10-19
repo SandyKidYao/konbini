@@ -121,6 +121,9 @@ export class Post {
     this.setTexel();
   }
 
+  /** The miniature depth of field: off, its passes are skipped altogether. */
+  set tiltShift(on: boolean) { for (const p of this.tilt) p.pass.enabled = on; }
+
   /** Insert a mod's pass. order: 0–100 runs between bloom and tilt-shift (default 50). */
   addPass(pass: Pass, order = 50) {
     this.custom.push({ pass, order });
