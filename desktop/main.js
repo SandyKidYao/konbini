@@ -2,8 +2,8 @@
 // (the web app with ?pet=1). Clicks fall through wherever the model isn't — the page reports when the pointer
 // is on it. The scene's settings are the page's own (a double-click opens them), its size too: the page sizes the
 // window to it. Right-click on the model, the menu-bar icon or the Dock icon opens the native menu, which keeps the
-// window's: form, the sky, floating, icons, power saving. Whether the menu-bar and Dock icons show is a preference (at
-// least one of them stays).
+// window's: form, the sky, floating (or sinking beneath every window), icons, power saving. Whether the menu-bar and
+// Dock icons show is a preference (at least one of them stays).
 //
 //   npm run pet                 build, then open dist/index.html
 //   npm run dev + npm run pet:dev   load the Vite dev server instead (live reload)
@@ -24,8 +24,10 @@ const probe = process.argv.find((a) => a.startsWith('--probe'))?.split('=')[1] ?
 // --- preferences: size, floating, where the window was ---
 // size: the page's size slider (0–100; before it, 'small' / 'medium' / 'large', which the page still reads)
 const prefsFile = path.join(app.getPath('userData'), 'pet.json');
-const prefs = { size: 'medium', form: 'model', onTop: true, x: null, y: null, w: null, h: null, tray: true, dock: false };
+// onTop / onBottom: above every window, or beneath them all (at most one of the two)
+const prefs = { size: 'medium', form: 'model', onTop: true, onBottom: false, x: null, y: null, w: null, h: null, tray: true, dock: false };
 try { Object.assign(prefs, JSON.parse(fs.readFileSync(prefsFile, 'utf8'))); } catch { /* first run */ }
+if (prefs.onTop && prefs.onBottom) prefs.onBottom = false;
 if (!FORMS.some(([k]) => k === prefs.form)) prefs.form = 'model';
 const windowSize = () => (prefs.w > 0 && prefs.h > 0 ? [prefs.w, prefs.h] : FIRST_WINDOW);
 if (!prefs.tray && !prefs.dock) prefs.tray = true;
@@ -69,7 +71,7 @@ function createWindow() {
     skipTaskbar: true, acceptFirstMouse: true, show: false,
     webPreferences: { preload: path.join(here, 'preload.cjs'), sandbox: true, contextIsolation: true },
   });
-  applyOnTop();
+  applyLayer();
   win.setIgnoreMouseEvents(true, { forward: true });   // until the page says the pointer is on the model
   win.once('ready-to-show', () => win.showInactive());
   win.on('moved', savePosition);
@@ -95,10 +97,23 @@ function savePosition() {
   savePrefs();
 }
 
-function applyOnTop() {
-  // 'floating' sits above normal windows; on every Space and over full-screen apps too
-  win.setAlwaysOnTop(prefs.onTop, 'floating');
-  win.setVisibleOnAllWorkspaces(prefs.onTop, { visibleOnFullScreen: true, skipTransformProcessType: true });
+function applyLayer() {
+  // 'floating' sits above normal windows, on every Space and over full-screen apps too. At the bottom: one level under
+  // 'normal', beneath every app's windows (even once it is clicked) but above the desktop and its icons, so it still
+  // takes clicks and drags (a 'desktop' type window sits under the Finder's desktop and gets none); on every Space,
+  // where full-screen apps cover it anyway
+  if (prefs.onTop) win.setAlwaysOnTop(true, 'floating');
+  else if (prefs.onBottom) win.setAlwaysOnTop(true, 'normal', -1);
+  else win.setAlwaysOnTop(false);
+  win.setVisibleOnAllWorkspaces(prefs.onTop || prefs.onBottom, { visibleOnFullScreen: prefs.onTop, skipTransformProcessType: true });
+}
+
+/** Above everything, beneath everything, or neither: the two menu switches turn each other off. */
+function setLayer(layer) {
+  prefs.onTop = layer === 'top';
+  prefs.onBottom = layer === 'bottom';
+  applyLayer();
+  savePrefs();
 }
 
 /** Change size around the bottom centre, so the model stays where it stands on the desk. */
@@ -157,7 +172,8 @@ function buildMenu({ dock = false } = {}) {
     { type: 'separator' },
     { label: '省电（降低帧率）', type: 'checkbox', checked: s.saver, click: () => send({ type: 'saver' }) },
     { type: 'separator' },
-    { label: '浮在最上层', type: 'checkbox', checked: prefs.onTop, click: () => { prefs.onTop = !prefs.onTop; applyOnTop(); savePrefs(); } },
+    { label: '浮在最上层', type: 'checkbox', checked: prefs.onTop, click: () => setLayer(prefs.onTop ? null : 'top') },
+    { label: '沉在最下层', type: 'checkbox', checked: prefs.onBottom, click: () => setLayer(prefs.onBottom ? null : 'bottom') },
     // the last icon left can't be turned off: with neither, the model's right-click would be the only way in
     { label: '显示图标', submenu: [
       { label: '菜单栏', type: 'checkbox', checked: prefs.tray, enabled: !prefs.tray || prefs.dock, click: () => togglePresence('tray') },
@@ -179,7 +195,7 @@ function applyPresence() {
   if (prefs.dock) void app.dock?.show().then(() => { if (!app.isPackaged) app.dock?.setIcon(path.join(here, 'icon.png')); });
   else app.dock?.hide();   // out of the Dock and the app switcher too
   // showing or hiding the Dock icon changes the process type; put the window back on its level after it
-  if (win) applyOnTop();
+  if (win) applyLayer();
   refreshDockMenu();
 }
 
