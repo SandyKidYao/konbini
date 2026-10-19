@@ -294,18 +294,21 @@ export function initHud(app: App, live: LiveSync, initialView: string | null, op
   /**
    * The model's size follows the slider smoothly: a step of the slider is a jump of a few percent, and a drag is a
    * run of them. Shown as the web's zoom; the desk sizes the model's canvas by it (pet.ts). It holds while the form
-   * changes: the overhead framing is worked out for the canvas as it is.
+   * changes, and while the camera comes down from overhead (that flight lands on the zoom of the size it set out
+   * for), then glides on to wherever the slider has gone since. A view preset's flight leaves the zoom to it.
    */
   let shownModel = sizes.model, lastGlide = performance.now();
   const showZoom = () => {
-    if (opts.pet || form !== 'model' || morph.busy || stage.flying) return;
-    stage.camera.zoom = modelZoom(shownModel, minZoom());
+    if (opts.pet || form !== 'model' || morph.busy || stage.zooming) return;
+    const z = modelZoom(shownModel, minZoom());
+    if (z === stage.camera.zoom) return;
+    stage.camera.zoom = z;
     stage.camera.updateProjectionMatrix();
   };
   app.onFrameUI(() => {
     const now = performance.now(), dt = Math.min(0.1, (now - lastGlide) / 1000);
     lastGlide = now;
-    if (shownModel === sizes.model || morph.busy) return;
+    if (shownModel === sizes.model || morph.busy || stage.zooming) return;
     shownModel += (sizes.model - shownModel) * (app.reducedMotion ? 1 : 1 - Math.exp(-dt * 12));
     if (Math.abs(sizes.model - shownModel) < 0.02) shownModel = sizes.model;
     showZoom();

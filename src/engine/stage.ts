@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-/** fov: vertical field of view in degrees (default 30); zoom: the camera's zoom (left as it is when not given) */
+/** fov: vertical field of view in degrees (default 30); zoom: the camera's zoom (left alone when not given) */
 export interface CameraPose { position: [number, number, number]; target: [number, number, number]; fov?: number; zoom?: number }
 /** transparent: the canvas clears to nothing (the desktop shows through); lowPower: prefer the integrated GPU */
 export interface StageOptions { transparent?: boolean; lowPower?: boolean }
@@ -58,10 +58,12 @@ export class Stage {
 
   /** Is the camera on its way to a pose? */
   get flying() { return !!this.flight; }
+  /** …and is the flight setting the zoom too? (One without a zoom leaves it to whoever else sets it.) */
+  get zooming() { return this.flight?.toZoom !== undefined; }
 
   /**
    * Glide to a pose: the target slides, the camera swings around it (shortest way, rising a little on long
-   * swings so it clears the buildings) and the lens zooms. seconds 0: jump.
+   * swings so it clears the buildings) and the lens zooms (if the pose has a zoom). seconds 0: jump.
    */
   flyTo(pose: CameraPose, seconds = 1.8) {
     const fromOff = this.camera.position.clone().sub(this.controls.target);
@@ -77,7 +79,7 @@ export class Stage {
       from: a, dTheta, to: b,
       lift: Math.min(0.32, swing * 0.22),
       fromFov: this.camera.fov, toFov: pose.fov ?? 30,
-      fromZoom: this.camera.zoom, toZoom: pose.zoom ?? this.camera.zoom,
+      fromZoom: this.camera.zoom, toZoom: pose.zoom,
     };
     this.flight = f;
     if (seconds <= 0) this.step(1);
@@ -101,7 +103,7 @@ export class Stage {
     this.controls.target.lerpVectors(f.fromTarget, f.toTarget, k);
     this.camera.position.setFromSpherical(s).add(this.controls.target);
     this.camera.fov = THREE.MathUtils.lerp(f.fromFov, f.toFov, k);
-    this.camera.zoom = f.fromZoom * (f.toZoom / f.fromZoom) ** k;
+    if (f.toZoom !== undefined) this.camera.zoom = f.fromZoom * (f.toZoom / f.fromZoom) ** k;
     this.camera.updateProjectionMatrix();
     if (f.t >= 1) this.flight = null;
   }
@@ -127,5 +129,5 @@ interface Flight {
   fromTarget: THREE.Vector3; toTarget: THREE.Vector3;
   from: THREE.Spherical; to: THREE.Spherical; dTheta: number; lift: number;
   fromFov: number; toFov: number;
-  fromZoom: number; toZoom: number;
+  fromZoom: number; toZoom?: number;
 }
