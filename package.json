@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "check:aircraft": "node scripts/check-aircraft.mjs",
     "check:vehicle-fade": "node scripts/check-vehicle-fade.mjs",
+    "check:plan-opacity": "node scripts/check-plan-opacity.mjs",
     "preview": "vite preview",
     "shots": "node scripts/shots.mjs",
     "icons": "node scripts/icons.mjs",

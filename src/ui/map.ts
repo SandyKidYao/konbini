@@ -345,9 +345,11 @@ export function initMap(app: App, bounds: Rect): MapView {
     }
     g.globalAlpha = 1;
     g.fillStyle = css(mix(PERSON_DAY, PERSON_NIGHT, look.night));
-    for (const m of moving) {
-      if (m.kind === 'person' && !underRoof(m.x, m.z)) g.fillRect(Math.round(X(m.x) - 1), Math.round(Z(m.z) - 1), 2, 2);
+    for (const m of moving) if (m.kind === 'person' && !underRoof(m.x, m.z)) {
+      g.globalAlpha = opacity(m);
+      g.fillRect(Math.round(X(m.x) - 1), Math.round(Z(m.z) - 1), 2, 2);
     }
+    g.globalAlpha = 1;
 
     // signals: a pixel of colour, with a cross of glow at night
     for (const m of plan.markers) {
