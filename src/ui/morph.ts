@@ -1,7 +1,8 @@
 // The model turning into the map, and back. Both show the same street, so the change is shown as one becoming the
 // other rather than a crossfade between two pictures:
 //
-//   model → map   the camera swings up to straight overhead, framed so the block lies where the tile will be; the
+//   model → map   the camera swings up to straight overhead, framed so the block lies where the tile will be (on the
+//                 desk the canvas's soft edge narrows away meanwhile: the tile sits at the window's foot, in it); the
 //                 picture then coarsens in jumps down to the tile's own art pixels, and dissolves into the tile pixel
 //                 by pixel (in the map's dither order)
 //   map → model   the same backwards: the overhead picture appears pixel by pixel over the tile, sharpens, and the
@@ -37,16 +38,11 @@ export interface Morph {
   go(to: Form, back: () => CameraPose, instant?: boolean): Promise<void>;
 }
 
-export interface MorphOptions {
-  /** px kept clear inside the model's canvas edge (the desk's soft edge): the overhead block is framed inside it */
-  margin(): number;
-}
-
 const ease = (t: number) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
 const lerpRect = (a: DOMRect, b: DOMRect, t: number) =>
   new DOMRect(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.width + (b.width - a.width) * t, a.height + (b.height - a.height) * t);
 
-export function initMorph(app: App, map: MapView, opts: MorphOptions): Morph {
+export function initMorph(app: App, map: MapView): Morph {
   const { stage } = app, body = document.body;
   const gl = stage.renderer.domElement, stageEl = gl.parentElement!, tileEl = map.canvas.parentElement!;
   const overlay = document.createElement('canvas');
@@ -80,14 +76,23 @@ export function initMorph(app: App, map: MapView, opts: MorphOptions): Morph {
     target: stage.controls.target.toArray() as [number, number, number],
     fov: stage.camera.fov, zoom: stage.camera.zoom,
   });
+  /**
+   * The desk's soft edge (style.css: --fade-k, a share of its width), eased (over the swing up or down) or at once.
+   * Narrowed away, the overhead block can lie right on the tile at the window's foot, with nothing faded or moving.
+   */
+  const softEdge = (k: number, eased: boolean) => {
+    if (!eased) gl.style.transition = 'none';
+    gl.style.setProperty('--fade-k', String(k));
+    if (!eased) { getComputedStyle(gl).getPropertyValue('--fade-k'); gl.style.transition = ''; }
+  };
   /** where the overhead block can lie in the model's canvas: on the tile if the tile is inside it, else as near as fits */
   const blockRect = (tile: DOMRect) => {
-    const s = stageEl.getBoundingClientRect(), b = opts.margin();
-    const k = Math.min(1, (s.width - 2 * b) / tile.width, (s.height - 2 * b) / tile.height);
+    const s = stageEl.getBoundingClientRect();
+    const k = Math.min(1, s.width / tile.width, s.height / tile.height);
     const w = tile.width * k, h = tile.height * k;
     const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
-    const cx = clamp(tile.x + tile.width / 2, s.left + b + w / 2, s.right - b - w / 2);
-    const cy = clamp(tile.y + tile.height / 2, s.top + b + h / 2, s.bottom - b - h / 2);
+    const cx = clamp(tile.x + tile.width / 2, s.left + w / 2, s.right - w / 2);
+    const cy = clamp(tile.y + tile.height / 2, s.top + h / 2, s.bottom - h / 2);
     return new DOMRect(cx - w / 2, cy - h / 2, w, h);
   };
   /** Straight down onto the block, which fills `r` (page px): north up, as the map draws it. */
@@ -124,6 +129,7 @@ export function initMorph(app: App, map: MapView, opts: MorphOptions): Morph {
     // on whole device pixels: a picture of big pixels sliding by fractions of one shimmers at its edges
     const dpr = devicePixelRatio || 1, px = (v: number) => `${Math.round(v * dpr) / dpr}px`;
     Object.assign(overlay.style, { left: px(at.left), top: px(at.top), width: px(at.width), height: px(at.height) });
+    overlay.hidden = false;   // (shown only once it is drawn and in place)
   };
   /** clear the overlay's pixels whose dither value is under p (0: none, 1: all) */
   const dissolve = (p: number) => {
@@ -162,12 +168,12 @@ export function initMorph(app: App, map: MapView, opts: MorphOptions): Morph {
     let grid = map.grid();
     if (!grid) { settle('plan'); delete body.dataset.morph; return; }
     fade(1, 0);
+    softEdge(0, true);
     const block = blockRect(grid.rect);
     // the tile as it is now: the slider can keep moving while the model turns into it
     const now = () => (grid = map.grid() ?? grid!);
     stage.flyTo(overhead(block), FLY);
     await phase(FLY * 2, () => {}, () => !stage.flying);
-    overlay.hidden = false;
     await phase(PIXELATE, (t) => {
       const g = now(), [n, m] = res(block, g.n, g.m, jump(t));
       capture(block, lerpRect(block, g.rect, ease(t)), n, m, jump(t) >= STEPS);
@@ -191,7 +197,8 @@ export function initMorph(app: App, map: MapView, opts: MorphOptions): Morph {
     fade(0, 1);
     settle('model');
     stage.controls.enabled = false;
-    if (!grid) { fade(null, null); delete body.dataset.morph; stage.controls.enabled = true; stage.flyTo(back(), FLY_BACK); return; }
+    softEdge(0, false);
+    if (!grid) { fade(null, null); delete body.dataset.morph; stage.controls.enabled = true; softEdge(1, true); stage.flyTo(back(), FLY_BACK); return; }
     const now = () => (grid = map.grid() ?? grid!);
     // one frame overhead before the picture is read: the canvas may have just taken a new size
     let block = blockRect(grid.rect);
@@ -200,7 +207,6 @@ export function initMorph(app: App, map: MapView, opts: MorphOptions): Morph {
     block = blockRect(now().rect);
     stage.flyTo(overhead(block), 0);
     await phase(0, () => {});
-    overlay.hidden = false;
     await phase(DISSOLVE, (t) => {
       const g = now();
       capture(block, g.rect, g.n, g.m, true);
@@ -215,6 +221,7 @@ export function initMorph(app: App, map: MapView, opts: MorphOptions): Morph {
     fade(null, null);
     delete body.dataset.morph;
     stage.controls.enabled = true;
+    softEdge(1, true);   // back as the camera comes down
     stage.flyTo(back(), FLY_BACK);
   }
 
@@ -227,7 +234,7 @@ export function initMorph(app: App, map: MapView, opts: MorphOptions): Morph {
         while (shown !== target) {
           const f = target;
           if (instant || app.reducedMotion) {
-            if (f === 'plan') { saved = pose(); settle('plan'); } else { settle('model'); stage.flyTo(back(), 0); }
+            if (f === 'plan') { saved = pose(); settle('plan'); } else { settle('model'); softEdge(1, false); stage.flyTo(back(), 0); }
             continue;
           }
           busy = true;
@@ -239,6 +246,7 @@ export function initMorph(app: App, map: MapView, opts: MorphOptions): Morph {
             overlay.hidden = true;
             fade(null, null);
             delete body.dataset.morph;
+            softEdge(1, false);
             settle(f);
           } finally { busy = false; app.fullRate = false; }
         }

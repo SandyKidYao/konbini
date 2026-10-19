@@ -12,7 +12,7 @@ import type { MapView } from './map';
 import { initMorph } from './morph';
 import { PET_TILE_MAX, PLAN_TOP, SIZE_MAX, formOf, keepSizes, modelZoom, share, tileWidth, webTileMax, type Form, type Sizes } from './size';
 import { initTips } from './tips';
-import { PET_FADE, VIEWS, findView, fitView, modelSpan, viewPose, type ViewPreset } from './views';
+import { VIEWS, findView, fitView, modelSpan, viewPose, type ViewPreset } from './views';
 
 export type { Form } from './size';
 
@@ -230,8 +230,7 @@ export function initHud(app: App, live: LiveSync, initialView: string | null, op
   let form: Form = 'model';
   const formFns: ((f: Form) => void)[] = [];
   const markView = () => viewBtns.forEach((b) => b.setAttribute('aria-pressed', String(form === 'model' && b.dataset.view === view?.id)));
-  // the desk frames the overhead block inside its soft edge (style.css); the web's canvas is the whole page
-  const morph = initMorph(app, map, { margin: () => (opts.pet ? Math.min(...stage.size) * PET_FADE * 1.15 : 0) });
+  const morph = initMorph(app, map);
   /** the web's smallest model: about as wide as its largest map */
   const minZoom = () => {
     const [w, h] = stage.size;
